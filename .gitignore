@@ -19,7 +19,7 @@ yarn-error.log*
 postgres-data/
 postgres-data-*/
 
-# ─── Environment ─────────────────
+# ─── Environment ─────────────────────────────────────────────
 .env
 .env.*
 !.env.example
@@ -39,10 +39,8 @@ coverage/
 *.tgz
 docker-compose.local.yml
 
-
-# ─── Markdown (exceto README) ───────────────────────────────
-*.md
-!README.md
+# ─── Markdown sensível ───────────────────────────────────────
+Vulnerabilidades.md
 
 # ─── Claude Code ────────────────────────────────────────────
 .claude/
