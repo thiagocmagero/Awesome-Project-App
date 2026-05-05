@@ -1,0 +1,67 @@
+import {
+  Body,
+  Controller,
+  ForbiddenException,
+  Get,
+  Patch,
+  UseGuards,
+} from '@nestjs/common';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import type { JwtPayload } from '../auth/jwt.strategy';
+import { PlatformConfigService } from './platform-config.service';
+import { UpdateEmailConfigDto } from './dto/update-email-config.dto';
+import { UpdatePlatformLimitsDto } from './dto/update-platform-limits.dto';
+
+/** Garante que apenas PLATFORM_ADMIN acede a estes endpoints */
+function assertAdmin(user: JwtPayload) {
+  if (user.profileCode !== 'PLATFORM_ADMIN') {
+    throw new ForbiddenException('Acesso exclusivo a administradores de plataforma.');
+  }
+}
+
+@Controller('platform-config')
+@UseGuards(JwtAuthGuard)
+export class PlatformConfigController {
+  constructor(private readonly service: PlatformConfigService) {}
+
+  // ── Email ───────────────────────────────────────────────────────────────────
+
+  /** Lê configuração de email — a password nunca é devolvida, apenas `hasPassword` */
+  @Get('email')
+  getEmail(@CurrentUser() user: JwtPayload) {
+    assertAdmin(user);
+    return this.service.getEmailConfig();
+  }
+
+  /** Cria ou actualiza configuração de email */
+  @Patch('email')
+  updateEmail(
+    @Body() dto: UpdateEmailConfigDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    assertAdmin(user);
+    return this.service.upsertEmailConfig(dto);
+  }
+
+  // ── Platform Limits ─────────────────────────────────────────────────────────
+
+  /**
+   * Lê limites globais. Acessível a qualquer user autenticado — o frontend
+   * usa para validações de UX no TaskModal antes do submit.
+   */
+  @Get('limits')
+  getLimits() {
+    return this.service.getLimits();
+  }
+
+  /** Actualiza limites globais — apenas PLATFORM_ADMIN. */
+  @Patch('limits')
+  updateLimits(
+    @Body() dto: UpdatePlatformLimitsDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    assertAdmin(user);
+    return this.service.upsertLimits(dto);
+  }
+}

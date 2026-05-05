@@ -1,0 +1,93 @@
+services:
+  postgres:
+    image: postgres:16-bookworm
+    container_name: ${APP_NAME}-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    ports:
+      - "5432:5432"
+    volumes:
+      - ${APP_BASE_PATH}/postgres-data:/var/lib/postgresql/data
+    networks:
+      - awesome-project-app-network
+
+  backend:
+    image: node:22-bookworm-slim
+    container_name: ${APP_NAME}-backend
+    restart: unless-stopped
+    working_dir: /app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      PORT: ${BACKEND_PORT}
+      DATABASE_URL: ${DATABASE_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN}
+      APP_ADMIN_NAME: ${APP_ADMIN_NAME}
+      APP_ADMIN_EMAIL: ${APP_ADMIN_EMAIL}
+      APP_ADMIN_PASSWORD: ${APP_ADMIN_PASSWORD}
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN}
+    command: >
+      sh -c "
+      if [ ! -d node_modules ] || [ -z \"$(ls -A node_modules 2>/dev/null)\" ]; then
+        apt-get update &&
+        apt-get install -y --no-install-recommends python3 make g++ &&
+        rm -rf /var/lib/apt/lists/* &&
+        npm install;
+      fi &&
+      npx prisma generate &&
+      npx prisma migrate deploy &&
+      npm run seed &&
+      npm run start:dev
+      "
+    ports:
+      - "${BACKEND_PORT}:${BACKEND_PORT}"
+    volumes:
+      - ${APP_BASE_PATH}/backend:/app
+      - ${APP_BASE_PATH}/backend-node_modules:/app/node_modules
+    networks:
+      - awesome-project-app-network
+
+  frontend:
+    image: node:22-bookworm-slim
+    container_name: ${APP_NAME}-frontend
+    restart: unless-stopped
+    working_dir: /app
+    depends_on:
+      - backend
+    environment:
+      NODE_ENV: development
+      VITE_API_URL: ${VITE_API_URL}
+      VITE_BACKEND_PORT: ${BACKEND_PORT}
+      VITE_FRONTEND_PORT: ${FRONTEND_PORT}
+    command: >
+      sh -c "
+      if [ ! -d node_modules ] || [ -z \"$(ls -A node_modules 2>/dev/null)\" ]; then
+        npm install;
+      fi &&
+      npm run dev -- --host 0.0.0.0 --port ${FRONTEND_PORT}
+      "
+    ports:
+      - "${FRONTEND_PORT}:${FRONTEND_PORT}"
+    volumes:
+      - ${APP_BASE_PATH}/frontend:/app
+      - ${APP_BASE_PATH}/frontend-node_modules:/app/node_modules
+    networks:
+      - awesome-project-app-network
+
+
+networks:
+  awesome-project-app-network:
+    name: ${APP_NAME}-network
+    driver: bridge

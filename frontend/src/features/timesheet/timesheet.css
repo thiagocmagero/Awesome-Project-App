@@ -1,0 +1,837 @@
+/* ── Timesheet design tokens ───────────────────────────────────────────────── */
+
+:root {
+  /* Status pills */
+  --ts-pill-draft-bg:     #eef0f3;
+  --ts-pill-draft-fg:     #6b7280;
+  --ts-pill-submitted-bg: #e8f0ff;
+  --ts-pill-submitted-fg: #2563eb;
+  --ts-pill-approved-bg:  oklch(0.94 0.07 155);
+  --ts-pill-approved-fg:  oklch(0.42 0.13 155);
+  --ts-pill-partial-bg:   oklch(0.94 0.07 75);
+  --ts-pill-partial-fg:   oklch(0.45 0.14 60);
+  --ts-pill-rejected-bg:  oklch(0.94 0.07 25);
+  --ts-pill-rejected-fg:  oklch(0.50 0.18 25);
+
+  /* Cell text por estado */
+  --ts-cell-approved-fg:  oklch(0.42 0.13 155);
+  --ts-cell-submitted-fg: #2563eb;
+  --ts-cell-rejected-fg:  oklch(0.50 0.18 25);
+
+  /* Rejection banner (vermelho-claro) */
+  --ts-banner-bg:     oklch(0.96 0.04 25);
+  --ts-banner-border: oklch(0.85 0.10 25);
+  --ts-banner-fg:     oklch(0.42 0.16 25);
+
+  /* Today highlight (alinhado ao accent violet do Zynix/template) */
+  --ts-today-fg: var(--accent-violet, #845adf);
+
+  /* Cores secundárias */
+  --ts-border-card:  #e8eaee;
+  --ts-border-soft:  #eef0f3;
+  --ts-bg-page:      #fafbfc;
+  --ts-text-primary: #1f2430;
+  --ts-text-secondary: #6b7280;
+  --ts-text-tertiary:  #9aa0ab;
+}
+
+/* ── Status pill ──────────────────────────────────────────────────────────── */
+
+.ts-pill {
+  display: inline-flex; align-items: center;
+  height: 24px; padding: 0 10px; border-radius: 999px;
+  font-size: 11.5px; font-weight: 600;
+  letter-spacing: 0.005em;
+  white-space: nowrap;
+}
+.ts-pill--draft     { background: var(--ts-pill-draft-bg);     color: var(--ts-pill-draft-fg); }
+.ts-pill--submitted { background: var(--ts-pill-submitted-bg); color: var(--ts-pill-submitted-fg); }
+.ts-pill--approved  { background: var(--ts-pill-approved-bg);  color: var(--ts-pill-approved-fg); }
+.ts-pill--partial   { background: var(--ts-pill-partial-bg);   color: var(--ts-pill-partial-fg); }
+.ts-pill--rejected  { background: var(--ts-pill-rejected-bg);  color: var(--ts-pill-rejected-fg); }
+
+.ts-pill--xs {
+  height: 18px;
+  padding: 0 7px;
+  font-size: 10.5px;
+}
+
+/* ── Frame & layout ───────────────────────────────────────────────────────── */
+
+.ts-frame {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 18px;
+  padding: 18px 20px 20px;
+  background: #fff;
+  align-items: start;
+}
+.ts-frame--team { grid-template-columns: 220px 1fr; }
+.ts-frame--mine-only { grid-template-columns: 1fr; }
+@media (max-width: 980px) {
+  .ts-frame, .ts-frame--team { grid-template-columns: 1fr; }
+}
+
+/* ── Tabela ───────────────────────────────────────────────────────────────── */
+
+.ts-table {
+  width: 100%;
+  background: #fff;
+  border: 1px solid var(--ts-border-card);
+  border-radius: 10px;
+  overflow: hidden;
+  font-size: 12.5px;
+}
+.ts-table table { width: 100%; border-collapse: collapse; }
+.ts-table th, .ts-table td { padding: 10px 12px; text-align: left; vertical-align: top; }
+.ts-table thead th {
+  background: var(--ts-bg-page);
+  border-bottom: 1px solid var(--ts-border-card);
+  font-size: 10.5px;
+  font-family: 'JetBrains Mono', monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ts-text-tertiary);
+  font-weight: 500;
+}
+.ts-table thead th.day { text-align: center; width: 78px; }
+.ts-table thead th.day .d-num {
+  display: block;
+  font-family: 'Inter', sans-serif;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 11.5px;
+  color: var(--ts-text-secondary);
+  margin-top: 2px;
+}
+.ts-table thead th.day.is-today { color: var(--ts-today-fg); }
+.ts-table thead th.total { text-align: right; width: 64px; color: var(--ts-text-secondary); }
+
+.ts-table tbody tr + tr td { border-top: 1px solid var(--ts-border-soft); }
+.ts-table .task-cell .nm { color: var(--ts-text-primary); font-weight: 500; }
+.ts-table .task-cell .proj { font-size: 11.5px; color: var(--ts-text-tertiary); margin-top: 2px; }
+.ts-table .task-cell .row-actions {
+  display: inline-flex; gap: 4px; margin-left: 8px;
+  visibility: hidden;
+}
+.ts-table tbody tr:hover .task-cell .row-actions { visibility: visible; }
+.ts-table .task-cell .row-actions button {
+  border: none; background: transparent;
+  color: var(--ts-text-tertiary); cursor: pointer;
+  padding: 2px 4px; border-radius: 4px;
+  font-size: 12px;
+}
+.ts-table .task-cell .row-actions button:hover {
+  background: var(--ts-border-soft);
+  color: var(--ts-pill-rejected-fg);
+}
+
+.ts-table td.day { text-align: center; font-variant-numeric: tabular-nums; }
+.ts-table td.total { text-align: right; font-weight: 600; color: var(--ts-text-primary); }
+.ts-table tfoot td {
+  border-top: 1px solid var(--ts-border-card);
+  background: var(--ts-bg-page);
+  font-size: 12px;
+  color: var(--ts-text-secondary);
+  font-weight: 500;
+}
+.ts-table tfoot td.day { text-align: center; font-variant-numeric: tabular-nums; }
+.ts-table tfoot td.total { text-align: right; color: var(--ts-text-primary); font-weight: 700; }
+.ts-table .day-rejected { color: var(--ts-cell-rejected-fg); }
+
+/* ── Cell ─────────────────────────────────────────────────────────────────── */
+
+.ts-cell-h         { display: block; font-weight: 600; font-size: 13px; color: var(--ts-text-primary); }
+.ts-cell-h--submitted { color: var(--ts-cell-submitted-fg); }
+.ts-cell-h--approved  { color: var(--ts-cell-approved-fg); }
+.ts-cell-h--rejected  { color: var(--ts-cell-rejected-fg); }
+.ts-cell-state     { font-size: 10.5px; margin-top: 3px; font-weight: 500; }
+.ts-cell-state--approved  { color: var(--ts-cell-approved-fg); }
+.ts-cell-state--submitted { color: var(--ts-cell-submitted-fg); }
+.ts-cell-state--rejected  { color: var(--ts-cell-rejected-fg); }
+
+.ts-cell-input {
+  width: 48px; height: 28px;
+  border: 1px solid var(--ts-border-card);
+  border-radius: 6px;
+  background: #fff;
+  text-align: center;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ts-text-primary);
+  padding: 0 4px;
+  font-variant-numeric: tabular-nums;
+  outline: none;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+.ts-cell-input::placeholder { color: var(--ts-text-tertiary); }
+.ts-cell-input:focus {
+  border-color: var(--accent-violet, #845adf);
+  box-shadow: 0 0 0 3px rgba(132,90,223,0.15);
+}
+.ts-cell-input.is-rejected { border-color: oklch(0.70 0.15 25); }
+.ts-cell-input:disabled { background: var(--ts-bg-page); cursor: not-allowed; }
+
+/* ── Spinner custom (substitui o nativo de type="number") ─────────────────
+ * Stack vertical de duas mini-setas no canto direito do input. Sempre
+ * visíveis a 50% opacity para discoverability; full opacity no hover/focus.
+ * Usa onMouseDown+preventDefault no caller para manter o foco do input.
+ */
+.ts-cell-input-wrap {
+  position: relative;
+  display: inline-block;
+  width: 48px;
+  height: 28px;
+  vertical-align: middle;
+}
+.ts-cell-input-wrap > .ts-cell-input {
+  width: 100%;
+  /* Asymmetric padding — espaço extra à direita para o spinner (12px). */
+  padding: 0 14px 0 4px;
+}
+.ts-cell-input-spin {
+  position: absolute;
+  right: 1px;
+  top: 1px;
+  bottom: 1px;
+  width: 12px;
+  display: flex;
+  flex-direction: column;
+  pointer-events: none; /* só os botões reagem (re-activado abaixo) */
+  opacity: 0.55;
+  transition: opacity 100ms ease;
+}
+.ts-cell-input-wrap:hover .ts-cell-input-spin,
+.ts-cell-input-wrap:focus-within .ts-cell-input-spin { opacity: 1; }
+.ts-cell-input-spin button {
+  pointer-events: auto;
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  color: var(--ts-text-tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+  border-radius: 2px;
+  transition: color 80ms ease, background 80ms ease;
+}
+.ts-cell-input-spin button i {
+  font-size: 11px;
+  line-height: 1;
+}
+.ts-cell-input-spin button:hover {
+  color: var(--accent-violet, #845adf);
+  background: rgba(132, 90, 223, 0.10);
+}
+.ts-cell-input-spin button:active i { transform: translateY(0.5px); }
+
+/* ── Rejection banner ─────────────────────────────────────────────────────── */
+
+.ts-rejection {
+  margin-top: 12px;
+  padding: 10px 14px;
+  background: var(--ts-banner-bg);
+  border: 1px solid var(--ts-banner-border);
+  border-left-width: 3px;
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--ts-banner-fg);
+  line-height: 1.5;
+}
+.ts-rejection strong { font-weight: 600; }
+.ts-rejection + .ts-rejection { margin-top: 6px; }
+
+/* ── Sidebar (Equipa do projeto) ──────────────────────────────────────────── */
+
+.ts-aside {
+  background: #fff;
+  border: 1px solid var(--ts-border-card);
+  border-radius: 10px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.ts-aside__lbl {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ts-text-tertiary);
+  margin: 0 2px 8px;
+}
+.ts-person {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 120ms ease;
+  border: none;
+  background: transparent;
+  width: 100%;
+  text-align: left;
+}
+.ts-person:hover { background: var(--ts-border-soft); }
+.ts-person.is-active { background: var(--accent-violet-soft, #f1edff); }
+.ts-avatar {
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.ts-person__main { flex: 1; min-width: 0; }
+.ts-person__nm {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ts-text-primary);
+}
+.ts-person__sub {
+  font-size: 11.5px;
+  color: var(--ts-text-tertiary);
+  margin-top: 2px;
+}
+.ts-person.is-active .ts-person__sub { color: var(--accent-violet, #845adf); font-weight: 500; }
+
+/* ── Person summary card (team mode) ──────────────────────────────────────── */
+
+.ts-person-summary {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px;
+  background: var(--ts-bg-page);
+  border: 1px solid var(--ts-border-soft);
+  border-radius: 8px;
+  margin-bottom: 10px;
+}
+.ts-person-summary .info { flex: 1; min-width: 0; }
+.ts-person-summary .nm { font-size: 13px; font-weight: 600; color: var(--ts-text-primary); }
+.ts-person-summary .sub {
+  font-size: 11.5px;
+  color: var(--ts-text-tertiary);
+  margin-top: 1px;
+  font-variant-numeric: tabular-nums;
+}
+/* Variante agregada — usa accent violet em vez de avatar de pessoa */
+.ts-person-summary--aggregate {
+  background: var(--accent-violet-soft, #f1edff);
+  border-color: oklch(0.85 0.06 285);
+}
+.ts-avatar--aggregate {
+  background: var(--accent-violet, #845adf);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.ts-avatar--aggregate i { font-size: 14px; line-height: 1; }
+.ts-person-summary--aggregate .nm { color: var(--accent-violet-fg, oklch(0.42 0.13 285)); }
+
+.ts-team-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+  align-items: center;
+}
+
+/* ── Action buttons (Aprovar / Rejeitar / Editar / Histórico) ────────────────
+ * Forma idêntica aos `.btn-ghost`/`.btn-primary-tb` da toolbar (30px, 12.5px,
+ * radius 6px, fontes do tema) mas com paleta semântica:
+ *  - approve: verde (acção positiva)
+ *  - reject:  vermelho (acção negativa)
+ *  - edit:    laranja (acção reversível, partilha paleta do Editar Semana)
+ *  - ghost:   neutro (Histórico)
+ * Estilo soft (background pastel + texto colorido) — não outline puro Bootstrap
+ * que destoa do resto da app.
+ */
+.ts-btn-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+  white-space: nowrap;
+  letter-spacing: 0.005em;
+}
+.ts-btn-action i { font-size: 13px; line-height: 1; }
+
+/* Approve — verde soft */
+.ts-btn-action--approve {
+  background: oklch(0.96 0.05 155);
+  color: oklch(0.42 0.13 155);
+  border-color: oklch(0.86 0.07 155);
+}
+.ts-btn-action--approve:hover {
+  background: oklch(0.92 0.07 155);
+  border-color: oklch(0.78 0.10 155);
+}
+
+/* Reject — vermelho soft */
+.ts-btn-action--reject {
+  background: var(--ts-pill-rejected-bg);
+  color: var(--ts-pill-rejected-fg);
+  border-color: oklch(0.85 0.10 25);
+}
+.ts-btn-action--reject:hover {
+  background: oklch(0.91 0.09 25);
+  border-color: oklch(0.78 0.13 25);
+}
+
+/* Edit — laranja soft (mesma paleta do "Editar semana" da toolbar) */
+.ts-btn-action--edit {
+  background: oklch(0.95 0.06 75);
+  color: oklch(0.45 0.14 60);
+  border-color: oklch(0.83 0.10 75);
+}
+.ts-btn-action--edit:hover {
+  background: oklch(0.91 0.08 75);
+  border-color: oklch(0.75 0.13 70);
+}
+
+/* Ghost — Histórico (alinhado com .btn-ghost da toolbar) */
+.ts-btn-action--ghost {
+  background: transparent;
+  color: var(--ts-text-secondary);
+  border-color: var(--ts-border-card);
+}
+.ts-btn-action--ghost:hover {
+  background: var(--ts-bg-page);
+  border-color: #d8dbe1;
+  color: var(--ts-text-primary);
+}
+
+.ts-week-nav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.ts-week-nav__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ts-text-primary);
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Copy week warning (amber) ────────────────────────────────────────────── */
+
+.ts-copy-warning {
+  background: oklch(0.95 0.05 90);
+  border: 1px solid oklch(0.85 0.08 90);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 11.5px;
+  color: oklch(0.42 0.10 70);
+  line-height: 1.45;
+  margin-top: 8px;
+}
+
+/* ── Toolbar (Row 2) — Timesheet variantes ────────────────────────────────── */
+
+.ts-toolbar {
+  display: flex; align-items: center; gap: 8px;
+  flex-wrap: wrap;
+}
+.ts-toolbar .ts-week-range {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ts-text-primary);
+  font-variant-numeric: tabular-nums;
+  margin: 0 6px;
+}
+.ts-toolbar .spacer { flex: 1; min-width: 16px; }
+
+/* ── Botões destacados Submit/Edit week (Row 2 toolbar) ─────────────────────
+ * "Submeter semana" — CTA primário (violeta filled, igual ao "+ Adicionar
+ * tarefa" mas com box-shadow para destaque adicional sobre o ghost adjacente).
+ * "Editar semana" — CTA secundário com paleta laranja (action reversível,
+ * sinaliza ao utilizador que vai reverter um estado já submetido).
+ * Ambos respeitam --tb-radius / fontes do toolbar para consistência visual.
+ */
+.tb .ts-btn-submit-week,
+.tb .ts-btn-edit-week {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px 0 10px;
+  border: none;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;          /* mais negrito que btn-primary-tb (500) — destaque */
+  cursor: pointer;
+  transition: background 120ms ease, box-shadow 120ms ease, transform 80ms ease;
+  letter-spacing: 0.005em;
+}
+.tb .ts-btn-submit-week i,
+.tb .ts-btn-edit-week i { font-size: 13px; line-height: 1; }
+
+/* Submit week — violeta filled */
+.tb .ts-btn-submit-week {
+  background: linear-gradient(180deg, #845adf 0%, #735adb 100%);
+  color: #fff;
+  box-shadow: 0 1px 2px rgba(115, 90, 219, 0.18), 0 0 0 1px rgba(115, 90, 219, 0.12);
+}
+.tb .ts-btn-submit-week:hover {
+  background: linear-gradient(180deg, #7551d6 0%, #6244c4 100%);
+  box-shadow: 0 2px 4px rgba(115, 90, 219, 0.28), 0 0 0 1px rgba(115, 90, 219, 0.20);
+}
+.tb .ts-btn-submit-week:active { transform: translateY(1px); }
+
+/* Edit week — laranja (warning/reversível) */
+.tb .ts-btn-edit-week {
+  background: linear-gradient(180deg, #f5a623 0%, #ee8e15 100%);
+  color: #fff;
+  box-shadow: 0 1px 2px rgba(238, 142, 21, 0.20), 0 0 0 1px rgba(238, 142, 21, 0.14);
+}
+.tb .ts-btn-edit-week:hover {
+  background: linear-gradient(180deg, #ee9a14 0%, #d98005 100%);
+  box-shadow: 0 2px 4px rgba(238, 142, 21, 0.30), 0 0 0 1px rgba(238, 142, 21, 0.22);
+}
+.tb .ts-btn-edit-week:active { transform: translateY(1px); }
+
+/* Sub-tabs (mine/team) — pill style */
+.ts-subtabs {
+  display: inline-flex; gap: 2px;
+  background: var(--ts-border-soft);
+  padding: 3px;
+  border-radius: 8px;
+}
+.ts-subtabs button {
+  display: inline-flex; align-items: center; gap: 7px;
+  height: 26px;
+  padding: 0 12px;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ts-text-secondary);
+  cursor: pointer;
+  border-radius: 6px;
+  white-space: nowrap;
+  transition: color 120ms ease, background 120ms ease;
+}
+.ts-subtabs button:hover { color: var(--ts-text-primary); }
+.ts-subtabs button.is-active {
+  color: var(--ts-text-primary);
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(16,24,40,0.06);
+}
+.ts-subtabs i { font-size: 14px; }
+
+/* ── Página global ────────────────────────────────────────────────────────── */
+
+.ts-global-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 18px;
+}
+.ts-global-header h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--ts-text-primary);
+  letter-spacing: -0.01em;
+}
+.ts-global-tabs {
+  display: inline-flex;
+  gap: 4px;
+  position: relative;
+}
+.ts-global-tabs button {
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ts-text-secondary);
+  padding: 8px 16px;
+  cursor: pointer;
+  position: relative;
+  transition: color 120ms ease;
+}
+.ts-global-tabs button:hover { color: var(--ts-text-primary); }
+.ts-global-tabs button.is-active { color: var(--accent-violet, #845adf); }
+.ts-global-tabs button.is-active::after {
+  content: '';
+  position: absolute;
+  left: 14px; right: 14px; bottom: 0;
+  height: 2px;
+  background: var(--accent-violet, #845adf);
+  border-radius: 2px;
+}
+
+.ts-global-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.ts-global-table {
+  background: #fff;
+  border: 1px solid var(--ts-border-card);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.ts-global-table table { width: 100%; border-collapse: collapse; }
+.ts-global-table th, .ts-global-table td {
+  padding: 12px 16px;
+  text-align: left;
+  font-size: 13px;
+}
+.ts-global-table thead th {
+  background: var(--ts-bg-page);
+  border-bottom: 1px solid var(--ts-border-card);
+  font-size: 10.5px;
+  font-family: 'JetBrains Mono', monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ts-text-tertiary);
+  font-weight: 500;
+}
+.ts-global-table tbody tr + tr td { border-top: 1px solid var(--ts-border-soft); }
+.ts-global-table td.actions { text-align: right; }
+.ts-global-table td.hours { font-weight: 600; font-variant-numeric: tabular-nums; }
+.ts-global-table .user-cell { display: inline-flex; align-items: center; gap: 10px; }
+.ts-global-table .user-cell .ts-avatar { width: 28px; height: 28px; }
+.ts-global-table .user-cell .nm { font-weight: 500; color: var(--ts-text-primary); }
+
+/* ── Vista mensal (TimesheetMonthView) ──────────────────────────────────── */
+
+.tsm-month {
+  display: flex;
+  align-items: stretch;
+  background: #fff;
+  border: 1px solid var(--ts-border-card);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.tsm-cal {
+  flex: 1;
+  min-width: 0;
+}
+.tsm-weeks {
+  width: 96px;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--ts-border-card);
+  background: var(--ts-bg-page);
+  flex-shrink: 0;
+}
+.tsm-weeks__hd {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--ts-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border-bottom: 1px solid var(--ts-border-card);
+  background: #fafbfc;
+}
+.tsm-weeks__cell {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--ts-border-soft);
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.3;
+  text-align: center;
+  cursor: pointer;
+  color: var(--ts-text-secondary);
+  transition: background 120ms ease;
+}
+.tsm-weeks__cell:last-child { border-bottom: none; }
+.tsm-weeks__cell:not(:disabled):hover { background: rgba(132, 90, 223, 0.06); }
+.tsm-weeks__cell:disabled { cursor: not-allowed; opacity: 0.55; }
+.tsm-weeks__cell.is-today { box-shadow: inset 3px 0 0 var(--accent-violet, #845adf); }
+.tsm-weeks__num { font-weight: 600; color: var(--ts-text-primary); font-size: 11.5px; }
+.tsm-weeks__status { font-size: 10.5px; }
+.tsm-weeks__cta {
+  font-size: 10px;
+  color: var(--accent-violet, #845adf);
+  font-weight: 500;
+  margin-top: 2px;
+}
+
+/* Backgrounds por estado da semana */
+.tsm-weeks__cell--complete { background: oklch(0.96 0.05 155); }
+.tsm-weeks__cell--complete .tsm-weeks__status { color: oklch(0.42 0.13 155); font-weight: 500; }
+.tsm-weeks__cell--partial  { background: oklch(0.96 0.06 75); }
+.tsm-weeks__cell--partial  .tsm-weeks__status { color: oklch(0.45 0.14 60); font-weight: 500; }
+.tsm-weeks__cell--pending  { background: oklch(0.97 0.04 25); }
+.tsm-weeks__cell--pending  .tsm-weeks__status { color: oklch(0.50 0.18 25); font-weight: 500; }
+.tsm-weeks__cell--future,
+.tsm-weeks__cell--mixed,
+.tsm-weeks__cell--out_of_range { background: var(--ts-bg-page); }
+.tsm-weeks__cell--future .tsm-weeks__status,
+.tsm-weeks__cell--mixed  .tsm-weeks__status,
+.tsm-weeks__cell--out_of_range .tsm-weeks__status { color: var(--ts-text-tertiary); }
+
+/* ── FullCalendar dayGridMonth — overrides Zynix ───────────────────────── */
+
+.tsm-cal .fc {
+  --fc-border-color: var(--ts-border-soft);
+  --fc-page-bg-color: #fff;
+  --fc-neutral-bg-color: var(--ts-bg-page);
+  --fc-today-bg-color: transparent;
+}
+.tsm-cal .fc-col-header-cell {
+  background: #fafbfc;
+  border-bottom: 1px solid var(--ts-border-card);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ts-text-tertiary);
+  padding: 8px 0;
+}
+.tsm-cal .fc-col-header-cell-cushion {
+  color: inherit !important;
+  text-decoration: none !important;
+  pointer-events: none;
+}
+.tsm-cal .fc-daygrid-day-number {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ts-text-primary);
+  padding: 6px 8px;
+  text-decoration: none !important;
+}
+.tsm-cal .fc-day-other .fc-daygrid-day-number {
+  color: var(--ts-text-tertiary);
+}
+.tsm-cal .fc-day-today .fc-daygrid-day-number {
+  color: var(--accent-violet, #845adf);
+  font-weight: 700;
+}
+
+/* Estado das células — aplicado via dayCellDidMount */
+.tsm-cal .tsm-day--complete { background: oklch(0.96 0.05 155); }
+.tsm-cal .tsm-day--partial  { background: oklch(0.96 0.06 75); }
+.tsm-cal .tsm-day--pending  { background: oklch(0.97 0.04 25); }
+.tsm-cal .tsm-day--future   { background: #fff; }
+.tsm-cal .tsm-day--weekend  { background: #fafbfc; }
+.tsm-cal .tsm-day--weekend .fc-daygrid-day-number { color: var(--ts-text-tertiary); }
+.tsm-cal .tsm-day--out {
+  background:
+    repeating-linear-gradient(
+      135deg,
+      transparent 0,
+      transparent 6px,
+      rgba(0,0,0,0.04) 6px,
+      rgba(0,0,0,0.04) 7px
+    ),
+    #fafbfc;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+.tsm-cal .tsm-day--out .fc-daygrid-day-number { color: var(--ts-text-tertiary); }
+
+/* Badge X/Y ou ✓/✗ */
+.tsm-cal .tsm-day__count {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--ts-text-primary);
+  pointer-events: none;
+}
+.tsm-cal .tsm-day--out .tsm-day__count,
+.tsm-cal .tsm-day--weekend .tsm-day__count,
+.tsm-cal .tsm-day--future .tsm-day__count { color: var(--ts-text-tertiary); }
+
+.tsm-cal .fc-daygrid-day-frame {
+  position: relative;
+  min-height: 70px;
+  cursor: pointer;
+}
+.tsm-cal .fc-daygrid-day-events { display: none; }   /* sem eventos — só badges custom */
+.tsm-cal .fc-daygrid-day-bottom { display: none; }
+.tsm-cal .fc-daygrid-body-natural { background: #fff; }
+
+/* Header acima do calendário (período + legenda) */
+.tsm-month-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  font-size: 12px;
+  color: var(--ts-text-secondary);
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.tsm-month-meta__legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.tsm-month-meta__legend .swatch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--ts-text-secondary);
+}
+.tsm-month-meta__legend .swatch::before {
+  content: '';
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  border: 1px solid var(--ts-border-card);
+  display: inline-block;
+}
+.tsm-month-meta__legend .swatch--complete::before { background: oklch(0.96 0.05 155); }
+.tsm-month-meta__legend .swatch--partial::before  { background: oklch(0.96 0.06 75); }
+.tsm-month-meta__legend .swatch--pending::before  { background: oklch(0.97 0.04 25); }
+.tsm-month-meta__legend .swatch--out::before {
+  background:
+    repeating-linear-gradient(
+      135deg,
+      transparent 0,
+      transparent 4px,
+      rgba(0,0,0,0.06) 4px,
+      rgba(0,0,0,0.06) 5px
+    );
+}
+
+/* Vista agregada — entry no topo do sidebar (modo monthly) */
+.ts-person--aggregate {
+  background: var(--accent-violet-soft, #f1edff);
+}
+.ts-person--aggregate .ts-avatar {
+  background: var(--accent-violet, #845adf);
+  font-size: 13px;
+  font-weight: 700;
+}

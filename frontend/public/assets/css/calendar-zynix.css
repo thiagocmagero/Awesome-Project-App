@@ -1,0 +1,387 @@
+/* FullCalendar — Zynix overrides
+ * Aligns FullCalendar v6 with the project's Zynix Bootstrap theme.
+ * Toolbar/buttons are provided by the React UnifiedToolbar; we hide the
+ * built-in FullCalendar toolbar to avoid duplication.
+ */
+
+/* Hide the built-in toolbar — we render our own React header */
+.calendar-zynix .fc-header-toolbar { display: none; }
+
+/* Container */
+.calendar-zynix .fc {
+  font-family: inherit;
+  --fc-border-color: #e5e7eb;
+  --fc-page-bg-color: transparent;
+  --fc-neutral-bg-color: #fafafa;
+  --fc-neutral-text-color: #6b7280;
+  --fc-today-bg-color: rgba(132, 90, 223, 0.06);
+}
+
+/* Day header (SEG, TER, ...) — uppercase tag */
+.calendar-zynix .fc-col-header-cell-cushion {
+  text-transform: uppercase;
+  font-size: 11px;
+  font-weight: 600;
+  color: #9ca3af;
+  letter-spacing: 0.04em;
+  padding: 8px 6px;
+  text-decoration: none;
+}
+
+/* Day number */
+.calendar-zynix .fc-daygrid-day-number {
+  font-size: 13px;
+  font-weight: 500;
+  color: #1f2430;
+  padding: 6px 8px;
+  text-decoration: none;
+}
+
+/* Today highlight on the day number */
+.calendar-zynix .fc-day-today .fc-daygrid-day-number {
+  background: #845adf;
+  color: #fff;
+  border-radius: 4px;
+  display: inline-block;
+  min-width: 22px;
+  text-align: center;
+  padding: 2px 6px;
+}
+
+/* Events — pill style alignado com badges Zynix */
+.calendar-zynix .fc-event {
+  border: none;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  margin: 1px 4px;
+  box-shadow: none;
+}
+
+/* Daygrid dot (eventos timed em vista mensal) — bullet maior e a cor do evento */
+  .calendar-zynix .fc-daygrid-event-dot {
+    width: 0px;
+    height: 0px;
+    border-width: 3px;
+    margin: 0 4px 0 0px;
+}
+
+
+/* Read-only events — só cursor neutro (sem opacity para ficarem vivas) */
+.calendar-zynix .fc-event.cal-readonly {
+  cursor: default;
+}
+
+/* Read-only "task" — fundo índigo vivo, texto branco, borda mais suave */
+.calendar-zynix .fc-event.cal-source-task {
+  background: #6366f1 !important;
+  color: #fff !important;
+  border-left: 3px solid #a5b4fc !important;
+}
+
+/* Read-only "milestone" — fundo âmbar (warning Zynix) com texto branco */
+.calendar-zynix .fc-event.cal-source-milestone {
+  background: #f59e0b !important;
+  color: #fff !important;
+  border-left: 3px solid #fcd34d !important;
+}
+
+/* Read-only "project" — fundo lavanda Zynix (primary) com texto branco */
+.calendar-zynix .fc-event.cal-source-project {
+  background: #845adf !important;
+  color: #fff !important;
+  border-left: 3px solid #c4b5fd !important;
+}
+
+/* Holidays — fundo vermelho Zynix vivo com texto branco */
+.calendar-zynix .fc-event.cal-source-holiday-global,
+.calendar-zynix .fc-event.cal-source-holiday-regional,
+.calendar-zynix .fc-event.cal-source-holiday-project {
+  background: #ef4444 !important;
+  color: #fff !important;
+  border-left: 3px solid #fca5a5 !important;
+}
+
+/* Empty state */
+.calendar-zynix .fc-list-empty {
+  background: transparent;
+  color: #9ca3af;
+  font-size: 13px;
+}
+
+/* Scope: sources panel — alinhado com `.ts-aside` do Timesheet:
+ * card branco, border ligeiro, radius 10px, padding 14px, gap 16px.
+ * Section labels usam o mesmo padrão JetBrains Mono 9.5px uppercase. */
+.calendar-sources-panel {
+  background: #fff;
+  border: 1px solid #e6e4f0;
+  border-radius: 10px;
+  width: 240px;
+  flex-shrink: 0;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-self: flex-start;
+  max-height: 100%;
+  overflow-y: auto;
+}
+
+.calendar-sources-panel .csp-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Section label — espelha `.ts-aside__lbl` */
+.calendar-sources-panel .csp-section-header {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #9ca3af;
+  margin: 0 2px 8px;
+}
+
+.calendar-sources-panel .csp-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border-radius: 8px;
+  cursor: default;
+  transition: background 120ms ease;
+}
+
+.calendar-sources-panel .csp-row:hover {
+  background: #f5f6f8;
+}
+
+.calendar-sources-panel .csp-row .csp-icon {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.calendar-sources-panel .csp-row .csp-label {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: #1f2430;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.calendar-sources-panel .csp-row .csp-badge {
+  font-size: 9.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6b7280;
+  background: #e5e7eb;
+  padding: 2px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  line-height: 1.2;
+}
+
+.calendar-sources-panel .csp-readonly-notice {
+  margin: 6px 10px 0;
+  padding: 0;
+  font-size: 11.5px;
+  font-style: italic;
+  color: #6b7280;
+  line-height: 1.4;
+}
+
+/* Toggle switch */
+.calendar-sources-panel .csp-switch {
+  position: relative;
+  display: inline-block;
+  width: 32px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.calendar-sources-panel .csp-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.calendar-sources-panel .csp-switch .csp-slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background: #d1d5db;
+  border-radius: 18px;
+  transition: background 0.2s;
+}
+
+.calendar-sources-panel .csp-switch .csp-slider::before {
+  content: '';
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  left: 2px;
+  bottom: 2px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform 0.2s;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+.calendar-sources-panel .csp-switch input:checked + .csp-slider {
+  background: #845adf;
+}
+
+.calendar-sources-panel .csp-switch input:checked + .csp-slider::before {
+  transform: translateX(14px);
+}
+
+/* Event types row — bullet de cor à esquerda */
+.calendar-sources-panel .csp-event-type {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.calendar-sources-panel .csp-event-type:hover {
+  background: #f5f6f8;
+}
+
+.calendar-sources-panel .csp-event-type .csp-bullet {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.calendar-sources-panel .csp-event-type .csp-label {
+  flex: 1;
+  font-size: 13px;
+  color: #1f2430;
+  font-weight: 500;
+}
+
+/* Calendar layout wrapper */
+.calendar-layout {
+  display: flex;
+  align-items: stretch;
+  gap: 16px;
+  padding: 16px;
+}
+
+.calendar-layout .calendar-main {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  background: #fff;
+}
+
+/* Custom toolbar above the FullCalendar grid */
+.calendar-zynix-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0 16px;
+  gap: 12px;
+}
+
+.calendar-zynix-header .czh-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.calendar-zynix-header .czh-nav button {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #6b7280;
+}
+
+.calendar-zynix-header .czh-nav button:hover {
+  background: #f9fafb;
+  color: #1f2430;
+}
+
+.calendar-zynix-header .czh-nav .czh-today {
+  width: auto;
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #1f2430;
+}
+
+.calendar-zynix-header .czh-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f2430;
+  text-transform: lowercase;
+}
+
+.calendar-zynix-header .czh-views {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.calendar-zynix-header .czh-views-label {
+  font-size: 13px;
+  color: #6b7280;
+  margin-right: 4px;
+}
+
+.calendar-zynix-header .czh-views .czh-view-btn {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 13px;
+  color: #4b5563;
+  cursor: pointer;
+}
+
+.calendar-zynix-header .czh-views .czh-view-btn.is-active {
+  background: #845adf;
+  color: #fff;
+  border-color: #845adf;
+}
+
+/* Sources toggle button (the small bar with icon-list above the calendar) */
+.calendar-sources-toggle {
+  background: #ede9fe;
+  border: 1px solid #d8b4fe;
+  border-radius: 6px;
+  padding: 6px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #6d28d9;
+  cursor: pointer;
+}
+
+.calendar-sources-toggle:hover {
+  background: #ddd6fe;
+}

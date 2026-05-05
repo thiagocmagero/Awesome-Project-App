@@ -1,0 +1,48 @@
+{
+  "name": "awesome-project-app-backend",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "nest start",
+    "start:dev": "nest start --watch",
+    "build": "nest build",
+    "seed": "node prisma/seeds/index.js",
+    "seed:split": "node scripts/split-translations.js",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate:deploy": "prisma migrate deploy"
+  },
+  "dependencies": {
+    "@nestjs/common": "^10.4.2",
+    "@nestjs/config": "^3.2.3",
+    "@nestjs/core": "^10.4.2",
+    "@nestjs/jwt": "^10.2.0",
+    "@nestjs/passport": "^10.0.3",
+    "@nestjs/platform-express": "^10.4.2",
+    "@nestjs/throttler": "^5.2.0",
+    "@prisma/client": "^6.8.2",
+    "bcrypt": "^5.1.1",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.1",
+    "cookie-parser": "^1.4.7",
+    "date-fns-tz": "^3.2.0",
+    "geoip-lite": "^1.4.10",
+    "helmet": "^8.1.0",
+    "passport": "^0.7.0",
+    "passport-jwt": "^4.0.1",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1",
+    "ua-parser-js": "^2.0.9"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^10.4.5",
+    "@types/bcrypt": "^5.0.2",
+    "@types/cookie-parser": "^1.4.10",
+    "@types/express": "^5.0.1",
+    "@types/geoip-lite": "^1.4.4",
+    "@types/node": "^22.13.10",
+    "@types/passport-jwt": "^4.0.1",
+    "@types/ua-parser-js": "^0.7.39",
+    "prisma": "^6.8.2",
+    "typescript": "^5.8.2"
+  }
+}

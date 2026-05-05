@@ -1,0 +1,1759 @@
+/* ╔══════════════════════════════════════════════════════════════════════════╗
+   ║  AwesomeKanban — base styles + design tokens                              ║
+   ║                                                                            ║
+   ║  All styling sits behind CSS custom properties prefixed with `--ak-`,     ║
+   ║  so consumers can fully override the theme without touching this file.   ║
+   ║  Class prefix: `.ak-`                                                     ║
+   ╚══════════════════════════════════════════════════════════════════════════╝ */
+
+@import './reset.css';
+@import './density.css';
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Tokens — neutrals, primary, danger, fonts, radii, shadows.
+   Declared on ALL root-level lib elements (including those that render via
+   `<FloatingPortal>` or fixed-position overlays outside `.ak-board`) so the
+   tokens resolve regardless of where the element ends up in the DOM tree.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.ak-board,
+.ak-menu,
+.ak-editor,
+.ak-editor-backdrop,
+.ak-confirm {
+  /* Neutrals */
+  --ak-bg: #f6f6fa;
+  --ak-surface: #ffffff;
+  --ak-border: #ececf1;
+  --ak-border-strong: #e2e2ea;
+  --ak-text: #1f2430;
+  --ak-text-muted: #6b7280;
+  --ak-text-faint: #9aa0ab;
+
+  /* Primary (overridden at runtime by api.setPrimaryColor on the board) */
+  --ak-primary: #7c5cff;
+  --ak-primary-soft: #f1edff;
+  --ak-primary-active: #5a3fd0;
+
+  /* Danger */
+  --ak-danger: #b54438;
+  --ak-danger-soft: #fbe0db;
+
+  /* Fonts (consumer-loaded) */
+  --ak-font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --ak-font-mono: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+
+  /* Radii */
+  --ak-radius-card: 12px;
+  --ak-radius-pill: 999px;
+  --ak-radius-input: 8px;
+  --ak-radius-menu: 12px;
+
+  /* Shadows */
+  --ak-shadow-resting: 0 1px 3px rgba(31, 36, 48, 0.04);
+  --ak-shadow-hover: 0 6px 18px rgba(31, 36, 48, 0.08);
+  --ak-shadow-menu:
+    0 4px 8px rgba(31, 36, 48, 0.06),
+    0 16px 32px rgba(31, 36, 48, 0.08);
+  --ak-shadow-card-drag: 0 12px 32px rgba(31, 36, 48, 0.18);
+}
+
+.ak-board {
+  /* Per-column accent (set inline by KanbanColumn) */
+  --ak-column-color: var(--ak-primary);
+  --ak-column-count: 1;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Board layout
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.ak-board {
+  background: var(--ak-bg);
+  color: var(--ak-text);
+  font-family: var(--ak-font-sans);
+  font-size: 13px;
+  line-height: 1.4;
+  display: flex;
+  flex-direction: column;
+  min-height: auto;
+  padding: var(--ak-board-gap, 14px);
+  gap: var(--ak-board-gap, 14px);
+}
+
+.ak-board__grid {
+  display: grid;
+  grid-template-columns: repeat(var(--ak-column-count, 1), minmax(260px, 1fr));
+  gap: var(--ak-board-gap, 14px);
+  align-items: start;
+}
+
+/* When swimlanes are active, the grid lays out row-headers and cells */
+.ak-board__grid--swimlanes {
+  grid-auto-rows: auto;
+}
+
+/* Each swimlane is a concrete subgrid wrapper so it can host a Draggable
+   (hello-pangea/dnd needs a real DOM node with dimensions) while still
+   participating in the parent grid's column track sizing. */
+.ak-row {
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
+  /* Inherit the parent grid's row gap so cells line up vertically. */
+  row-gap: var(--ak-board-gap, 14px);
+}
+
+/* Wrappers for Droppable type=COLUMN (column headers row) and Droppable
+   type=ROW (rows region). They span all columns and use subgrid so children
+   align with the board's column tracks. */
+.ak-board__columns-row,
+.ak-board__rows {
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
+  row-gap: var(--ak-board-gap, 14px);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Column
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.ak-column {
+  display: flex;
+  flex-direction: column;
+  background: var(--ak-surface);
+  border: 1px solid var(--ak-border);
+  border-radius: var(--ak-radius-card);
+  box-shadow: var(--ak-shadow-resting);
+  overflow: hidden;
+  position: relative;
+}
+
+.ak-column--collapsed {
+  min-width: 40px;
+  max-width: 40px;
+}
+
+/* Variant: cap (default) — 3px colored cap at the top */
+.ak-column[data-accent='cap']::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--ak-column-color);
+  z-index: 1;
+}
+
+/* Variant: bar — vertical bar on the left */
+.ak-column[data-accent='bar']::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 3px;
+  background: var(--ak-column-color);
+  z-index: 1;
+}
+
+/* Variant: dot — only the dot in the header (no extra accent shape) */
+/* Variant: soft — entire header tinted with column color */
+.ak-column[data-accent='soft'] .ak-column__header {
+  background: color-mix(in srgb, var(--ak-column-color) 8%, white);
+}
+
+/* ── Column header ──────────────────────────────────────────────────────── */
+
+.ak-column__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px var(--ak-column-padding, 10px);
+  border-bottom: 1px solid var(--ak-border);
+  position: relative;
+  background: var(--ak-surface);
+}
+
+.ak-column[data-accent='cap'] .ak-column__header {
+  padding-top: 14px; /* accommodate the 3px cap */
+}
+
+.ak-column__collapse-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  color: var(--ak-text-faint);
+  border-radius: 4px;
+  flex: 0 0 auto;
+}
+
+.ak-column__collapse-btn:hover {
+  color: var(--ak-text);
+  background: var(--ak-bg);
+}
+
+.ak-column__dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ak-column-color);
+  flex: 0 0 auto;
+}
+
+.ak-column__title {
+  font-family: var(--ak-font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ak-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Inline rename input — visually replaces the title span. Matches the same
+   typographic block (Inter 600 13px) so the column header height doesn't
+   change when entering / leaving edit mode. */
+.ak-column__title-input {
+  font: inherit;
+  font-family: var(--ak-font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ak-text);
+  background: var(--ak-surface);
+  border: 1px solid var(--ak-primary);
+  border-radius: 6px;
+  padding: 2px 6px;
+  outline: none;
+  width: 100%;
+  min-width: 0;
+  flex: 1 1 auto;
+  box-shadow: 0 0 0 3px var(--ak-primary-soft);
+}
+
+.ak-column__count {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: var(--ak-radius-pill);
+  font-family: var(--ak-font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  background: color-mix(in srgb, var(--ak-column-color) 14%, white);
+  color: color-mix(in srgb, var(--ak-column-color) 80%, black);
+  flex: 0 0 auto;
+}
+
+.ak-column__count--over-limit {
+  background: var(--ak-danger-soft);
+  color: var(--ak-danger);
+}
+
+.ak-column__menu-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  color: var(--ak-text-faint);
+  border-radius: 6px;
+  flex: 0 0 auto;
+}
+
+.ak-column__menu-btn:hover {
+  color: var(--ak-text);
+  background: var(--ak-bg);
+}
+
+/* ── Column body / cells ────────────────────────────────────────────────── */
+
+.ak-column__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ak-card-gap, 8px);
+  padding: var(--ak-column-padding, 10px);
+  min-height: 80px;
+  flex: 1 1 auto;
+}
+
+/* Droppable container in flat (no-swimlane) mode — mirrors .ak-cell layout so
+   cards stack with the same gap and the hello-pangea/dnd placeholder stays
+   inline (flex-direction: column prevents it from expanding to full width). */
+.ak-column__cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ak-card-gap, 8px);
+  min-height: 64px;
+}
+
+/* Quick-create slot at the bottom of every column (flat) and every cell
+   (swimlane × column intersection). Resting: fully transparent — only the
+   light lavender-grey `+` glyph hints at the affordance. Hover: dashed
+   slate-lavender border + very light lavender wash + a subtly darker glyph
+   for contrast. Scope (this column × this swimlane) is preserved by
+   `handleAddCard(columnId, rowId)` regardless of styling. */
+.ak-column__add-btn {
+  --placeholder-bg: transparent;
+  --placeholder-border: transparent;
+  --placeholder-icon: #a8abbd;
+  --placeholder-bg-hover: #eeedf5;
+  --placeholder-border-hover: #c5c7d4;
+  --placeholder-icon-hover: #8a8d9f;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 36px;
+  margin-top: auto;
+  padding: 0;
+  border: 1px dashed var(--placeholder-border);
+  border-radius: 8px;
+  background: var(--placeholder-bg);
+  color: var(--placeholder-icon);
+  cursor: pointer;
+  box-sizing: border-box;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease;
+}
+
+.ak-column__add-btn .ti {
+  font-size: 18px;
+  line-height: 1;
+  font-weight: 400;
+  pointer-events: none;
+}
+
+.ak-column__add-btn:hover,
+.ak-column__add-btn:focus-visible {
+  background: var(--placeholder-bg-hover);
+  border-color: var(--placeholder-border-hover);
+  color: var(--placeholder-icon-hover);
+  outline: none;
+}
+
+/* Collapsed column ─ DHTMLX-style minimalist header.
+   The header keeps only collapse arrow + dot + count + menu (vertically
+   stacked). The column NAME moves into the body (or — in swimlane mode —
+   into each swimlane cell), rotated 90°. */
+
+.ak-column--collapsed .ak-column__header {
+  flex-direction: column;
+  padding: 8px 4px;
+  border-bottom: 0;
+  gap: 6px;
+  align-items: center;
+  height: auto;
+}
+
+.ak-column--collapsed .ak-column__title {
+  display: none;
+}
+
+.ak-column--collapsed .ak-column__count {
+  padding: 1px 5px;
+  font-size: 10px;
+}
+
+.ak-column--collapsed .ak-column__dot {
+  width: 6px;
+  height: 6px;
+}
+
+.ak-column__body--collapsed {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 16px 4px;
+  flex: 1 1 auto;
+  min-height: 80px;
+}
+
+/* Rotated 90° label used in:
+   - the body of a collapsed column (flat mode)
+   - the cells of a collapsed column inside swimlanes
+   Reads bottom-to-top to match the DHTMLX visual baseline. */
+.ak-rotated-label {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-family: var(--ak-font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ak-text-muted);
+  white-space: nowrap;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Drop zone (empty cell)
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.ak-cell--empty {
+  border: 1.5px dashed
+    color-mix(in srgb, var(--ak-column-color) 25%, transparent);
+  border-radius: var(--ak-radius-card);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 24px;
+  color: var(--ak-text-faint);
+  font-family: var(--ak-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  min-height: 80px;
+}
+
+.ak-cell--empty .ti-arrow-down-to-arc {
+  font-size: 14px;
+}
+
+.ak-cell--empty.ak-cell--invalid {
+  border-color: var(--ak-danger);
+  color: var(--ak-danger);
+  background: var(--ak-danger-soft);
+}
+
+/* Base cell — used in swimlane mode (column × row intersection). Flex
+   column with gap so multiple cards stack with proper breathing room.
+   Vertical padding kept tight so consecutive swimlanes sit close together. */
+.ak-cell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ak-card-gap, 8px);
+  padding: 4px 0;
+  min-height: 64px;
+  position: relative;
+}
+
+/* Cell rendered in swimlane × collapsed-column intersections.
+   The grid track is already 40px; this centers the rotated label. */
+.ak-cell--collapsed {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 12px 0;
+  min-height: 64px;
+}
+
+/* Active hover state for an empty drop zone — tinted INSIDE the dashed
+   rectangle (so the highlight respects the visual boundary instead of
+   bleeding into the surrounding cell padding). */
+.ak-cell--empty.ak-cell--empty-active {
+  background: var(--ak-primary-soft);
+  border-color: var(--ak-primary);
+  border-style: solid;
+  color: var(--ak-primary);
+  transition:
+    background 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Card
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.ak-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ak-meta-gap, 6px);
+  padding: var(--ak-card-padding, 10px 12px);
+  background: var(--ak-surface);
+  border: 1px solid var(--ak-border);
+  border-radius: var(--ak-radius-card);
+  box-shadow: var(--ak-shadow-resting);
+  cursor: pointer;
+  transition:
+    box-shadow 150ms ease-out,
+    border-color 150ms ease-out,
+    transform 100ms ease;
+  text-align: left;
+  font-family: var(--ak-font-sans);
+}
+
+.ak-card:hover {
+  box-shadow: var(--ak-shadow-hover);
+  border-color: color-mix(in srgb, var(--ak-primary) 18%, var(--ak-border));
+}
+
+/* Selected state takes priority over hover — when a card is in the
+   multi-selection, the solid primary border + ring stays visible regardless
+   of the cursor position. The hover lift still applies (slightly stronger
+   shadow), but the selection ring is never overwritten. */
+.ak-card.ak-card--selected,
+.ak-card.ak-card--selected:hover {
+  border-color: var(--ak-primary);
+  box-shadow:
+    0 0 0 1px var(--ak-primary),
+    var(--ak-shadow-hover);
+}
+
+.ak-card--dragging {
+  opacity: 0.5;
+}
+
+.ak-card--ghost {
+  cursor: grabbing;
+  box-shadow: var(--ak-shadow-card-drag);
+  transform: scale(1.02) rotate(1deg);
+  opacity: 0.95;
+}
+
+/* Dimmed by toolbar search — cards that don't match the active query.
+   Hover restores full opacity so the user can still inspect them. */
+.ak-card.ak-card--dimmed {
+  opacity: 0.32;
+  filter: saturate(0.4);
+  transition:
+    opacity 200ms ease,
+    filter 200ms ease;
+}
+
+.ak-card.ak-card--dimmed:hover {
+  opacity: 1;
+  filter: saturate(1);
+}
+
+/* Drop-target highlight for flat (no-swimlane) mode. Any background/border
+   applied to the Droppable container paints the full column height — visible
+   as a large rectangle behind all cards. No container-level visual here;
+   the placeholder element below shows the exact drop position instead.
+   Invalid drops keep a red wash so the user knows the column rejects the card. */
+.ak-column--drop-target {
+  /* intentionally no visual — see [data-rbd-placeholder-context-id] below */
+}
+
+.ak-column--drop-invalid {
+  background: var(--ak-danger-soft);
+  transition: background 120ms ease;
+}
+
+/* hello-pangea/dnd placeholder — the transparent spacer inserted at the drop
+   position. Giving it a visible style shows exactly where the card will land
+   without affecting the rest of the column. Applies in both flat and swimlane
+   mode; in swimlane mode the cell is already small so this adds precision. */
+[data-rbd-placeholder-context-id] {
+  background: var(--ak-primary-soft);
+  border: 1.5px dashed var(--ak-primary);
+  border-radius: var(--ak-radius-card);
+  box-sizing: border-box;
+}
+
+/* The cell wrapper itself is just a flex container — drop highlights live
+   on the inner `.ak-cell--empty` (empty cells) or on the placeholder line
+   between cards (handled by @hello-pangea/dnd via the placeholder).
+   We only show a subtle invalid hint here when a non-empty cell rejects the
+   drop, so the user gets feedback even with cards inside. */
+.ak-cell--drop-invalid {
+  position: relative;
+}
+
+.ak-cell--drop-invalid::before {
+  content: '';
+  position: absolute;
+  inset: 4px;
+  border-radius: var(--ak-radius-card);
+  border: 1.5px dashed var(--ak-danger);
+  background: var(--ak-danger-soft);
+  pointer-events: none;
+  opacity: 0.4;
+}
+
+/* ── Subtask badge ──────────────────────────────────────────────────────── */
+
+.ak-card__subtask-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--ak-font-sans);
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--ak-text-muted);
+  line-height: 1;
+}
+
+.ak-card__subtask-badge svg {
+  color: var(--ak-text-faint);
+  flex: 0 0 auto;
+}
+
+/* Nome do card-pai exibido no badge (campo parentLabel) */
+.ak-card__subtask-label {
+  font-family: var(--ak-font-sans);
+  font-size: 11px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--ak-text-muted);
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Title ──────────────────────────────────────────────────────────────── */
+
+.ak-card__title {
+  font-family: var(--ak-font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--ak-text);
+  text-wrap: pretty;
+  margin: 0;
+  word-break: break-word;
+}
+
+/* ── Priority pill / dot / stripe ───────────────────────────────────────── */
+
+.ak-card__priority {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--ak-font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  align-self: flex-start;
+}
+
+.ak-card__priority--pill {
+  padding: 2px 10px;
+  border-radius: var(--ak-radius-pill);
+}
+
+.ak-card__priority--dot {
+  gap: 6px;
+  background: transparent !important;
+  padding-left: 0;
+}
+
+.ak-card__priority--dot::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ak-priority-fg);
+}
+
+.ak-card__priority--stripe {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  border-radius: var(--ak-radius-card) 0 0 var(--ak-radius-card);
+  background: var(--ak-priority-fg);
+}
+
+/* ── Meta row (avatares + badge inline de comentários) ──────────────────── */
+/* Datas saíram da meta row — vivem agora como linha autónoma (ak-card__dates
+   directamente no flex-column do ak-card). */
+
+.ak-card__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Badge de comentários inline (dentro de ak-card__meta, à direita).
+   margin-left: auto empurra-o para a direita independentemente do que
+   está à esquerda (avatares ou nada). */
+.ak-card__comments-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  font-family: var(--ak-font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ak-text-muted);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+  /* hover-friendly target: padding + radius + transition para o bg suave */
+  padding: 2px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.ak-card__comments-inline:hover,
+.ak-card__comments-inline:focus-visible {
+  background: var(--ak-primary-soft);
+  color: var(--ak-primary);
+  outline: none;
+}
+
+/* Estado "não-lido": texto e ícone em violeta */
+.ak-card__comments-inline--unread {
+  color: var(--ak-primary);
+}
+
+/* Ponto indicador de comentários não-lidos */
+.ak-card__comments-dot {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--ak-primary);
+  flex-shrink: 0;
+}
+
+.ak-card__avatars {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Avatares no card: usa classes Zynix (avatar-list-stacked / avatar-rounded)
+   com tamanho ligeiramente menor do que avatar-sm (~28px) para caber no card. */
+.ak-card__avatars.avatar-list-stacked .avatar {
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  font-size: 9px;
+  line-height: 24px;
+  border: 2px solid var(--ak-surface);
+}
+
+.ak-card__avatar--more {
+  font-size: 9px !important;
+}
+
+.ak-card__avatars .avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Datas — linha autónoma (flex row dentro do flex-column do card) */
+.ak-card__dates {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--ak-font-mono);
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--ak-text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.ak-card__date-arrow {
+  margin: 0 2px;
+  color: var(--ak-text-faint);
+}
+
+/* ── Progresso em formato X/Y (subtarefas concluídas / total) ────────────── */
+/* Substitui .ak-card__progress-wrap — layout: [barra flex] [contador X/Y] */
+
+.ak-progress {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Track mais escuro (#e9ecef, igual ao .progress do Bootstrap usado na lista
+   de tarefas do Planning). Sem este contraste, o track perde-se no fundo
+   branco do card e parece que só existe a percentagem. */
+.ak-progress__bar {
+  flex: 1 1 auto;
+  height: 6px;
+  border-radius: var(--ak-radius-pill);
+  background: #e9ecef;
+  overflow: hidden;
+  min-width: 60px;
+}
+
+.ak-progress__fill {
+  height: 100%;
+  background: var(--ak-primary);
+  border-radius: var(--ak-radius-pill);
+  transition: width 200ms ease;
+}
+
+.ak-progress__count {
+  font-family: var(--ak-font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ak-text-muted);
+  font-variant-numeric: tabular-nums;
+  flex: 0 0 auto;
+  min-width: 32px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* ── Footer (separator + comments / progress / subtask link) ────────────── */
+
+.ak-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--ak-border);
+}
+
+.ak-card__footer-left,
+.ak-card__footer-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ak-card__comments {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--ak-font-mono);
+  font-size: 11px;
+  color: var(--ak-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.ak-card__progress-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.ak-card__progress {
+  flex: 1 1 auto;
+  height: 6px;
+  border-radius: var(--ak-radius-pill);
+  background: var(--ak-bg);
+  position: relative;
+  overflow: hidden;
+}
+
+.ak-card__progress-bar {
+  height: 100%;
+  background: var(--ak-primary);
+  border-radius: var(--ak-radius-pill);
+  transition: width 200ms ease;
+}
+
+.ak-card__progress-text {
+  font-family: var(--ak-font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--ak-text-muted);
+  font-variant-numeric: tabular-nums;
+  flex: 0 0 auto;
+}
+
+.ak-card__subtask-link {
+  font-family: var(--ak-font-sans);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  /* Mistura 55% do violeta com branco — tom pastel discreto que não compete
+     com badges/avatares mas continua a ler-se como acção da família primary. */
+  color: color-mix(in srgb, var(--ak-primary) 55%, var(--ak-text-faint));
+  background: transparent;
+  padding: 2px 6px;
+  border-radius: 6px;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.ak-card__subtask-link:hover,
+.ak-card__subtask-link:focus-visible {
+  background: var(--ak-primary-soft);
+  color: var(--ak-primary);
+  text-decoration: none;
+  outline: none;
+}
+
+/* ── Card menu trigger ──────────────────────────────────────────────────── */
+
+.ak-card__menu-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  color: var(--ak-text-faint);
+  border-radius: 6px;
+  opacity: 0;
+  transition: opacity 150ms ease, background 150ms ease;
+}
+
+.ak-card:hover .ak-card__menu-btn,
+.ak-card--selected .ak-card__menu-btn {
+  opacity: 1;
+}
+
+.ak-card__menu-btn:hover {
+  background: var(--ak-bg);
+  color: var(--ak-text);
+}
+
+/* ── Cover image (optional) ─────────────────────────────────────────────── */
+
+.ak-card__cover {
+  margin: calc(var(--ak-card-padding-y, 10px) * -1)
+    calc(var(--ak-card-padding-x, 12px) * -1) 0;
+  border-radius: var(--ak-radius-card) var(--ak-radius-card) 0 0;
+  height: 80px;
+  background-size: cover;
+  background-position: center;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Swimlane / Row header
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.ak-row-header {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  /* Tight vertical rhythm — the swimlane label hugs the cards above and
+     below without an oversized gutter. */
+  padding: 4px 12px 2px;
+  margin-top: 2px;
+  position: relative;
+}
+
+.ak-row-header__collapse-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  color: var(--ak-text-faint);
+  border-radius: 4px;
+}
+
+.ak-row-header__dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ak-row-color, var(--ak-text-faint));
+}
+
+.ak-row-header__title {
+  font-family: var(--ak-font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ak-text-muted);
+  white-space: nowrap;
+}
+
+/* Inline rename input for swimlane titles. Inherits the same mono uppercase
+   look so the user sees their typing as the final result. */
+.ak-row-header__title-input {
+  font: inherit;
+  font-family: var(--ak-font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ak-text);
+  background: var(--ak-surface);
+  border: 1px solid var(--ak-primary);
+  border-radius: 6px;
+  padding: 2px 6px;
+  outline: none;
+  min-width: 120px;
+  box-shadow: 0 0 0 3px var(--ak-primary-soft);
+}
+
+.ak-row-header__fade {
+  flex: 1 1 auto;
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    color-mix(in srgb, var(--ak-row-color, var(--ak-text-faint)) 40%, transparent),
+    transparent
+  );
+}
+
+.ak-row-header__menu-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  color: var(--ak-text-faint);
+  border-radius: 6px;
+}
+
+.ak-row-header__menu-btn:hover {
+  background: var(--ak-bg);
+  color: var(--ak-text);
+}
+
+.ak-row--collapsed .ak-row-header {
+  padding: 4px 12px;
+  margin-top: 0;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Toolbar
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.ak-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px var(--ak-board-gap, 14px);
+  background: var(--ak-bg);
+  font-family: var(--ak-font-sans);
+}
+
+.ak-toolbar__spacer {
+  flex: 1 1 auto;
+}
+
+.ak-toolbar__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: var(--ak-radius-input);
+  color: var(--ak-text);
+  font-size: 12.5px;
+  font-weight: 500;
+  border: 1px solid var(--ak-border-strong);
+  background: var(--ak-surface);
+  transition: background 150ms ease, color 150ms ease, border-color 150ms ease;
+}
+
+.ak-toolbar__btn:hover:not(:disabled) {
+  background: var(--ak-primary-soft);
+  border-color: var(--ak-primary-soft);
+  color: var(--ak-primary);
+}
+
+.ak-toolbar__btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.ak-toolbar__btn--soft {
+  background: var(--ak-primary-soft);
+  border-color: transparent;
+  color: var(--ak-primary);
+}
+
+.ak-toolbar__btn--soft:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ak-primary-soft) 60%, var(--ak-primary) 40%);
+  color: var(--ak-primary-active);
+}
+
+.ak-toolbar__search {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--ak-surface);
+  border: 1px solid var(--ak-border-strong);
+  border-radius: var(--ak-radius-input);
+  min-width: 220px;
+}
+
+.ak-toolbar__search input {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  flex: 1 1 auto;
+  font-size: 12.5px;
+}
+
+.ak-toolbar__search input:focus-visible {
+  box-shadow: none;
+  border: 0;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Context menu (popper panel) — polished
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.ak-menu {
+  background: var(--ak-surface);
+  border: 1px solid rgba(31, 36, 48, 0.06);
+  border-radius: 14px;
+  box-shadow:
+    0 1px 2px rgba(31, 36, 48, 0.04),
+    0 8px 24px rgba(31, 36, 48, 0.08),
+    0 24px 48px rgba(31, 36, 48, 0.06);
+  padding: 8px;
+  min-width: 220px;
+  max-width: 320px;
+  font-family: var(--ak-font-sans);
+  font-size: 13px;
+  color: var(--ak-text);
+  animation: ak-menu-in 140ms cubic-bezier(0.16, 1, 0.3, 1);
+  /* Default placement is `bottom-end` (menu extends to the left from the
+     trigger), so the entrance scale should originate from the top-right
+     corner — closest to the `...` trigger button. */
+  transform-origin: top right;
+  box-sizing: border-box;
+}
+
+/* The menu is rendered in a `<FloatingPortal>` outside `.ak-board`, so the
+   board-scoped reset doesn't reach it. Explicit reset here keeps `<button>`
+   children flat (no native border/background/font/outline). */
+.ak-menu *,
+.ak-menu *::before,
+.ak-menu *::after {
+  box-sizing: border-box;
+}
+
+.ak-menu button {
+  font: inherit;
+  font-family: inherit;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  outline: none;
+  cursor: pointer;
+}
+
+.ak-menu ul,
+.ak-menu ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@keyframes ak-menu-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.ak-menu__section {
+  font-family: var(--ak-font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ak-text-faint);
+  padding: 10px 12px 6px;
+}
+
+.ak-menu__section:first-child {
+  padding-top: 4px;
+}
+
+.ak-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  color: var(--ak-text);
+  width: 100%;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.3;
+  transition:
+    background 120ms ease,
+    color 120ms ease;
+}
+
+.ak-menu__item + .ak-menu__item {
+  margin-top: 1px;
+}
+
+.ak-menu__item:hover:not([aria-disabled='true']) {
+  background: var(--ak-primary-soft);
+  color: var(--ak-primary);
+}
+
+.ak-menu__item:hover:not([aria-disabled='true']) .ak-menu__item-icon {
+  color: var(--ak-menu-item-icon-color, var(--ak-primary));
+}
+
+.ak-menu__item[aria-disabled='true'] {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.ak-menu__item--destructive {
+  color: var(--ak-danger);
+}
+
+.ak-menu__item--destructive .ak-menu__item-icon {
+  color: var(--ak-menu-item-icon-color, var(--ak-danger));
+}
+
+.ak-menu__item--destructive:hover:not([aria-disabled='true']) {
+  background: var(--ak-danger-soft);
+  color: var(--ak-danger);
+}
+
+.ak-menu__item--destructive:hover:not([aria-disabled='true']) .ak-menu__item-icon {
+  color: var(--ak-menu-item-icon-color, var(--ak-danger));
+}
+
+.ak-menu__item-icon {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  color: var(--ak-menu-item-icon-color, var(--ak-text-muted));
+  font-size: 18px;
+  line-height: 1;
+}
+
+.ak-menu__item-text {
+  flex: 1 1 auto;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ak-menu__item-shortcut {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--ak-font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  padding: 2px 7px;
+  border: 1px solid var(--ak-border);
+  border-radius: 5px;
+  color: var(--ak-text-muted);
+  flex: 0 0 auto;
+  letter-spacing: 0.02em;
+}
+
+.ak-menu__item-chevron {
+  width: 14px;
+  height: 14px;
+  display: inline-flex;
+  color: var(--ak-text-faint);
+}
+
+.ak-menu__separator {
+  height: 1px;
+  background: var(--ak-border);
+  margin: 6px 8px;
+}
+
+.ak-menu__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Editor (popup / modal / sidebar)
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.ak-editor-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(31, 36, 48, 0.18);
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--ak-font-sans);
+}
+
+.ak-editor-backdrop--modal {
+  background: rgba(31, 36, 48, 0.5);
+}
+
+.ak-editor {
+  background: var(--ak-surface);
+  border-radius: var(--ak-radius-menu);
+  box-shadow: var(--ak-shadow-menu);
+  width: 600px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 64px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.ak-editor--modal {
+  width: 800px;
+}
+
+.ak-editor--sidebar {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 480px;
+  border-radius: 0;
+  max-height: none;
+}
+
+.ak-editor__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--ak-border);
+}
+
+.ak-editor__title {
+  flex: 1 1 auto;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.ak-editor__close {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  color: var(--ak-text-faint);
+}
+
+.ak-editor__close:hover {
+  background: var(--ak-bg);
+  color: var(--ak-text);
+}
+
+.ak-editor__body {
+  padding: 16px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.ak-editor__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ak-editor__label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ak-text-muted);
+}
+
+.ak-editor__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--ak-border);
+  background: var(--ak-bg);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Editor — rich fields (comments, files, links)
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Comments ──────────────────────────────────────────────────────────── */
+
+.ak-comments {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0;
+}
+
+.ak-comments__empty {
+  font-size: 12px;
+  color: var(--ak-text-faint);
+  font-style: italic;
+}
+
+.ak-comments__item {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  gap: 10px;
+}
+
+.ak-comments__avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--ak-font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  color: white;
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+
+.ak-comments__avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.ak-comments__body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.ak-comments__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+}
+
+.ak-comments__author {
+  font-weight: 600;
+  color: var(--ak-text);
+}
+
+.ak-comments__date {
+  font-family: var(--ak-font-mono);
+  font-size: 10.5px;
+  color: var(--ak-text-faint);
+}
+
+.ak-comments__actions {
+  display: inline-flex;
+  gap: 2px;
+  margin-left: auto;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.ak-comments__item:hover .ak-comments__actions {
+  opacity: 1;
+}
+
+.ak-comments__action {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  color: var(--ak-text-faint);
+  font-size: 13px;
+}
+
+.ak-comments__action:hover {
+  background: var(--ak-bg);
+  color: var(--ak-text);
+}
+
+.ak-comments__action--destructive:hover {
+  background: var(--ak-danger-soft);
+  color: var(--ak-danger);
+}
+
+.ak-comments__text {
+  font-size: 13px;
+  color: var(--ak-text);
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.ak-comments__edit {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ak-comments__edit textarea {
+  width: 100%;
+  resize: vertical;
+}
+
+.ak-comments__edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.ak-comments__compose {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--ak-border);
+}
+
+.ak-comments__compose textarea {
+  width: 100%;
+  resize: vertical;
+}
+
+.ak-comments__compose .ak-toolbar__btn {
+  align-self: flex-end;
+}
+
+/* ── Files ─────────────────────────────────────────────────────────────── */
+
+.ak-files {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ak-files__empty {
+  font-size: 12px;
+  color: var(--ak-text-faint);
+  font-style: italic;
+}
+
+.ak-files__item {
+  display: grid;
+  grid-template-columns: 24px 1fr auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: var(--ak-bg);
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.ak-files__icon {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ak-text-muted);
+  font-size: 18px;
+}
+
+.ak-files__name {
+  font-weight: 500;
+  color: var(--ak-text);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.ak-files__name:hover {
+  color: var(--ak-primary);
+  text-decoration: underline;
+}
+
+.ak-files__size {
+  font-family: var(--ak-font-mono);
+  font-size: 11px;
+  color: var(--ak-text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.ak-files__remove {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  color: var(--ak-text-faint);
+}
+
+.ak-files__remove:hover {
+  background: var(--ak-danger-soft);
+  color: var(--ak-danger);
+}
+
+.ak-files__upload {
+  margin-top: 8px;
+}
+
+/* ── Links ─────────────────────────────────────────────────────────────── */
+
+.ak-links {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ak-links__empty {
+  font-size: 12px;
+  color: var(--ak-text-faint);
+  font-style: italic;
+}
+
+.ak-links__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: var(--ak-bg);
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.ak-links__relation {
+  font-family: var(--ak-font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ak-text-muted);
+  background: var(--ak-surface);
+  padding: 2px 8px;
+  border-radius: var(--ak-radius-pill);
+  flex: 0 0 auto;
+}
+
+.ak-links__target {
+  flex: 1 1 auto;
+  font-weight: 500;
+  color: var(--ak-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.ak-links__remove {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  color: var(--ak-text-faint);
+}
+
+.ak-links__remove:hover {
+  background: var(--ak-danger-soft);
+  color: var(--ak-danger);
+}
+
+.ak-links__compose {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.ak-links__compose select {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Confirm dialog
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.ak-confirm {
+  background: var(--ak-surface);
+  border-radius: var(--ak-radius-menu);
+  box-shadow: var(--ak-shadow-menu);
+  padding: 20px;
+  width: 360px;
+  max-width: calc(100vw - 32px);
+  font-family: var(--ak-font-sans);
+}
+
+.ak-confirm__title {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.ak-confirm__message {
+  font-size: 13px;
+  color: var(--ak-text-muted);
+  margin-bottom: 16px;
+}
+
+.ak-confirm__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Performance — virtualization via content-visibility
+   ══════════════════════════════════════════════════════════════════════════
+   When `renderType: 'lazy'`, the browser skips layout/paint of cards that
+   are offscreen, while keeping them in the DOM (so the dnd listeners stay
+   attached and drag works without re-mounting). `contain-intrinsic-size`
+   reserves a placeholder height so scrollbars don't jump as cards become
+   visible.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.ak-board[data-render-type='lazy'] .ak-card {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 120px;
+}
+
+/* When `scrollType: 'column'`, each column body scrolls independently
+   instead of the whole board. */
+.ak-board[data-scroll-type='column'] .ak-column__body {
+  max-height: calc(100vh - 200px);
+  overflow-y: auto;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Reduced motion
+   ══════════════════════════════════════════════════════════════════════════ */
+
+@media (prefers-reduced-motion: reduce) {
+  .ak-board *,
+  .ak-board *::before,
+  .ak-board *::after,
+  .ak-menu,
+  .ak-editor {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Focus rings
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.ak-card:focus-visible,
+.ak-column__menu-btn:focus-visible,
+.ak-card__menu-btn:focus-visible,
+.ak-column__collapse-btn:focus-visible,
+.ak-toolbar__btn:focus-visible,
+.ak-menu__item:focus-visible {
+  outline: 2px solid var(--ak-primary);
+  outline-offset: 2px;
+}

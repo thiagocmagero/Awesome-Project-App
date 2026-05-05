@@ -1,0 +1,26 @@
+{
+  "en": {
+    "gantt.toolbar.view_day": "Day view",
+    "gantt.toolbar.view_hour": "Hour view",
+    "gantt.toolbar.day_short": "Day",
+    "gantt.toolbar.hour_short": "Hour"
+  },
+  "es": {
+    "gantt.toolbar.view_day": "Vista por día",
+    "gantt.toolbar.view_hour": "Vista por hora",
+    "gantt.toolbar.day_short": "Día",
+    "gantt.toolbar.hour_short": "Hora"
+  },
+  "pt-BR": {
+    "gantt.toolbar.view_day": "Vista por dia",
+    "gantt.toolbar.view_hour": "Vista por hora",
+    "gantt.toolbar.day_short": "Dia",
+    "gantt.toolbar.hour_short": "Hora"
+  },
+  "pt-PT": {
+    "gantt.toolbar.view_day": "Vista por dia",
+    "gantt.toolbar.view_hour": "Vista por hora",
+    "gantt.toolbar.day_short": "Dia",
+    "gantt.toolbar.hour_short": "Hora"
+  }
+}

@@ -1,0 +1,86 @@
+import {
+  IsArray,
+  IsEnum,
+  IsInt,
+  IsNumber,
+  IsOptional,
+  IsPositive,
+  IsString,
+  IsUUID,
+  Min,
+} from 'class-validator';
+import { GanttTaskDurationUnit } from '@prisma/client';
+
+export class CreateTaskDto {
+  @IsString()
+  text!: string;
+
+  /** "task" | "project" | "milestone" — padrão "task" */
+  @IsOptional()
+  @IsString()
+  type?: string;
+
+  /** Formato Gantt: "DD-MM-YYYY HH:mm" */
+  @IsString()
+  start_date!: string;
+
+  /**
+   * Duração em dias úteis (durationUnit=DAY, default) ou horas úteis
+   * (durationUnit=HOUR). Milestone deve ser 0. Em HOUR aceita decimais
+   * (0.25 = 15min, com `gantt.config.duration_step`).
+   */
+  @IsNumber()
+  @Min(0)
+  duration!: number;
+
+  /**
+   * Unidade da duração. Default DAY (retrocompat).
+   * Ver docs/claude/tools/gantt/data-model.md.
+   */
+  @IsOptional()
+  @IsEnum(GanttTaskDurationUnit)
+  durationUnit?: GanttTaskDurationUnit;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  progress?: number;
+
+  /** Array de IDs de GanttResource como strings */
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  owner_id?: string[];
+
+  /** ID da tarefa pai; 0 ou omitir = tarefa raiz */
+  @IsOptional()
+  @IsInt()
+  parent?: number;
+
+  /** publicId da tarefa pai (UUID v7) — alternativa ao `parent` numérico usado pelo board */
+  @IsOptional()
+  @IsString()
+  @IsUUID('all')
+  parentPublicId?: string;
+
+  /** 1=Alta, 2=Média, 3=Baixa */
+  @IsOptional()
+  @IsInt()
+  @IsPositive()
+  priority?: number;
+
+  /** "asap" | "alap" | "snet" | "snlt" | "fnet" | "fnlt" | "mso" | "mfo" */
+  @IsOptional()
+  @IsString()
+  constraint_type?: string;
+
+  /** Formato Gantt: "DD-MM-YYYY HH:mm" — obrigatório para snet/snlt/fnet/fnlt/mso/mfo */
+  @IsOptional()
+  @IsString()
+  constraint_date?: string;
+
+  /** "inclusive" | "exclusive" — modo de data de fim activo no cliente */
+  @IsOptional()
+  @IsString()
+  endDateMode?: string;
+}

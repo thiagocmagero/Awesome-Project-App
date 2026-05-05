@@ -1,0 +1,1524 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum Status {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+enum InviteStatus {
+  INVITED
+  ACCEPTED
+  DECLINED
+}
+
+enum PlanStatus {
+  ACTIVE
+  DISCONTINUED
+}
+
+enum ProjectRole {
+  OWNER
+  CONTRIBUTOR
+  READER
+}
+
+enum GanttConfigScope {
+  GLOBAL
+  USER
+  PROJECT
+}
+
+/// Granularidade de duração de uma tarefa Gantt.
+/// DAY (default, retrocompat): duration em dias úteis, endDate via addBusinessDaysInclusive.
+/// HOUR: duration em horas úteis dentro de Project.workHours, endDate via addBusinessHoursInclusive.
+/// Ver docs/claude/tools/gantt/data-model.md.
+enum GanttTaskDurationUnit {
+  DAY
+  HOUR
+}
+
+enum BoardColumnType {
+  INITIAL       // estado inicial (To Do) — exactamente 1 por projecto
+  INTERMEDIATE  // estados intermédios customizáveis
+  FINAL         // estado final (Done) — exactamente 1 por projecto
+}
+
+enum BoardConfigScope {
+  GLOBAL
+  USER
+  PROJECT
+}
+
+enum HolidayScope {
+  GLOBAL     // visível em todos os projectos
+  REGIONAL   // por região (placeholder — UI exibe na secção própria)
+  PROJECT    // específico do projecto (linkado via ProjectHoliday)
+  CUSTOM     // calendário pessoal do utilizador (default existente)
+}
+
+enum CalendarEventTypeKey {
+  MANUAL
+  MEETING
+  REMINDER
+}
+
+enum CalendarConfigScope {
+  GLOBAL
+  USER
+  PROJECT
+}
+
+enum EntityType {
+  TASK
+  PROJECT
+}
+
+enum NotificationType {
+  MENTION
+  TASK_ASSIGNED
+  INVITATION_RECEIVED
+  INVITATION_ACCEPTED
+  INVITATION_DECLINED
+  COMMENT_REACTION
+  TIMESHEET_SUBMITTED
+  TIMESHEET_APPROVED
+  TIMESHEET_PARTIALLY_APPROVED
+  TIMESHEET_REJECTED
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+  BROWSER
+}
+
+// ─── Timesheet enums ─────────────────────────────────────────────────────────
+
+enum TimesheetWeekStatus {
+  DRAFT
+  SUBMITTED
+  PARTIAL
+  APPROVED
+  REJECTED
+}
+
+enum TimesheetDayStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
+enum TimesheetLogScope {
+  DAY
+  WEEK
+  MONTH
+}
+
+enum TimesheetLogAction {
+  SUBMIT
+  RESUBMIT
+  APPROVE
+  REJECT
+  /// "Editar aprovação/rejeição" — reverte days APPROVED/REJECTED de volta para SUBMITTED
+  /// para o gestor poder re-aprovar/re-rejeitar. Cria nova linha no audit log.
+  REVERT
+}
+
+// ─── Reference tables (managed by seed / Platform Admin) ─────────────────────
+
+/// Perfis de acesso — controlam permissões
+model Profile {
+  id          Int      @id @default(autoincrement())
+  publicId    String   @unique @default(uuid(7))
+  code        String   @unique // PLATFORM_ADMIN | PROJECT_MANAGER | STAKEHOLDER
+  label       String
+  description String?
+  status      Status   @default(ACTIVE)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users User[]
+}
+
+/// Tipos funcionais — representam o papel operacional da pessoa (por workspace)
+model UserType {
+  id          Int      @id @default(autoincrement())
+  publicId    String   @unique @default(uuid(7))
+  code        String   // único por (code, ownerId) — ver @@unique abaixo
+  label       String
+  description String?
+  status      Status   @default(ACTIVE)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  /// Dono do tipo — null = tipo de plataforma (PLATFORM_ADMIN); não-null = tipo do workspace do utilizador
+  ownerId Int?
+  owner   User? @relation("UserTypeOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+
+  users              User[]
+  ganttResources     GanttResource[]
+  ganttResourceNodes GanttResourceNode[]
+
+  @@unique([code, ownerId])
+}
+
+/// Níveis de experiência (mantido no schema por compatibilidade — não exposto na UI)
+model UserLevel {
+  id        Int      @id @default(autoincrement())
+  publicId  String   @unique @default(uuid(7))
+  code      String   @unique // JUNIOR | MID | SENIOR | LEAD | PRINCIPAL
+  label     String
+  order     Int      @default(0)
+  status    Status   @default(ACTIVE)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users User[]
+}
+
+// ─── Core entities ────────────────────────────────────────────────────────────
+
+model User {
+  id           Int     @id @default(autoincrement())
+  publicId     String  @unique @default(uuid(7))
+  email        String  @unique
+  name         String
+  passwordHash String
+  status       Status  @default(ACTIVE)
+
+  /// true = utilizador registou-se por conta própria; false = criado por terceiros (convite pendente)
+  selfRegistered Boolean @default(false)
+
+  /// Perfil de acesso (obrigatório)
+  profileId Int
+  profile   Profile @relation(fields: [profileId], references: [id])
+
+  /// Tipo funcional (opcional)
+  userTypeId Int?
+  userType   UserType? @relation(fields: [userTypeId], references: [id])
+
+  /// Nível de experiência (opcional — não exposto na UI)
+  levelId Int?
+  level   UserLevel? @relation(fields: [levelId], references: [id])
+
+  /// Quem criou este utilizador
+  createdById  Int?
+  createdBy    User?  @relation("CreatedByUser", fields: [createdById], references: [id])
+  createdUsers User[] @relation("CreatedByUser")
+
+  /// Equipas em que o utilizador participa
+  teamMembers TeamMember[]
+
+  /// Projetos onde é owner aplicacional / workspace owner
+  ownedProjects Project[] @relation("ProjectOwner")
+
+  /// Projetos onde é Project Manager
+  managedProjects Project[] @relation("ProjectManager")
+
+  /// Equipas criadas/geridas por este utilizador
+  ownedTeams Team[] @relation("TeamOwner")
+
+  /// Tipos funcionais criados por este utilizador
+  ownedUserTypes UserType[] @relation("UserTypeOwner")
+
+  /// Membros de projetos onde este utilizador foi convidado
+  projectMemberships ProjectMember[] @relation("ProjectMemberships")
+
+  /// Convites enviados por este utilizador
+  sentInvitations ProjectMember[] @relation("SentInvitations")
+
+  /// Recursos Gantt opcionalmente ligados a este utilizador
+  ganttResources GanttResource[]
+
+  /// Disponibilidade horária por projeto
+  memberHours ProjectMemberHours[]
+
+  /// Planos atribuídos ao utilizador (histórico)
+  userPlans UserPlan[]
+
+  /// Planos atribuídos por este utilizador (como admin)
+  assignedPlans UserPlan[] @relation("PlanAssigner")
+
+  /// Feature flags com override individual
+  userFeatureFlags UserFeatureFlag[]
+
+  /// Registos de uso (contadores)
+  usageRecords UsageRecord[]
+
+  /// Nós de recurso Gantt (folhas internas)
+  ganttResourceNodes GanttResourceNode[]
+
+  /// Listas de feriados criadas por este utilizador
+  holidays Holiday[]
+
+  /// Configurações Gantt do utilizador
+  ganttConfigs GanttConfig[]
+
+  /// Configurações Board do utilizador
+  boardConfigs BoardConfig[]
+
+  /// Assignees de cartões do board
+  boardCardAssignees BoardCardAssignee[]
+
+  /// Estado collapsed/expandido de swimlanes por utilizador
+  boardSwimlaneStates BoardSwimlaneUserState[]
+
+  /// Comentários criados por este utilizador
+  authoredComments Comment[] @relation("AuthoredComments")
+
+  /// Menções em comentários
+  mentionedIn CommentMention[] @relation("MentionedIn")
+
+  /// Reações em comentários
+  commentReactions CommentReaction[] @relation("CommentReactions")
+
+  /// Notificações recebidas
+  notifications Notification[]
+
+  /// Preferências de notificações por tipo e canal
+  notificationPreferences NotificationPreference[]
+
+  /// Sessões activas (auth — refresh tokens, multi-device)
+  sessions Session[]
+
+  /// Eventos do calendário criados por este utilizador
+  createdCalendarEvents CalendarEvent[] @relation("CalendarEventCreator")
+
+  /// Configurações Calendar do utilizador
+  calendarConfigs CalendarConfig[]
+
+  /// Permissões delegadas recebidas por este utilizador (individuais)
+  permissionGrants ProjectPermissionGrant[] @relation("PermissionGrants")
+
+  /// Permissões delegadas concedidas por este utilizador
+  permissionsGrantedBy ProjectPermissionGrant[] @relation("PermissionsGrantedBy")
+
+  /// Timesheet — semanas próprias
+  timesheetWeeks TimesheetWeek[]
+
+  /// Timesheet — entries próprias
+  timesheetEntries TimesheetEntry[]
+
+  /// Timesheet — dias aprovados por este utilizador
+  approvedTimesheetDays TimesheetDay[] @relation("TimesheetDayApproved")
+
+  /// Timesheet — dias rejeitados por este utilizador
+  rejectedTimesheetDays TimesheetDay[] @relation("TimesheetDayRejected")
+
+  /// Timesheet — entradas no audit log onde este utilizador é o actor
+  timesheetApprovalLogs TimesheetApprovalLog[]
+
+  /// IANA timezone identifier do utilizador (ex.: 'Europe/Lisbon').
+  /// MOMENTO REAL — usado em páginas globais (cross-project) e como default
+  /// ao criar projecto novo. null ⇒ frontend detecta browser e patcha via
+  /// PATCH /users/me/timezone na primeira sessão. Ver docs/claude/timezone.md.
+  timezone String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+}
+
+// ─── Equipas ─────────────────────────────────────────────────────────────────
+
+/// Equipa — existe independentemente de projeto
+model Team {
+  id          Int          @id @default(autoincrement())
+  publicId    String       @unique @default(uuid(7))
+  name        String
+  description String?
+  status      Status       @default(ACTIVE)
+  members         TeamMember[]
+  projects        ProjectTeam[]
+  invitedMembers  ProjectMember[] @relation("InvitedToTeam")
+
+  /// Dono da equipa — utilizador que criou/gere esta equipa no seu workspace
+  ownerId Int?
+  owner   User? @relation("TeamOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// Associação utilizador ↔ equipa (many-to-many com atributos)
+model TeamMember {
+  id       Int    @id @default(autoincrement())
+  publicId String @unique @default(uuid(7))
+  teamId   Int
+  team   Team @relation(fields: [teamId], references: [id])
+  userId Int
+  user   User @relation(fields: [userId], references: [id])
+
+  /// Responsável principal da equipa
+  isLead Boolean @default(false)
+
+  /// Papel dentro da equipa — preparado para uso futuro
+  role String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([teamId, userId])
+}
+
+// ─── Projetos ─────────────────────────────────────────────────────────────────
+
+/// Projeto — camada principal de gestão funcional
+model Project {
+  id          Int     @id @default(autoincrement())
+  publicId    String  @unique @default(uuid(7))
+  name        String
+  description String?
+  status      Status  @default(ACTIVE)
+
+  /// Owner aplicacional / workspace owner — obrigatório para BASIC_USER, opcional para PLATFORM_ADMIN
+  ownerId Int?
+  owner   User? @relation("ProjectOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+
+  /// Project Manager — responsável pela gestão do projeto
+  managerId Int?
+  manager   User? @relation("ProjectManager", fields: [managerId], references: [id], onDelete: SetNull)
+
+  /// Equipas associadas ao projeto (many-to-many)
+  teams ProjectTeam[]
+
+  /// Datas de início e fim do projeto
+  startDate DateTime?
+  endDate   DateTime?
+
+  /// Prioridade do projeto: "HIGH" | "MEDIUM" | "LOW"
+  priority String?
+
+  /// Formato de data exibido neste projecto (ex.: 'DD/MM/YYYY').
+  /// null ⇒ usa default platform-wide ('DD/MM/YYYY').
+  dateFormat String?
+
+  /// Janela horária útil para tasks GanttTask com `durationUnit=HOUR`.
+  /// JSON `{ start: number, end: number }` em formato 24h (ex.: { start: 9, end: 18 }).
+  /// null ⇒ default 09:00–18:00. Ignorado por tasks DAY.
+  /// Ver docs/claude/tools/gantt/data-model.md.
+  workHours Json?
+
+  /// Membros diretos do projeto (convites)
+  members ProjectMember[]
+
+  /// Colunas do quadro Kanban (estados de workflow)
+  boardColumns   BoardColumn[]
+
+  /// Swimlanes (linhas do board) — agrupamento horizontal de cards
+  boardSwimlanes BoardSwimlane[]
+
+  /// Tarefas Gantt associadas ao projeto
+  ganttTasks     GanttTask[]
+
+  /// Recursos Gantt (departamentos e pessoas) associados ao projeto
+  ganttResources GanttResource[]
+
+  /// Disponibilidade horária dos membros neste projeto
+  memberHours ProjectMemberHours[]
+
+  /// Nós de recurso Gantt (árvore para o DHTMLX resource datastore)
+  ganttResourceNodes GanttResourceNode[]
+
+  /// Listas de feriados associadas ao projeto
+  holidays ProjectHoliday[]
+
+  /// Configurações Gantt específicas do projecto
+  ganttConfigs GanttConfig[]
+
+  /// Configurações Board específicas do projecto
+  boardConfigs BoardConfig[]
+
+  /// Tipos de evento do calendário (custom + sistema)
+  calendarEventTypes CalendarEventType[]
+
+  /// Eventos do calendário (escrita)
+  calendarEvents CalendarEvent[]
+
+  /// Configurações Calendar específicas do projecto
+  calendarConfigs CalendarConfig[]
+
+  /// Comentários neste projecto
+  comments Comment[]
+
+  /// Permissões delegadas neste projecto
+  permissionGrants ProjectPermissionGrant[]
+
+  /// Timesheets — semanas dos membros neste projecto
+  timesheetWeeks TimesheetWeek[]
+
+  /// Timesheets — entries dos membros neste projecto
+  timesheetEntries TimesheetEntry[]
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+}
+
+/// Membro direto de projeto — criado por convite (por email)
+model ProjectMember {
+  id        Int          @id @default(autoincrement())
+  publicId  String       @unique @default(uuid(7))
+  projectId Int
+  project   Project      @relation(fields: [projectId], references: [id])
+
+  /// Utilizador registado — null até ao registo na plataforma
+  userId    Int?
+  user      User?        @relation("ProjectMemberships", fields: [userId], references: [id], onDelete: SetNull)
+
+  /// Email usado para convidar — chave de matching quando o utilizador se regista
+  email     String
+
+  /// Nome fornecido ao adicionar — visível antes do utilizador se registar
+  name      String?
+
+  /// Papel no projeto — READER por defeito; owner pode promover a CONTRIBUTOR
+  role      ProjectRole  @default(READER)
+
+  /// Estado do convite
+  status    InviteStatus @default(INVITED)
+
+  /// Equipa que o convidado irá integrar quando aceitar — null se não definida
+  teamId    Int?
+  team      Team?        @relation("InvitedToTeam", fields: [teamId], references: [id])
+
+  /// Quem enviou o convite
+  invitedById Int
+  invitedBy   User       @relation("SentInvitations", fields: [invitedById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([projectId, email])
+}
+
+/// Associação equipa ↔ projeto (many-to-many)
+model ProjectTeam {
+  id        Int     @id @default(autoincrement())
+  publicId  String  @unique @default(uuid(7))
+  projectId Int
+  project   Project @relation(fields: [projectId], references: [id])
+  teamId    Int
+  team      Team    @relation(fields: [teamId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([projectId, teamId])
+}
+
+/// Permissão delegada (grant) — o owner pode conceder acções extra a roles ou membros individuais
+model ProjectPermissionGrant {
+  id        Int      @id @default(autoincrement())
+  publicId  String   @unique @default(uuid(7))
+  projectId Int
+  project   Project  @relation(fields: [projectId], references: [id])
+
+  /// A quem se aplica — role (CONTRIBUTOR ou READER) OU membro individual
+  grantedToRole   ProjectRole?
+  grantedToUserId Int?
+  grantedToUser   User?  @relation("PermissionGrants", fields: [grantedToUserId], references: [id], onDelete: Cascade)
+
+  /// Acção concedida (valor de ProjectAction — string do enum no backend)
+  action    String
+
+  /// Quem concedeu esta permissão
+  grantedById Int
+  grantedBy   User   @relation("PermissionsGrantedBy", fields: [grantedById], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@unique([projectId, action, grantedToRole], name: "uq_grant_role")
+  @@unique([projectId, action, grantedToUserId], name: "uq_grant_user")
+  @@index([projectId])
+}
+
+// ─── Configurações de plataforma ─────────────────────────────────────────────
+
+/// Configuração de email da plataforma — registo singleton (id = 1)
+model EmailConfig {
+  id        Int      @id @default(1)
+
+  /// Serviço ativo ou não
+  enabled   Boolean  @default(false)
+
+  /// Servidor SMTP
+  host      String?
+  port      Int      @default(587)
+  secure    Boolean  @default(false)  // true = SSL/TLS; false = STARTTLS
+
+  /// Autenticação
+  username  String?
+  password  String?  // guardado em plain-text; cifrar em fases futuras
+
+  /// Identidade do remetente
+  fromEmail String?
+  fromName  String?
+
+  updatedAt DateTime @updatedAt
+}
+
+/// Limites globais da plataforma — singleton (id sempre = 1).
+/// Configuráveis apenas por PLATFORM_ADMIN. Lidos pelo backend em
+/// validações (ex.: cap de duração de GanttTask).
+/// Ver docs/claude/tools/gantt/data-model.md.
+model PlatformLimits {
+  id        Int      @id @default(1)
+
+  /// Cap de duração de uma GanttTask em dias úteis.
+  /// Tasks HOUR convertem-se via Project.workHours (`durationHours / dailyHours`).
+  /// Default 1300 (~5 anos calendário).
+  maxTaskBusinessDays Int @default(1300)
+
+  updatedAt DateTime @updatedAt
+}
+
+// ─── Planos, Feature Flags e Usage Tracking ─────────────────────────────────
+
+/// Plano comercial — define funcionalidades, limites e regras de utilização
+model Plan {
+  id          Int        @id @default(autoincrement())
+  publicId    String     @unique @default(uuid(7))
+  code        String     @unique
+  name        String
+  description String?
+  planStatus  PlanStatus @default(ACTIVE)
+
+  /// Data de expiração do plano — null = sem limite temporal
+  validUntil DateTime?
+
+  /// Plano atribuído por defeito a novos utilizadores (apenas 1 deve ser true)
+  isDefault Boolean @default(false)
+
+  limits       PlanLimit[]
+  pricing      PlanPricing[]
+  featureFlags PlanFeatureFlag[]
+  userPlans    UserPlan[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// Limite configurável por plano (padrão EAV — admin adiciona novos tipos sem schema change)
+model PlanLimit {
+  id          Int    @id @default(autoincrement())
+  publicId    String @unique @default(uuid(7))
+  planId      Int
+  plan        Plan   @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  /// Chave do limite: max_projects, max_teams, max_members, max_tasks, max_storage_mb, max_api_calls
+  limitKey    String
+
+  /// Valor do limite — -1 significa ilimitado
+  limitValue  Int
+
+  description String?
+
+  @@unique([planId, limitKey])
+}
+
+/// Regras comerciais por plano (informativo — sem integração de pagamentos)
+model PlanPricing {
+  id               Int       @id @default(autoincrement())
+  publicId         String    @unique @default(uuid(7))
+  planId           Int
+  plan             Plan      @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  /// Ciclo: MONTHLY | ANNUAL | ONE_TIME
+  billingCycle     String
+
+  /// Preço base em euros (0 para planos gratuitos)
+  basePrice        Float
+
+  /// Preço promocional (opcional)
+  promotionalPrice Float?
+
+  /// Data de fim da promoção
+  promotionEndDate DateTime?
+
+  /// Dias de trial para planos pagos (0 = sem trial)
+  trialDays        Int       @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([planId, billingCycle])
+}
+
+/// Feature flag global — define funcionalidades que podem ser ligadas/desligadas
+model FeatureFlag {
+  id              Int     @id @default(autoincrement())
+  publicId        String  @unique @default(uuid(7))
+  key             String  @unique
+  label           String
+  description     String?
+
+  /// Switch global — se true, activo para todos independentemente do plano
+  enabledGlobally Boolean @default(false)
+
+  planFlags  PlanFeatureFlag[]
+  userFlags  UserFeatureFlag[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// Associação plano ↔ feature flag (muitos-para-muitos com enabled)
+model PlanFeatureFlag {
+  id            Int         @id @default(autoincrement())
+  publicId      String      @unique @default(uuid(7))
+  planId        Int
+  plan          Plan        @relation(fields: [planId], references: [id], onDelete: Cascade)
+  featureFlagId Int
+  featureFlag   FeatureFlag @relation(fields: [featureFlagId], references: [id], onDelete: Cascade)
+
+  enabled Boolean @default(true)
+
+  @@unique([planId, featureFlagId])
+}
+
+/// Override de feature flag por utilizador (admin pode ativar/desativar individualmente)
+model UserFeatureFlag {
+  id            Int         @id @default(autoincrement())
+  publicId      String      @unique @default(uuid(7))
+  userId        Int
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  featureFlagId Int
+  featureFlag   FeatureFlag @relation(fields: [featureFlagId], references: [id], onDelete: Cascade)
+
+  enabled Boolean
+
+  @@unique([userId, featureFlagId])
+}
+
+/// Associação utilizador ↔ plano com histórico de atribuições
+model UserPlan {
+  id         Int      @id @default(autoincrement())
+  publicId   String   @unique @default(uuid(7))
+  userId     Int
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planId     Int
+  plan       Plan     @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  assignedAt DateTime @default(now())
+
+  /// Expiração individual — null = segue validade do plano
+  expiresAt DateTime?
+
+  /// Apenas 1 ativo por utilizador — anteriores ficam isActive=false
+  isActive Boolean @default(true)
+
+  /// Quem atribuiu — null = sistema (registo automático)
+  assignedById Int?
+  assignedBy   User? @relation("PlanAssigner", fields: [assignedById], references: [id], onDelete: SetNull)
+
+  /// Motivo da atribuição/alteração
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, isActive])
+}
+
+/// Contadores de uso por utilizador — comparados com PlanLimit
+model UsageRecord {
+  id           Int      @id @default(autoincrement())
+  publicId     String   @unique @default(uuid(7))
+  userId       Int
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Mesma chave que PlanLimit.limitKey para comparação directa
+  usageKey     String
+
+  /// Valor actual do contador
+  currentValue Int      @default(0)
+
+  /// Última vez que o contador foi resetado (para limites mensais como API calls)
+  lastResetAt  DateTime?
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, usageKey])
+}
+
+// ─── Gantt ────────────────────────────────────────────────────────────────────
+
+/// Tarefa Gantt — unidade de trabalho dentro de um Projeto
+/// Tipos: "task" (tarefa simples), "project" (agrupador), "milestone" (marco, duration=0)
+model GanttTask {
+  id        Int      @id @default(autoincrement())
+  publicId  String   @unique @default(uuid(7))
+  projectId Int
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  text     String
+  type     String  @default("task")   // "task" | "project" | "milestone"
+  startDate DateTime
+  endDate   DateTime?                  // calculado automaticamente se omitido
+
+  /// Duração em dias OU horas (float). Interpretação depende de `durationUnit`.
+  /// Milestone obrigatoriamente 0 (qualquer unidade).
+  duration Float @default(1)
+
+  /// Unidade da duração. DAY = dias úteis (default, retrocompat); HOUR = horas
+  /// úteis dentro de Project.workHours. Ver docs/claude/tools/gantt/data-model.md.
+  durationUnit GanttTaskDurationUnit @default(DAY)
+
+  /// Percentual de conclusão: 0.0 a 1.0
+  progress Float @default(0)
+
+  /// IDs dos recursos responsáveis — sempre strings conforme formato DHTMLX
+  ownerIds String[] @default([])
+
+  /// Relação hierárquica pai-filho
+  parentId Int?
+  parent   GanttTask?  @relation("TaskHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children GanttTask[] @relation("TaskHierarchy")
+
+  /// Prioridade definida pela aplicação: 1=Alta, 2=Média, 3=Baixa
+  priority Int?
+
+  /// Estado legado da tarefa — mantido durante transição. Fonte de verdade actual: boardColumnId.
+  /// Será removido numa migração subsequente (`drop_gantt_task_legacy_status`).
+  legacyStatus String @default("nova")
+
+  /// Constraints de agendamento automático (auto_scheduling)
+  constraintType String?    // "asap" | "alap" | "snet" | "snlt" | "fnet" | "fnlt" | "mso" | "mfo"
+  constraintDate DateTime?  // obrigatório para snet, snlt, fnet, fnlt, mso, mfo
+
+  linksAsSource GanttLink[]     @relation("LinkSource")
+  linksAsTarget GanttLink[]     @relation("LinkTarget")
+  assignments   GanttAssignment[]
+  baselines     GanttBaseline[]
+
+  /// Board — posição e estado no quadro Kanban
+  boardColumnId Int?
+  boardColumn   BoardColumn? @relation(fields: [boardColumnId], references: [id], onDelete: SetNull)
+  boardPosition Int?         // posição dentro da coluna (para drag-and-drop)
+
+  /// Responsáveis atribuídos via board (n:m)
+  boardAssignees BoardCardAssignee[]
+
+  /// Swimlane (linha do board) — null = swimlane default
+  boardSwimlaneId Int?
+  boardSwimlane   BoardSwimlane? @relation(fields: [boardSwimlaneId], references: [id], onDelete: SetNull)
+
+  /// Timesheet — entries que apontam para esta task (Restrict: não pode ser apagada se tiver entries)
+  timesheetEntries TimesheetEntry[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// Dependência entre duas tarefas Gantt
+model GanttLink {
+  id       Int       @id @default(autoincrement())
+  publicId String    @unique @default(uuid(7))
+  sourceId Int
+  source   GanttTask @relation("LinkSource", fields: [sourceId], references: [id], onDelete: Cascade)
+  targetId Int
+  target   GanttTask @relation("LinkTarget", fields: [targetId], references: [id], onDelete: Cascade)
+
+  /// Tipo: "0"=FS (Finish-to-Start) | "1"=SS | "2"=FF | "3"=SF
+  type String @default("0")
+
+  /// Atraso em dias (positivo=delay, negativo=lead/sobreposição)
+  lag Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// Recurso Gantt — pessoa ou departamento
+/// Estrutura hierárquica: departamento (parent=null) → pessoa (leaf)
+model GanttResource {
+  id       Int    @id @default(autoincrement())
+  publicId String @unique @default(uuid(7))
+  text     String
+
+  /// Capacidade diária em horas — usado directamente para externos; internos usam ProjectMemberHours
+  hoursPerDay Float @default(8)
+
+  /// Tipo funcional do recurso externo (obrigatório para externos; null para internos derivados de User)
+  userTypeId Int?
+  userType   UserType? @relation(fields: [userTypeId], references: [id], onDelete: SetNull)
+
+  /// Departamento pai (null = raiz)
+  parentId Int?
+  parent   GanttResource?  @relation("ResourceHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children GanttResource[] @relation("ResourceHierarchy")
+
+  /// Vínculo opcional com utilizador da plataforma
+  userId Int?
+  user   User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  /// Projeto a que pertence este recurso (isolamento multi-tenant)
+  projectId Int?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  assignments GanttAssignment[]
+
+  /// Nós de recurso que apontam para este GanttResource (externos)
+  ganttResourceNodes GanttResourceNode[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// Nó da árvore de recursos do Gantt — IDs auto-increment simples para o DHTMLX
+model GanttResourceNode {
+  id       Int    @id @default(autoincrement())
+  publicId String @unique @default(uuid(7))
+  text     String
+
+  /// Hierarquia: null = nó raiz (grupo de tipo funcional)
+  parentId Int?
+  parent   GanttResourceNode?  @relation("NodeHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children GanttResourceNode[] @relation("NodeHierarchy")
+
+  /// Projecto (scope obrigatório)
+  projectId Int
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  /// Para grupos: tipo funcional que este grupo representa
+  userTypeId Int?
+  userType   UserType? @relation(fields: [userTypeId], references: [id], onDelete: SetNull)
+
+  /// Para folhas internas: utilizador da plataforma
+  userId Int?
+  user   User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  /// Para folhas externas: recurso sem conta
+  ganttResourceId Int?
+  ganttResource   GanttResource? @relation(fields: [ganttResourceId], references: [id], onDelete: SetNull)
+
+  hoursPerDay Float   @default(8)
+  isGroup     Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// Alocação detalhada de um recurso a uma tarefa
+model GanttAssignment {
+  id         Int           @id @default(autoincrement())
+  publicId   String        @unique @default(uuid(7))
+  taskId     Int
+  task       GanttTask     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  resourceId Int
+  resource   GanttResource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+
+  /// Taxa de alocação: 0 a 1 (ex: 0.5 = 50% da capacidade)
+  units Float @default(1)
+
+  /// Carga em horas ou unidade custom
+  value Float?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// Baseline — snapshot do cronograma planejado para comparação futura
+model GanttBaseline {
+  id        Int       @id @default(autoincrement())
+  publicId  String    @unique @default(uuid(7))
+  taskId    Int
+  task      GanttTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  startDate DateTime
+  endDate   DateTime
+  duration  Float
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// Configuração do Gantt em 3 níveis: GLOBAL (plataforma) < USER (utilizador) < PROJECT (projecto)
+model GanttConfig {
+  id       Int              @id @default(autoincrement())
+  publicId String           @unique @default(uuid(7))
+  scope    GanttConfigScope
+
+  /// null para GLOBAL
+  userId Int?
+  user   User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// null para GLOBAL e USER
+  projectId Int?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  /// { columns: { start_date, end_date, owner, duration } }
+  config Json
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([scope, userId, projectId])
+}
+
+/// Disponibilidade horária de um membro num projeto específico
+model ProjectMemberHours {
+  id          Int     @id @default(autoincrement())
+  publicId    String  @unique @default(uuid(7))
+  projectId   Int
+  project     Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId      Int
+  user        User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hoursPerDay Float   @default(8)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([projectId, userId])
+}
+
+// ─── Board (Quadro Kanban) ────────────────────────────────────────────────────
+
+/// Coluna (estado) do quadro Kanban — representa uma etapa do workflow
+/// Estados sistema (isSystem=true): TODO, INPROGRESS, DONE — não podem ser eliminados
+/// Estados custom (isSystem=false): criados pelo utilizador (sempre type=INTERMEDIATE)
+model BoardColumn {
+  id        Int             @id @default(autoincrement())
+  publicId  String          @unique @default(uuid(7))
+  projectId Int
+  project   Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  /// Rótulo customizado pelo utilizador — null = usar i18n via systemKey
+  label     String?
+
+  /// Identificador estável do sistema: 'TODO' | 'INPROGRESS' | 'DONE' | null (custom)
+  systemKey String?
+
+  type      BoardColumnType @default(INTERMEDIATE)
+
+  /// true = estado de sistema (não pode ser eliminado; type e systemKey imutáveis)
+  isSystem  Boolean         @default(false)
+
+  /// Posição na ordem das colunas (persistida)
+  position  Int             @default(0)
+
+  /// Cor do cabeçalho em hex (ex: "#FF5252")
+  color     String?
+
+  /// Limite WIP — null = sem limite
+  wipLimit  Int?
+
+  status    Status          @default(ACTIVE)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  /// Tarefas neste estado
+  tasks     GanttTask[]
+
+  @@index([projectId, position])
+}
+
+/// Responsável atribuído a um cartão via board (n:m entre GanttTask e User)
+model BoardCardAssignee {
+  taskId Int
+  task   GanttTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId Int
+  user   User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, userId])
+  @@index([taskId])
+}
+
+/// Configuração do Board em 3 níveis: GLOBAL (plataforma) < USER (utilizador) < PROJECT (projecto)
+model BoardConfig {
+  id        Int             @id @default(autoincrement())
+  publicId  String          @unique @default(uuid(7))
+  scope     BoardConfigScope
+
+  /// null para GLOBAL
+  userId    Int?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// null para GLOBAL e USER
+  projectId Int?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  /// { colors: { priority: {...} }, behavior: { showProgress, showDates, ... } }
+  config    Json
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([scope, userId, projectId])
+}
+
+/// Swimlane (linha) do board — agrupamento horizontal de cards por projecto
+model BoardSwimlane {
+  id        Int      @id @default(autoincrement())
+  publicId  String   @unique @default(uuid(7))
+  projectId Int
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  label     String?  // null = usar labelKey para i18n (ex: swimlane principal)
+  labelKey  String?  // chave i18n usada quando label é null (ex: 'swimlane.general')
+  isPrimary Boolean  @default(false) // swimlane de fallback única por projecto
+  color     String?
+  position  Int     @default(0)
+  status    Status  @default(ACTIVE)
+
+  /// Tarefas associadas a esta swimlane
+  tasks      GanttTask[]
+  /// Estado collapsed/expandido por utilizador
+  userStates BoardSwimlaneUserState[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projectId, position])
+}
+
+/// Estado collapsed/expandido de uma swimlane por utilizador (preferência pessoal)
+model BoardSwimlaneUserState {
+  swimlaneId Int
+  swimlane   BoardSwimlane @relation(fields: [swimlaneId], references: [id], onDelete: Cascade)
+  userId     Int
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  collapsed  Boolean  @default(false)
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@id([swimlaneId, userId])
+  @@index([userId])
+}
+
+// ─── Feriados ─────────────────────────────────────────────────────────────────
+
+/// Lista de feriados/dias não-úteis — pertence a um utilizador
+model Holiday {
+  id          Int          @id @default(autoincrement())
+  publicId    String       @unique @default(uuid(7))
+  name        String
+  description String?
+  ownerId     Int?
+  owner       User?        @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  /// Categoria do calendário — usada pelo Calendar feature para agrupar fontes
+  /// (Global / Regional / Project / Custom). Default CUSTOM mantém compatibilidade.
+  scope       HolidayScope @default(CUSTOM)
+  status      Status       @default(ACTIVE)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  dates    HolidayDate[]
+  projects ProjectHoliday[]
+}
+
+/// Data de feriado/não-útil numa lista de feriados
+model HolidayDate {
+  id        Int      @id @default(autoincrement())
+  publicId  String   @unique @default(uuid(7))
+  holidayId Int
+  holiday   Holiday  @relation(fields: [holidayId], references: [id], onDelete: Cascade)
+  name      String
+  date      DateTime
+  status    Status   @default(ACTIVE)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([holidayId, date])
+}
+
+/// Associação lista-de-feriados ↔ projeto (many-to-many)
+model ProjectHoliday {
+  id        Int      @id @default(autoincrement())
+  projectId Int
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  holidayId Int
+  holiday   Holiday  @relation(fields: [holidayId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, holidayId])
+}
+
+// ─── Calendário ───────────────────────────────────────────────────────────────
+
+/// Tipo de evento do calendário — categoria com cor por projecto.
+/// Sistema (isSystem=true): MANUAL, MEETING, REMINDER — não eliminável; lazy-init no GET /calendar.
+/// Custom (isSystem=false): criados pelo utilizador (CALENDAR_EVENT_TYPE_MANAGE).
+model CalendarEventType {
+  id        Int                     @id @default(autoincrement())
+  publicId  String                  @unique @default(uuid(7))
+  projectId Int
+  project   Project                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  /// Identificador estável dos tipos sistema — null para custom
+  systemKey CalendarEventTypeKey?
+
+  /// true = tipo de sistema (não pode ser eliminado; systemKey imutável)
+  isSystem  Boolean                 @default(false)
+
+  /// Nome customizado — null + isSystem=true ⇒ usar i18n via systemKey
+  name      String?
+
+  /// Cor em hex (ex: "#845adf")
+  color     String                  @default("#845adf")
+
+  /// Posição de ordenação no sources panel
+  position  Int                     @default(0)
+
+  status    Status                  @default(ACTIVE)
+  createdAt DateTime                @default(now())
+  updatedAt DateTime                @updatedAt
+
+  events    CalendarEvent[]
+
+  @@unique([projectId, systemKey])
+  @@index([projectId, position])
+}
+
+/// Evento do calendário — criado pelos utilizadores (CALENDAR_EVENT_CREATE).
+model CalendarEvent {
+  id          Int                @id @default(autoincrement())
+  publicId    String             @unique @default(uuid(7))
+  projectId   Int
+  project     Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  typeId      Int
+  type        CalendarEventType  @relation(fields: [typeId], references: [id], onDelete: Restrict)
+
+  title       String
+  description String?
+
+  /// Data/hora ISO UTC — MOMENTO REAL: convertido para timezone do projecto na UI
+  startAt     DateTime           @db.Timestamptz(6)
+  endAt       DateTime           @db.Timestamptz(6)
+
+  /// Evento de dia inteiro — descarta a componente horária
+  allDay      Boolean            @default(false)
+
+  /// Override de cor (null = usa cor do tipo)
+  color       String?
+
+  createdById Int?
+  createdBy   User?              @relation("CalendarEventCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  status      Status             @default(ACTIVE)
+  createdAt   DateTime           @default(now()) @db.Timestamptz(6)
+  updatedAt   DateTime           @updatedAt @db.Timestamptz(6)
+
+  @@index([projectId, startAt])
+}
+
+/// Configuração do Calendar em 3 níveis: GLOBAL < USER < PROJECT
+/// Persiste visibilidade de fontes (toggles do sources panel) e preferências de visão.
+model CalendarConfig {
+  id        Int                  @id @default(autoincrement())
+  publicId  String               @unique @default(uuid(7))
+  scope     CalendarConfigScope
+
+  /// null para GLOBAL
+  userId    Int?
+  user      User?                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// null para GLOBAL e USER
+  projectId Int?
+  project   Project?             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  /// CalendarConfigData — { sources: {...}, view, firstDay }
+  config    Json
+
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+
+  @@unique([scope, userId, projectId])
+}
+
+// ─── Comentários ──────────────────────────────────────────────────────────────
+
+/// Comentário em tarefa ou projecto — eliminação física (sem status)
+model Comment {
+  id             Int        @id @default(autoincrement())
+  publicId       String     @unique @default(uuid(7))
+  content        String
+  entityType     EntityType
+  entityPublicId String
+  projectId      Int
+  project        Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  authorId       Int
+  author         User       @relation("AuthoredComments", fields: [authorId], references: [id])
+
+  /// Preenchido quando o comentário foi editado após criação
+  editedAt  DateTime? @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @db.Timestamptz(6)
+
+  mentions  CommentMention[]
+  reactions CommentReaction[]
+}
+
+/// Utilizador mencionado num comentário — para queries estruturais e notificações
+model CommentMention {
+  id        Int     @id @default(autoincrement())
+  commentId Int
+  comment   Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  userId    Int
+  user      User    @relation("MentionedIn", fields: [userId], references: [id])
+
+  @@unique([commentId, userId])
+}
+
+/// Reação emoji de um utilizador num comentário
+model CommentReaction {
+  id        Int      @id @default(autoincrement())
+  commentId Int
+  comment   Comment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  userId    Int
+  user      User     @relation("CommentReactions", fields: [userId], references: [id])
+  emoji     String
+  createdAt DateTime @default(now())
+
+  @@unique([commentId, userId, emoji])
+}
+
+// ─── i18n — Internacionalização ───────────────────────────────────────────────
+
+/// Locale suportado pela aplicação — gerido pelo PLATFORM_ADMIN
+model Locale {
+  id        Int      @id @default(autoincrement())
+  code      String   @unique   // "pt-PT" | "pt-BR" | "en" | "es" | ...
+  name      String             // "Português (Portugal)" | "English" | ...
+  flag      String?            // "portugal_flag.jpg" (ficheiro em /assets/images/flags/)
+  isActive  Boolean  @default(false)  // false = não aparece no LanguageSelector
+  isBuiltIn Boolean  @default(false)  // true = não pode ser eliminado
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum TranslationStatus {
+  APPROVED
+  AI_SUGGESTED
+}
+
+/// Tradução de uma chave num namespace para um locale
+model Translation {
+  id        Int               @id @default(autoincrement())
+  publicId  String            @unique @default(uuid(7))
+  locale    String
+  namespace String
+  key       String
+  value     String
+  status    TranslationStatus @default(APPROVED)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  @@unique([locale, namespace, key])
+  @@index([locale, namespace])
+  @@index([status])
+}
+
+/// Chaves reportadas como em falta pelo frontend (missingKeyHandler do i18next)
+model MissingTranslation {
+  id        Int      @id @default(autoincrement())
+  locale    String
+  namespace String
+  key       String
+  seenAt    DateTime @default(now())
+  resolved  Boolean  @default(false)
+
+  @@unique([locale, namespace, key])
+  @@index([resolved])
+}
+
+// ─── Notificações ─────────────────────────────────────────────────────────────
+
+/// Notificação gerada por menção em comentário ou atribuição de tarefa
+model Notification {
+  id              Int              @id @default(autoincrement())
+  publicId        String           @unique @default(uuid(7))
+  userId          Int
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type            NotificationType
+  title           String
+  body            String
+  entityType      EntityType?
+  entityPublicId  String?
+  projectPublicId String?
+  read            Boolean          @default(false)
+  createdAt       DateTime         @default(now()) @db.Timestamptz(6)
+}
+
+/// Preferências de notificação por utilizador, tipo e canal
+/// Opt-out model: ausência de registo = enabled (true)
+model NotificationPreference {
+  id        Int                 @id @default(autoincrement())
+  publicId  String              @unique @default(uuid(7))
+  userId    Int
+  user      User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  channel   NotificationChannel
+  enabled   Boolean             @default(true)
+  updatedAt DateTime            @updatedAt
+
+  @@unique([userId, type, channel])
+  @@index([userId])
+}
+
+// ─── Sessões (auth / refresh tokens) ──────────────────────────────────────────
+
+/// Sessão de autenticação — 1 sessão = 1 refresh token vivo + contexto de origem.
+/// Rotation: cada refresh gera nova sessão (replacedById aponta para a substituta).
+/// Revogação: soft-delete via revokedAt + revokedReason (auditoria).
+model Session {
+  id               Int       @id @default(autoincrement())
+  publicId         String    @unique @default(uuid(7))
+  userId           Int
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// sha256 hex do refresh token actual (opaco, 48 bytes base64url)
+  refreshTokenHash String    @unique
+
+  /// User-agent capturado no login (parsed para device/browser/OS na UI)
+  userAgent        String?   @db.VarChar(512)
+
+  /// IP de criação (geolocalizado via geoip-lite na UI)
+  ip               String?   @db.VarChar(64)
+
+  /// Último IP visto (actualizado pelo interceptor de actividade)
+  lastUsedIp       String?   @db.VarChar(64)
+
+  createdAt        DateTime  @default(now()) @db.Timestamptz(6)
+  lastUsedAt       DateTime  @default(now()) @db.Timestamptz(6)
+  expiresAt        DateTime  @db.Timestamptz(6)
+
+  /// Soft delete. Null = sessão activa.
+  revokedAt        DateTime? @db.Timestamptz(6)
+  /// LOGOUT | REVOKED_BY_USER | ROTATION | EXPIRED | ADMIN | PASSWORD_RESET | MFA_CHANGE | FORCED_LOGOUT | RISK_DETECTED
+  revokedReason    String?   @db.VarChar(32)
+
+  /// Self-FK — aponta para a sessão que substituiu esta na rotação
+  replacedById     Int?
+  replacedBy       Session?  @relation("SessionReplacement", fields: [replacedById], references: [id])
+  replaces         Session[] @relation("SessionReplacement")
+
+  @@index([userId, revokedAt])
+  @@index([expiresAt])
+}
+
+// ─── Timesheet ───────────────────────────────────────────────────────────────
+
+/// Estado semanal de timesheet por (utilizador, projecto, semana).
+/// Lazy-create na primeira entry ou primeiro getWeek. O `status` é mantido
+/// pelo service via recomputeWeekStatus() — derivado dos TimesheetDay.
+model TimesheetWeek {
+  id          Int                   @id @default(autoincrement())
+  publicId    String                @unique @default(uuid(7))
+  projectId   Int
+  project     Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId      Int
+  user        User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// UTC midnight da segunda-feira (ISO 8601, semana começa segunda)
+  weekStart   DateTime
+  status      TimesheetWeekStatus   @default(DRAFT)
+  submittedAt DateTime?
+
+  days        TimesheetDay[]
+  entries     TimesheetEntry[]
+  logs        TimesheetApprovalLog[]
+
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  @@unique([projectId, userId, weekStart])
+  @@index([userId, weekStart])
+}
+
+/// Estado por dia dentro de uma TimesheetWeek. Lazy-create na primeira entry.
+model TimesheetDay {
+  id              Int                @id @default(autoincrement())
+  publicId        String             @unique @default(uuid(7))
+  weekId          Int
+  week            TimesheetWeek      @relation(fields: [weekId], references: [id], onDelete: Cascade)
+
+  workDate        DateTime           // UTC midnight
+  status          TimesheetDayStatus @default(DRAFT)
+
+  approvedById    Int?
+  approvedBy      User?              @relation("TimesheetDayApproved", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt      DateTime?
+
+  rejectedById    Int?
+  rejectedBy      User?              @relation("TimesheetDayRejected", fields: [rejectedById], references: [id], onDelete: SetNull)
+  rejectedAt      DateTime?
+  rejectionReason String?
+
+  entries         TimesheetEntry[]
+
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  @@unique([weekId, workDate])
+}
+
+/// Lançamento individual de horas. Unique (projectId, userId, taskId, workDate)
+/// implementa REQ-G20 (mesma task/dia agrega valor; service faz upsert com soma).
+model TimesheetEntry {
+  id          Int             @id @default(autoincrement())
+  publicId    String          @unique @default(uuid(7))
+  projectId   Int
+  project     Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId      Int
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  taskId      Int
+  task        GanttTask       @relation(fields: [taskId], references: [id], onDelete: Restrict)
+  weekId      Int
+  week        TimesheetWeek   @relation(fields: [weekId], references: [id], onDelete: Cascade)
+  dayId       Int
+  day         TimesheetDay    @relation(fields: [dayId], references: [id], onDelete: Cascade)
+
+  workDate    DateTime        // UTC midnight (denormalizado de TimesheetDay.workDate)
+  weekStart   DateTime        // UTC midnight (denormalizado de TimesheetWeek.weekStart)
+
+  /// Mín 0.10; máx 999.99 (REQ-D04: sem limite real — Decimal(5,2) permite 999.99h)
+  hours       Decimal         @db.Decimal(5, 2)
+  comment     String?
+
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@unique([projectId, userId, taskId, workDate], name: "uq_entry")
+  @@index([projectId, userId, weekStart])
+  @@index([userId, workDate])
+}
+
+/// Audit trail imutável (REQ-A01–A06). Service nunca expõe update/delete.
+/// Cada submit/approve/reject escreve uma linha aqui na MESMA transação.
+model TimesheetApprovalLog {
+  id        Int                @id @default(autoincrement())
+  publicId  String             @unique @default(uuid(7))
+  weekId    Int
+  week      TimesheetWeek      @relation(fields: [weekId], references: [id], onDelete: Cascade)
+
+  /// Quem disparou a acção (submit user OU aprovador)
+  actorId   Int
+  actor     User               @relation(fields: [actorId], references: [id], onDelete: Restrict)
+
+  action    TimesheetLogAction
+  scope     TimesheetLogScope
+
+  /// Para DAY: workDate. Para WEEK: weekStart. Para MONTH: 1º dia do mês.
+  scopeDate DateTime
+
+  /// Obrigatório quando action=REJECT (validado em service)
+  reason    String?
+
+  createdAt DateTime           @default(now()) @db.Timestamptz(6)
+
+  @@index([weekId, createdAt])
+}

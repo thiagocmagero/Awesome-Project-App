@@ -1,0 +1,12 @@
+/* All styling is handled by the Zynix template (styles.css + icons.css + bootstrap.min.css).
+   This file intentionally left minimal. */
+
+
+/* Show-password button positioning (used in LoginPage) */
+.show-password-button {
+  position: absolute;
+  right: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  line-height: 1;
+}

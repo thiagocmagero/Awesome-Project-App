@@ -1,0 +1,31 @@
+/* AwesomeKanban — density variants */
+
+.ak-board[data-density='compact'] {
+  --ak-card-padding: 12px 14px;
+  --ak-card-gap: 8px;
+  --ak-meta-gap: 8px;
+  --ak-avatar-size: 22px;
+  --ak-avatar-overlap: -6px;
+  --ak-column-padding: 10px;
+  --ak-board-gap: 14px;
+}
+
+.ak-board[data-density='normal'] {
+  --ak-card-padding: 12px 14px;
+  --ak-card-gap: 10px;
+  --ak-meta-gap: 8px;
+  --ak-avatar-size: 26px;
+  --ak-avatar-overlap: -7px;
+  --ak-column-padding: 12px;
+  --ak-board-gap: 16px;
+}
+
+.ak-board[data-density='wide'] {
+  --ak-card-padding: 16px 18px;
+  --ak-card-gap: 14px;
+  --ak-meta-gap: 10px;
+  --ak-avatar-size: 30px;
+  --ak-avatar-overlap: -8px;
+  --ak-column-padding: 16px;
+  --ak-board-gap: 20px;
+}

@@ -1,0 +1,57 @@
+/* AwesomeKanban — minimal scoped reset (only what we need inside .ak-board) */
+
+.ak-board,
+.ak-board * {
+  box-sizing: border-box;
+}
+
+.ak-board button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.ak-board input,
+.ak-board textarea,
+.ak-board select {
+  font: inherit;
+  color: inherit;
+  background: var(--ak-surface);
+  border: 1px solid var(--ak-border-strong);
+  border-radius: var(--ak-radius-input);
+  padding: 6px 10px;
+  outline: none;
+}
+
+.ak-board input:focus-visible,
+.ak-board textarea:focus-visible,
+.ak-board select:focus-visible {
+  border-color: var(--ak-primary);
+  box-shadow: 0 0 0 3px var(--ak-primary-soft);
+}
+
+.ak-board ul,
+.ak-board ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.ak-board p {
+  margin: 0;
+}
+
+.ak-board img {
+  display: block;
+  max-width: 100%;
+}
+
+.ak-board [role='button'] {
+  cursor: pointer;
+}

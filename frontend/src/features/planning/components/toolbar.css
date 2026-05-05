@@ -1,0 +1,411 @@
+/* ==========================================================================
+   Unified Planning toolbar — aesthetic-only restyle of Planejamento/Gantt/Quadro.
+   Paleta alinhada ao Zynix (primary `#735adb`, soft `#e8e4ff`).
+   ========================================================================== */
+
+.tb-scope {
+  --tb-bg:           #ffffff;
+  --tb-row2-bg:      #fafbfc;
+  --tb-border:       #e8eaee;
+  --tb-border-soft:  #eef0f3;
+  --tb-text:         #1f2430;
+  --tb-text-2:       #6b7280;
+  --tb-text-3:       #9aa0ab;
+  --tb-hover:        #f5f6f8;
+  --tb-accent:       #735adb;
+  --tb-accent-soft:  #e8e4ff;
+  --tb-accent-hover: #5f48c8;
+  --tb-radius:       8px;
+}
+
+.tb {
+  background: var(--tb-bg);
+  border: 1px solid var(--tb-border);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+}
+
+/* ─── Row 1 ──────────────────────────────────────────────────────────────── */
+.tb__row1 {
+  display: flex;
+  align-items: stretch;
+  min-height: 48px;
+  border-bottom: 1px solid var(--tb-border);
+}
+.tb__views {
+  display: flex;
+  align-items: stretch;
+  padding: 0 4px;
+  flex-wrap: wrap;
+}
+.tb__views button {
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--tb-text-2);
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+  position: relative;
+  white-space: nowrap;
+  transition: color 120ms ease;
+}
+.tb__views button:hover { color: var(--tb-text); }
+.tb__views button.is-active { color: var(--tb-accent); }
+.tb__views button.is-active::after {
+  content: '';
+  position: absolute;
+  left: 10px; right: 10px; bottom: -1px;
+  height: 2px;
+  background: var(--tb-accent);
+  border-radius: 2px;
+}
+.tb__views i { font-size: 15px; line-height: 1; }
+
+.tb__row1-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  flex-wrap: wrap;
+}
+
+/* ─── Row 2 ──────────────────────────────────────────────────────────────── */
+.tb__row2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 7px 14px;
+  background: var(--tb-row2-bg);
+  flex-wrap: wrap;
+}
+.tb__spacer { flex: 1; min-width: 12px; }
+
+/* ─── Icon button ────────────────────────────────────────────────────────── */
+.ibtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  border: none;
+  background: transparent;
+  color: var(--tb-text-2);
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.ibtn i { font-size: 15px; }
+.ibtn:hover:not(:disabled) { background: var(--tb-hover); color: var(--tb-text); }
+.ibtn.is-active { background: var(--tb-accent-soft); color: var(--tb-accent); }
+.ibtn.is-active:hover:not(:disabled) { background: var(--tb-accent-soft); color: var(--tb-accent); }
+.ibtn:disabled { color: var(--tb-text-3); opacity: 0.5; cursor: not-allowed; }
+
+/* ─── Vertical divider ──────────────────────────────────────────────────── */
+.tb .div-v {
+  width: 1px;
+  height: 18px;
+  background: var(--tb-border);
+  margin: 0 4px;
+  flex-shrink: 0;
+}
+
+/* ─── Search input ──────────────────────────────────────────────────────── */
+.tb .search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--tb-hover);
+  border: 1px solid transparent;
+  border-radius: var(--tb-radius);
+  padding: 0 10px;
+  height: 30px;
+  min-width: 220px;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+.tb .search:hover { background: var(--tb-border-soft); }
+.tb .search:focus-within { background: #fff; border-color: var(--tb-accent); }
+.tb .search i { font-size: 13px; color: var(--tb-text-3); flex-shrink: 0; }
+.tb .search input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  outline: none;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--tb-text);
+  min-width: 0;
+}
+.tb .search input::placeholder { color: var(--tb-text-3); }
+.tb .search .search-clear {
+  border: none;
+  background: transparent;
+  color: var(--tb-text-3);
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+}
+.tb .search .search-clear:hover { color: var(--tb-text); }
+
+/* ─── Ghost button (Export, Gerir Estados) ──────────────────────────────── */
+.tb .btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 10px;
+  background: transparent;
+  border: 1px solid var(--tb-border);
+  border-radius: var(--tb-radius);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--tb-text);
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+.tb .btn-ghost:hover { background: var(--tb-hover); border-color: #d8dbe1; }
+.tb .btn-ghost i { font-size: 13px; line-height: 1; }
+
+/* ─── Primary toolbar button ("+ Adicionar tarefa") ──────────────────────── */
+.tb .btn-primary-tb {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px 0 10px;
+  background: var(--tb-accent);
+  border: none;
+  border-radius: var(--tb-radius);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #fff;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+.tb .btn-primary-tb:hover { background: var(--tb-accent-hover); }
+.tb .btn-primary-tb i { font-size: 13px; line-height: 1; }
+
+/* ─── Zoom segmented control ─────────────────────────────────────────────── */
+.tb .zoom-seg {
+  display: inline-flex;
+  align-items: center;
+  background: var(--tb-border-soft);
+  border-radius: 7px;
+  padding: 2px;
+  height: 30px;
+}
+.tb .zoom-seg .ibtn { width: 26px; height: 26px; border-radius: 5px; }
+.tb .zoom-seg .ibtn:hover:not(:disabled) { background: #fff; }
+.tb .zoom-seg .zoom-label {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--tb-text-2);
+  padding: 0 8px;
+  min-width: 44px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
+
+/* ─── Sub-tabs pills (Planejamento) ──────────────────────────────────────── */
+.tb .subtabs {
+  display: inline-flex;
+  gap: 2px;
+  background: var(--tb-border-soft);
+  padding: 3px;
+  border-radius: 8px;
+}
+.tb .subtabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 26px;
+  padding: 0 12px;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--tb-text-2);
+  cursor: pointer;
+  border-radius: 6px;
+  white-space: nowrap;
+  transition: color 120ms ease, background 120ms ease;
+}
+.tb .subtabs button:hover { color: var(--tb-text); }
+.tb .subtabs button.is-active {
+  color: var(--tb-text);
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.06);
+}
+.tb .subtabs i { font-size: 13px; line-height: 1; }
+.tb .subtabs .count {
+  font-size: 10.5px;
+  font-weight: 600;
+  background: var(--tb-accent-soft);
+  color: var(--tb-accent);
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ─── Status / column filter chips ───────────────────────────────────────── */
+.tb .status-filters {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex-wrap: wrap;
+}
+.tb .status-filters .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--tb-text-2);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 120ms ease, color 120ms ease;
+}
+.tb .status-filters .chip:hover { background: var(--tb-hover); color: var(--tb-text); }
+.tb .status-filters .chip.is-active {
+  color: var(--tb-accent);
+  background: var(--tb-accent-soft);
+}
+.tb .status-filters .chip .count {
+  font-size: 10.5px;
+  font-weight: 600;
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--tb-text-2);
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-variant-numeric: tabular-nums;
+}
+.tb .status-filters .chip.is-active .count {
+  background: rgba(115, 90, 219, 0.15);
+  color: var(--tb-accent);
+}
+
+/* ─── Board column strip ─────────────────────────────────────────────────── */
+.tb .col-strip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.tb .col-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 6px 0 10px;
+  background: #fff;
+  border: 1px solid var(--tb-border);
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--tb-text);
+  white-space: nowrap;
+}
+.tb .col-badge .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.tb .col-badge .star {
+  font-size: 10px;
+  color: #f5b849;
+  margin-left: 1px;
+}
+.tb .col-badge .actions {
+  display: inline-flex;
+  gap: 0;
+  margin-left: 2px;
+}
+.tb .col-badge .actions .ibtn {
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+}
+.tb .col-badge .actions .ibtn i { font-size: 11px; }
+.tb .col-badge .actions .ibtn.trash:hover { color: #e6533c; }
+.tb .col-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 10px;
+  background: var(--tb-accent-soft);
+  border: 1px dashed transparent;
+  border-radius: 7px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--tb-accent);
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+.tb .col-add:hover { background: rgba(115, 90, 219, 0.18); }
+.tb .col-add i { font-size: 12px; line-height: 1; }
+
+/* ─── Export dropdown ────────────────────────────────────────────────────── */
+.tb .export-wrap { position: relative; }
+.tb .export-wrap .caret {
+  font-size: 10px;
+  opacity: 0.7;
+  margin-left: 2px;
+}
+/* `.export-menu` é renderizada via portal em document.body com
+   position:fixed inline — top/right vêm computados pelo componente.
+   Aqui só ficam os estilos de aparência. Sem `.tb` prefix porque o portal
+   está fora da árvore de `.tb`. */
+.export-menu {
+  background: #fff;
+  border: 1px solid #e8eaee;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(16, 24, 40, 0.12), 0 2px 6px rgba(16, 24, 40, 0.06);
+  padding: 4px;
+  min-width: 180px;
+  /* Fake fullscreen usa z-index:9999 — o menu tem de ficar acima */
+  z-index: 10000;
+}
+.export-menu button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 12.5px;
+  color: #1f2430;
+  padding: 7px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+}
+.export-menu button:hover { background: #f5f6f8; }
+.export-menu i { font-size: 14px; color: #6b7280; }
+.export-menu .sep {
+  height: 1px;
+  background: #eef0f3;
+  margin: 4px 2px;
+}
