@@ -460,6 +460,7 @@ npm run build
 @docs/claude/date-formatting.md          (formato de data por projecto: helper, Context, hook, wire vs display, pattern por widget)
 @docs/claude/timezone.md                 (timezone: hierarquia binária, datas puras vs momentos reais, helpers, anti-padrões)
 @docs/claude/notifications.md            (mecanismo de notificações: modelo, endpoints, hook, dropdown, gaps)
+@docs/claude/email.md                    (envio de emails transacionais: SMTP Brevo, React Email, locale-aware, 10 tipos)
 @docs/claude/tools/gantt/overview.md     (Gantt — ponto de entrada obrigatório)
 @docs/claude/tools/gantt/data-model.md   (modelos Prisma Gantt, holidays, GanttConfig)
 @docs/claude/tools/gantt/interactions.md (drag & drop, eventos DHTMLX, stale closures)

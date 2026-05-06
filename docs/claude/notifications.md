@@ -7,8 +7,9 @@ e polling HTTP do frontend (30s). Arquitectura escalável para futuros canais vi
 `NotificationChannel` enum e tabela `NotificationPreference`.
 
 - **Sem real-time** (sem WebSocket / SSE / push do browser) — polling 30s.
-- **Sem envio real de email** — `EmailConfig` existe como estrutura, mas
-  `nodemailer` / `@nestjs/mailer` **não estão instalados**.
+- **Email implementado** — fan-out IN_APP + EMAIL no `NotificationsService` para
+  todos os 10 tipos. Stack Brevo SMTP + Nodemailer + React Email, locale-aware.
+  Detalhes em @docs/claude/email.md.
 - **Toasts** e **SweetAlert** são camadas auxiliares de UX para feedback imediato
   — não substituem a tabela `Notification`, que serve para eventos assíncronos.
 - **Preferências de notificação** por utilizador, tipo e canal — modelo opt-out
@@ -110,15 +111,23 @@ async shouldNotify(userId, type: NotificationType, channel: NotificationChannel)
 }
 ```
 
-**Padrão para futuros canais (ex: EMAIL):**
+**Canal EMAIL (implementado, Mai 2026):** cada `createXxxNotification` faz
+fan-out independente — IN_APP cria registo se `shouldNotify(IN_APP)`; EMAIL
+resolve `User.email/name/locale` e dispara `EmailService.sendXxxEmail(...)`
+fire-and-forget se `shouldNotify(EMAIL)`. Os dois canais são independentes
+em BD (preferências separadas por `(userId, type, channel)`). Ver
+@docs/claude/email.md para o pipeline completo.
+
+**Padrão para futuros canais (ex: BROWSER push):**
 ```typescript
-// No futuro EmailSenderService:
-async sendNotificationEmail(...) {
-  if (!(await this.notificationsService.shouldNotify(userId, type, NotificationChannel.EMAIL))) return;
-  // enviar email ...
+// No futuro BrowserPushService:
+async sendBrowserPush(...) {
+  if (!(await this.notificationsService.shouldNotify(userId, type, NotificationChannel.BROWSER))) return;
+  // disparar push API ...
 }
 ```
-Zero alterações ao modelo. Apenas novo service + novo caller.
+Zero alterações ao modelo. Apenas novo service + chamada paralela em cada
+`createXxxNotification`.
 
 ## Frontend — tipos partilhados
 
@@ -194,36 +203,39 @@ Acessível via:
 Chaves `notifications`:
 - `page.title/subtitle`, `table.*`, `type.<TYPE>`, `desc.<TYPE>`, `success.saved`, `error.save`
 
-## Configuração de email (estrutura sem implementação)
+## Configuração de email
 
-- Modelo `EmailConfig` (singleton) + endpoints `GET/PATCH /platform-config/email`.
-- ⚠️ Sem `nodemailer` instalado — zero emails enviados.
+- Modelo `EmailConfig` (singleton id=1) — apenas metadados (`enabled`,
+  `fromEmail`, `fromName`); SMTP secrets em env vars (`SMTP_*`).
+- Endpoints: `GET/PATCH /platform-config/email` (admin),
+  `GET /platform-config/email/smtp-status` (admin),
+  `GET /platform-config/email/availability` (qualquer JWT — devolve só `{ available }`).
+- UI: `/settings/email` (PLATFORM_ADMIN). Detalhes completos em
+  @docs/claude/email.md.
 
 ## Adicionar novo tipo de notificação — checklist
 
 1. Adicionar valor ao `NotificationType` em `schema.prisma` + migração.
-2. Adicionar `create...Notification` em `NotificationsService` (com `shouldNotify` IN_APP).
-3. Chamar do service apropriado com `.catch(() => {})`.
+2. Adicionar `create...Notification` em `NotificationsService` com fan-out
+   IN_APP + EMAIL (espelhar `createMentionNotification`).
+3. Chamar do service de domínio apropriado com `.catch(() => {})`.
 4. Adicionar ao array `NOTIFICATION_TYPES` em `features/notifications/types.ts`.
 5. Mapear ícone/navegação em `AppLayout.tsx`.
-6. Adicionar chaves `type.<TYPE>` e `desc.<TYPE>` no `notifications.json` (4 locales) + `npm run seed`.
-
-## Adicionar novo canal de notificação (ex: EMAIL) — checklist
-
-1. `NotificationChannel` já tem `EMAIL` no enum — zero alterações ao schema.
-2. Criar `EmailSenderService` que chama `shouldNotify(userId, type, NotificationChannel.EMAIL)`.
-3. `NotificationPreferencesPage` já mostra a coluna EMAIL como disabled — remover `disabled` e ligar ao toggle.
-4. Adicionar traduções se necessário.
+6. Adicionar chaves `type.<TYPE>` e `desc.<TYPE>` no `notifications.json` (4 locales).
+7. **Email**: criar template + chaves no namespace `email` + método `sendXxxEmail`
+   no `EmailService` — ver @docs/claude/email.md "Adicionar um novo tipo".
+8. Correr `npm run seed` no container backend.
 
 ## Gaps / Limitações actuais
 
 - ❌ Sem WebSocket/SSE — atrasos até 30s.
-- ❌ Email sem implementação real (`nodemailer` não instalado).
 - ❌ Sem `@nestjs/event-emitter` — acoplamento directo entre callers e service.
 - ❌ Sem retry — falha de `prisma.notification.create` é silenciosa.
-- ❌ `title` e `body` em PT hardcoded no service — sem i18n para notificações antigas.
+- ❌ `title` e `body` das notificações in-app em PT hardcoded no service —
+  apenas o canal EMAIL é locale-aware (via `User.locale` + namespace `email`).
 - ❌ Sem agrupamento — 5 reações criam 5 notificações.
 - ❌ Sem paginação na UI do dropdown (limitado ao primeiro fetch de 20).
+- ❌ Canal BROWSER (push) ainda placeholder — coluna `disabled` na UI.
 
 ## Anti-padrões
 
@@ -234,4 +246,4 @@ Chaves `notifications`:
 - ❌ Usar `Notification` para confirmar acções imediatas — usar **toast**.
 - ❌ Notificar auto-acções (actor === recipient) — verificar e saltar.
 
-# Relacionados: @docs/claude/backend.md @docs/claude/db.md @docs/claude/auth.md @docs/claude/frontend.md @docs/claude/i18n.md
+# Relacionados: @docs/claude/email.md @docs/claude/backend.md @docs/claude/db.md @docs/claude/auth.md @docs/claude/frontend.md @docs/claude/i18n.md
