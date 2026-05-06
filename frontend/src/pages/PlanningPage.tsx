@@ -268,6 +268,7 @@ export default function PlanningPage() {
     ganttZoomLevel, ganttAllExpanded, showResourceGrid,
     autoScheduling, showTooltips,
     handleGanttToggleExpand, handleGanttZoomIn, handleGanttZoomOut, handleGanttZoomReset,
+    clampZoomForViewUnit,
     handleToggleResourceGrid, handleToggleAutoScheduling, handleToggleTooltips,
     toggleColumn,
   } = useGanttInit({
@@ -571,6 +572,8 @@ export default function PlanningPage() {
     if (ganttInitialized.current && typeof gantt !== 'undefined') {
       try { setGanttGranularity(mode); } catch { /* widget pode não estar pronto */ }
     }
+    // Aplica floor de zoom da nova vista (Hour não desce abaixo de 60%).
+    clampZoomForViewUnit(mode);
     const nextDefaults = { ...(ganttConfig.defaults ?? {}), viewUnit: mode } as GanttConfigDefaults;
     const nextConfig = { ...ganttConfig, defaults: nextDefaults };
     updateProjectConfig(nextConfig).catch(() => {
@@ -578,7 +581,7 @@ export default function PlanningPage() {
       // o user vê o efeito visual e o save falha silenciosamente).
       setGanttViewUnit(ganttViewUnit);
     });
-  }, [ganttViewUnit, ganttConfig, updateProjectConfig]);
+  }, [ganttViewUnit, ganttConfig, updateProjectConfig, clampZoomForViewUnit]);
 
   // Cleanup custom color style + pending debounced save on unmount
   useEffect(() => () => {

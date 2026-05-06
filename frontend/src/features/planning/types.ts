@@ -176,6 +176,14 @@ export const EMPTY_LINK_FORM = { source: '', target: '', type: '0', lag: '0' };
 
 export const ZOOM_LEVELS = [10, 18, 30, 50, 80]; // min_column_width em px
 export const DEFAULT_ZOOM_INDEX = 2;
+// Floor de zoom por granularidade do widget. Em vista DAY permite-se idx 0
+// (33%). Em vista HOUR, com colunas hora-a-hora, ir abaixo de idx 1 (60%)
+// torna o cabeçalho "DD MMM" da escala superior ilegível e amontoa a hora.
+export const MIN_ZOOM_INDEX_DAY  = 0;
+export const MIN_ZOOM_INDEX_HOUR = 1;
+export function getMinZoomIndex(unit: 'day' | 'hour'): number {
+  return unit === 'hour' ? MIN_ZOOM_INDEX_HOUR : MIN_ZOOM_INDEX_DAY;
+}
 
 export const AVATAR_COLORS = [
   'bg-primary', 'bg-secondary', 'bg-success', 'bg-warning', 'bg-info', 'bg-danger',

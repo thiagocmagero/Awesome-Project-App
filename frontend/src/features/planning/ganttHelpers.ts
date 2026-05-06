@@ -462,38 +462,16 @@ export function attachGanttEvents(params: AttachGanttEventsParams): () => void {
   // ── Permission gates (onBefore* — cancelam antes de DHTMLX mutar o store) ──
   // Defense-in-depth: o backend já valida 403, mas evitamos UX em que o widget
   // muda visualmente e depois reverte por causa do erro.
-  evtIds.push(gantt.attachEvent('onBeforeTaskDrag', function (id: number | string) {
+  evtIds.push(gantt.attachEvent('onBeforeTaskDrag', function () {
     if (!canDoRef.current('TASK_EDIT')) {
       showToastRef.current('warning', tRef.current('common:errors.forbidden'));
       return false;
     }
-    // Bloqueia drag/resize quando o modo do widget (`duration_unit`) não
-    // bate com o `durationUnit` da task. DHTMLX em modo 'day' faz snap em
-    // dias inteiros, corrompendo sub-day HOUR tasks. Inverso também.
-    // ID-coercion: DHTMLX pode passar id como string ou number — coercer
-    // ambos lados para number antes de comparar.
-    const numId = Number(id);
-    const fromBackend = tasksRef.current.find((t) => Number(t.id) === numId);
-    // Fallback para o widget se o backend ref ainda não tiver a task (race).
-    const widgetTask = gantt.getTask(id);
-    const widgetTaskUnitRaw = (widgetTask as Record<string, unknown> | undefined)?.durationUnit as 'DAY' | 'HOUR' | undefined;
-    const taskUnit: 'DAY' | 'HOUR' =
-      (fromBackend?.durationUnit as 'DAY' | 'HOUR' | undefined)
-      ?? widgetTaskUnitRaw
-      ?? 'DAY';
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const widgetUnit = ((gantt as any).config?.duration_unit as string | undefined) ?? 'day';
-    const widgetIsHour = widgetUnit === 'hour';
-    const taskIsHour = taskUnit === 'HOUR';
-    if (widgetIsHour !== taskIsHour) {
-      showToastRef.current(
-        'warning',
-        tRef.current(taskIsHour
-          ? 'task.error_widget_must_be_hour'
-          : 'task.error_widget_must_be_day'),
-      );
-      return false;
-    }
+    // Drag cross-mode (widget DAY ↔ task HOUR e vice-versa) é permitido para
+    // `move`. O handler `onAfterTaskDrag` aplica preservação de hora-de-dia
+    // (HOUR em DAY view) ou snap a midnight (DAY em HOUR view). Para
+    // `resize`, o handler reverte e mostra toast educativo — o widget DHTMLX
+    // não tem como expor precisão sub-day em colunas diárias e vice-versa.
     return true;
   }));
 
@@ -573,6 +551,13 @@ export function attachGanttEvents(params: AttachGanttEventsParams): () => void {
 
     const wh = workHoursRef.current ?? { start: 9, end: 18 };
 
+    // Granularidade actual do widget (independente da unit da task).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const widgetUnit = ((gantt as any).config?.duration_unit as string | undefined) ?? 'day';
+    const widgetIsHour = widgetUnit === 'hour';
+    const taskIsHour = taskUnit === 'HOUR';
+    const crossMode = widgetIsHour !== taskIsHour;
+
     // Strings wire format do widget (LOCAL → "DD-MM-YYYY HH:mm").
     const widgetStartStrRaw = widgetTask.start_date instanceof Date
       ? dateToGanttStr(widgetTask.start_date)
@@ -584,6 +569,27 @@ export function attachGanttEvents(params: AttachGanttEventsParams): () => void {
     const isResize = mode === 'resize';
     const backendStart = fromBackend?.start_date;
     const backendEnd = fromBackend?.end_date;
+
+    // ── Cross-mode + RESIZE → revert visual + toast educativo ────────────────
+    // Resize cross-mode é ambíguo: em vista DAY, snap em 24h numa task HOUR de
+    // 2h; em vista HOUR, sub-day numa task DAY. Bloquear preserva semântica.
+    if (crossMode && isResize && fromBackend) {
+      try {
+        const t = gantt.getTask(numericId);
+        if (t) {
+          t.start_date = parseDhxDate(fromBackend.start_date) ?? t.start_date;
+          t.end_date   = parseDhxDate(fromBackend.end_date)   ?? t.end_date;
+          gantt.updateTask(numericId);
+        }
+      } catch { /* ignore */ }
+      showToastRef.current(
+        'warning',
+        tRef.current(taskIsHour
+          ? 'task.error_resize_needs_hour_view'
+          : 'task.error_resize_needs_day_view'),
+      );
+      return;
+    }
 
     // Detecta lado do resize comparando widget vs backend.
     // LEFT: start mudou, end igual. RIGHT: end mudou, start igual.
@@ -610,7 +616,25 @@ export function attachGanttEvents(params: AttachGanttEventsParams): () => void {
           // sem movimento → skip
           return true;
         }
-        const { start: clampedStart, clamped } = clampMoveStart(widgetStartStrRaw, canonicalDur, wh);
+        // Cross-mode HOUR-task em widget DAY: o widget snap-ou para 00:00 do
+        // dia novo. Recompor com a hora original do backend para preservar
+        // intent semântico ("mover para outro dia, mesma hora").
+        // `clampMoveStart` adiante valida contra workHours e ajusta se a hora
+        // cair em fim-de-semana, feriado ou fora da janela útil.
+        let effectiveStartStr = widgetStartStrRaw;
+        if (!widgetIsHour && backendStart) {
+          const widgetDay = parseDhxDate(widgetStartStrRaw);
+          const backendDate = parseDhxDate(backendStart);
+          if (widgetDay && backendDate) {
+            widgetDay.setHours(
+              backendDate.getHours(),
+              backendDate.getMinutes(),
+              0, 0,
+            );
+            effectiveStartStr = dateToGanttStr(widgetDay);
+          }
+        }
+        const { start: clampedStart, clamped } = clampMoveStart(effectiveStartStr, canonicalDur, wh);
         didClamp = clamped;
         body.start_date = clampedStart;
         body.duration = canonicalDur;
@@ -724,13 +748,25 @@ export function attachGanttEvents(params: AttachGanttEventsParams): () => void {
     let widgetDurationInTaskUnit = Math.max(1, Math.round(calendarHoursRaw / 24));
     if (widgetDurationInTaskUnit > 1000) widgetDurationInTaskUnit = 1000;
 
-    const startChanged = !fromBackend || widgetStartStrRaw !== fromBackend.start_date;
+    // Cross-mode DAY-task em widget HOUR: o widget pode ter solto o drag a
+    // meio do dia (ex.: 14:00). Tasks DAY são DATA PURA por convenção
+    // (`start_date` em UTC midnight) — snap a 00:00 antes de enviar.
+    let normalisedStartStr = widgetStartStrRaw;
+    if (widgetIsHour) {
+      const d = parseDhxDate(widgetStartStrRaw);
+      if (d) {
+        d.setHours(0, 0, 0, 0);
+        normalisedStartStr = dateToGanttStr(d);
+      }
+    }
+
+    const startChanged = !fromBackend || normalisedStartStr !== fromBackend.start_date;
     const durationChanged = isResize
       && fromBackend
       && widgetDurationInTaskUnit !== fromBackend.duration;
 
     const body: Record<string, unknown> = { durationUnit: taskUnit };
-    if (startChanged) body.start_date = widgetStartStrRaw;
+    if (startChanged) body.start_date = normalisedStartStr;
     if (durationChanged) body.duration = widgetDurationInTaskUnit;
     if (startChanged || durationChanged) body.endDateMode = endDateModeRef.current;
 
@@ -841,15 +877,14 @@ export function applyDayScales(): void {
   ];
 }
 
-/** Escalas HOUR: cabeçalho dia (data curta) + hora (HH:mm). */
+/** Escalas HOUR: cabeçalho dia (data curta) + hora (só o número, 00..23). */
 export function applyHourScales(): void {
   const g = gantt as unknown as GanttExt;
   g.config.scales = [
     { unit: 'day',  step: 1, format: '%d %M' },
-    // step:2 reduz para metade o número de colunas-hora visíveis (00, 02, 04,
-    // ...). Isto evita sobreposição visual do "HH:mm" quando min_column_width
-    // ainda é apertado. Ver docs/claude/tools/gantt/rendering.md.
-    { unit: 'hour', step: 2, format: '%H:%i' },
+    // Apenas o número da hora (00..23) com step 1h. Como o label tem só 2
+    // caracteres não precisa de step 2h para evitar sobreposição visual.
+    { unit: 'hour', step: 1, format: '%H' },
   ];
 }
 
@@ -872,9 +907,9 @@ export function setGanttGranularity(mode: 'day' | 'hour'): void {
   const prev = g.config.duration_unit as 'day' | 'hour' | undefined;
   g.config.duration_unit = mode;
   g.config.duration_step = mode === 'hour' ? 0.25 : 1;
-  // min_column_width — em HOUR cada coluna é 1 step (2h por step) e tem que
-  // caber "HH:mm" (5 chars). Com font 11px, 50px é o mínimo confortável.
-  // Em DAY mantém o que o user tinha (zoom level).
+  // min_column_width — em HOUR cada coluna é 1h (step 1) e o label tem só 2
+  // chars ("00".."23"). 50px é confortável; reduzir mais arrisca não caber o
+  // header "DD MMM" da escala superior. Em DAY mantém o que o user tinha.
   g.config.min_column_width = mode === 'hour' ? 50 : g.config.min_column_width;
 
   if (mode === 'hour') applyHourScales();

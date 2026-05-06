@@ -8,7 +8,7 @@ import {
   applyGanttColors, attachGanttEvents,
   applyDayScales, applyHourScales,
 } from './ganttHelpers';
-import { ZOOM_LEVELS, DEFAULT_ZOOM_INDEX } from './types';
+import { ZOOM_LEVELS, DEFAULT_ZOOM_INDEX, getMinZoomIndex } from './types';
 import type {
   GanttTask, GanttLink, ResourceNode, ShowToastFn,
   GanttConfigData, GanttConfigColors,
@@ -72,6 +72,7 @@ export interface UseGanttInitReturn {
   handleGanttZoomIn: () => void;
   handleGanttZoomOut: () => void;
   handleGanttZoomReset: () => void;
+  clampZoomForViewUnit: (unit: 'day' | 'hour') => void;
   handleToggleResourceGrid: () => void;
   handleToggleAutoScheduling: () => void;
   handleToggleTooltips: () => void;
@@ -270,7 +271,11 @@ export function useGanttInit({
       if (ganttConfig.behavior.openTreeInitially !== undefined) gantt.config.open_tree_initially = ganttConfig.behavior.openTreeInitially;
     }
     if (ganttConfig.defaults?.zoomLevel !== undefined) {
-      const zIdx = Math.max(0, Math.min(ZOOM_LEVELS.length - 1, ganttConfig.defaults.zoomLevel));
+      const zIdxRaw = Math.max(0, Math.min(ZOOM_LEVELS.length - 1, ganttConfig.defaults.zoomLevel));
+      // Em vista Hour aplica-se floor de 60% (idx 1) — projectos persistidos em
+      // 33% antes desta regra abrem clamped.
+      const initialUnitForZoom = (ganttConfig.defaults?.viewUnit ?? 'day') as 'day' | 'hour';
+      const zIdx = Math.max(zIdxRaw, getMinZoomIndex(initialUnitForZoom));
       gantt.config.min_column_width = ZOOM_LEVELS[zIdx];
       setGanttZoomLevel(zIdx);
     }
@@ -385,10 +390,27 @@ export function useGanttInit({
 
   function handleGanttZoomOut() {
     if (!ganttInitialized.current) return;
-    const next = Math.max(ganttZoomLevel - 1, 0);
+    // Floor depende do modo do widget: hour view não desce abaixo de 60% para
+    // não amontoar as 24 colunas-hora num único dia visível.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const widgetUnit = ((gantt as any).config?.duration_unit as string | undefined) === 'hour' ? 'hour' : 'day';
+    const minIdx = getMinZoomIndex(widgetUnit);
+    const next = Math.max(ganttZoomLevel - 1, minIdx);
     gantt.config.min_column_width = ZOOM_LEVELS[next];
     gantt.render();
     setGanttZoomLevel(next);
+  }
+
+  /** Garante que ganttZoomLevel respeita o floor da vista actual. Usado pela
+   *  PlanningPage ao trocar para vista Hour com zoom abaixo de 60%. */
+  function clampZoomForViewUnit(unit: 'day' | 'hour') {
+    if (!ganttInitialized.current) return;
+    const minIdx = getMinZoomIndex(unit);
+    if (ganttZoomLevel < minIdx) {
+      gantt.config.min_column_width = ZOOM_LEVELS[minIdx];
+      gantt.render();
+      setGanttZoomLevel(minIdx);
+    }
   }
 
   function handleGanttZoomReset() {
@@ -453,6 +475,7 @@ export function useGanttInit({
     ganttZoomLevel, ganttAllExpanded,
     showResourceGrid, autoScheduling, showTooltips,
     handleGanttToggleExpand, handleGanttZoomIn, handleGanttZoomOut, handleGanttZoomReset,
+    clampZoomForViewUnit,
     handleToggleResourceGrid, handleToggleAutoScheduling, handleToggleTooltips,
     toggleColumn,
   };

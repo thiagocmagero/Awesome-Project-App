@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { ZOOM_LEVELS, DEFAULT_ZOOM_INDEX } from '../types';
+import { ZOOM_LEVELS, DEFAULT_ZOOM_INDEX, getMinZoomIndex } from '../types';
 import type { ITaskState } from '../states-types';
 import {
   formatWeekRange as formatWeekRangeShort,
@@ -450,7 +450,7 @@ export function UnifiedToolbar(props: UnifiedToolbarProps) {
                 className="ibtn"
                 title={tg('gantt.toolbar.zoom_out')}
                 onClick={handleGanttZoomOut}
-                disabled={ganttZoomLevel === 0}
+                disabled={ganttZoomLevel <= getMinZoomIndex(ganttViewUnit)}
               >
                 <i className="ti ti-zoom-out" />
               </button>
