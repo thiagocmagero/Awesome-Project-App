@@ -13,6 +13,8 @@ enum Status {
   ACTIVE
   INACTIVE
   ARCHIVED
+  /// Registo pendente de confirmação de email (criado mas ainda não activado)
+  PENDING
 }
 
 enum InviteStatus {
@@ -331,6 +333,14 @@ model User {
   /// PATCH /users/me/locale (header LanguageSelector + UserSettingsPage).
   /// Usado pelo backend para escolher o idioma dos emails transacionais.
   locale String?
+
+  /// Email confirmado (true = confirmado por link de email ou por convite aceite).
+  /// Utilizadores PENDING têm emailVerified=false. Após activação fica true.
+  /// Utilizadores existentes antes desta feature ficam com true via migração.
+  emailVerified Boolean @default(false)
+
+  /// Tokens de email deste utilizador (confirmação, password reset, convite)
+  emailTokens EmailToken[]
 
   createdAt DateTime @default(now()) @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @db.Timestamptz(6)
@@ -1528,4 +1538,44 @@ model TimesheetApprovalLog {
   createdAt DateTime           @default(now()) @db.Timestamptz(6)
 
   @@index([weekId, createdAt])
+}
+
+// ─── Email Tokens ─────────────────────────────────────────────────────────────
+
+/// Tipos de token de email. Cada tipo tem TTL diferente (ver EmailTokenService).
+enum TokenType {
+  /// Confirmação de email no registo (TTL: 24h)
+  EMAIL_CONFIRMATION
+  /// Reset de password (TTL: 15min)
+  PASSWORD_RESET
+  /// Convite para projecto — pode ter userId null (utilizador sem conta) (TTL: 72h)
+  ACCOUNT_INVITE
+  /// Operação sensível (ex.: alterar email) (TTL: 10min)
+  SENSITIVE_OPERATION
+}
+
+/// Tokens de email de uso único para confirmação, reset e convites.
+/// Token gerado via crypto.randomBytes(32).toString('hex') (64 chars, OWASP).
+model EmailToken {
+  id        Int       @id @default(autoincrement())
+  publicId  String    @unique @default(uuid(7))
+
+  /// Token opaco de 64 chars hex
+  token     String    @unique
+
+  type      TokenType
+
+  /// null para ACCOUNT_INVITE dirigido a email sem conta existente
+  userId    Int?
+  user      User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// email alvo — preenchido quando userId é null (ACCOUNT_INVITE sem conta)
+  email     String?
+
+  expiresAt DateTime
+  used      Boolean   @default(false)
+  createdAt DateTime  @default(now())
+
+  @@index([userId, type])
+  @@index([email, type])
 }

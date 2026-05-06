@@ -84,7 +84,7 @@ Ambas no submenu **"Configurações > Plataforma"** do sidebar
 ```
 emails/
 ├── emails.module.ts          # @Global, importa I18nModule, exporta EmailService
-├── email.service.ts          # @Injectable, OnModuleInit; pipeline + 10 sendXxxEmail
+├── email.service.ts          # @Injectable, OnModuleInit; pipeline + 12 sendXxxEmail
 ├── email.config.ts           # readSmtpEnv(), readAppUrl()
 └── templates/
     ├── components/
@@ -100,24 +100,31 @@ emails/
     ├── timesheet-submitted.email.tsx
     ├── timesheet-approved.email.tsx
     ├── timesheet-partially-approved.email.tsx
-    └── timesheet-rejected.email.tsx
+    ├── timesheet-rejected.email.tsx
+    ├── email-confirmation.email.tsx   # confirmação de email no registo
+    └── password-reset.email.tsx       # recuperação de password
 ```
 
 `EmailsModule` é `@Global()` — qualquer service pode injectar `EmailService`
 sem importar explicitamente. Importa `I18nModule` para resolver chaves do
 namespace `email`.
 
-## Templates (10) e callers
+## Templates (12) e callers
 
-Os callers **continuam a chamar apenas o `NotificationsService`** — o
+Os callers de notificações **continuam a chamar apenas o `NotificationsService`** — o
 fan-out IN_APP + EMAIL acontece atrás do palco. Nenhum service de domínio
 (invitations, planning, comments, timesheet) sabe do `EmailService` directamente.
+
+**Excepção — fluxos de autenticação**: `email-confirmation.email.tsx` e
+`password-reset.email.tsx` são disparados directamente pelo `AuthService` via
+`EmailService.sendXxxEmail()`. Não têm `NotificationType` nem in-app notification —
+são emails transacionais de segurança desacoplados do sistema de notificações.
 
 | Tipo | Caller que dispara | Quem recebe | Template |
 |---|---|---|---|
 | `MENTION` | `comments.service.createComment`/`updateComment` | utilizadores mencionados | [comment-mention.email.tsx](backend/src/emails/templates/comment-mention.email.tsx) |
 | `TASK_ASSIGNED` | `planning.service` (assign) | cada novo assignee com `userId` | [task-assigned.email.tsx](backend/src/emails/templates/task-assigned.email.tsx) |
-| `INVITATION_RECEIVED` | `projects.service.invite` | user convidado | [invitation-received.email.tsx](backend/src/emails/templates/invitation-received.email.tsx) |
+| `INVITATION_RECEIVED` | `projects.service.invite` | user convidado (com `inviteUrl` se token ACCOUNT_INVITE criado) | [invitation-received.email.tsx](backend/src/emails/templates/invitation-received.email.tsx) |
 | `INVITATION_ACCEPTED` | `invitations.service.accept` | convidante | [invitation-accepted.email.tsx](backend/src/emails/templates/invitation-accepted.email.tsx) |
 | `INVITATION_DECLINED` | `invitations.service.decline` | convidante | [invitation-declined.email.tsx](backend/src/emails/templates/invitation-declined.email.tsx) |
 | `COMMENT_REACTION` | `comments.service.toggleReaction` (add) | autor do comentário | [comment-reaction.email.tsx](backend/src/emails/templates/comment-reaction.email.tsx) |
@@ -125,10 +132,14 @@ fan-out IN_APP + EMAIL acontece atrás do palco. Nenhum service de domínio
 | `TIMESHEET_APPROVED` | `timesheet.service.approve*` | submetente, se semana → APPROVED | [timesheet-approved.email.tsx](backend/src/emails/templates/timesheet-approved.email.tsx) |
 | `TIMESHEET_PARTIALLY_APPROVED` | `timesheet.service.approve*` | submetente, se semana → PARTIAL | [timesheet-partially-approved.email.tsx](backend/src/emails/templates/timesheet-partially-approved.email.tsx) |
 | `TIMESHEET_REJECTED` | `timesheet.service.rejectDay`/`rejectWeekGlobal` | submetente | [timesheet-rejected.email.tsx](backend/src/emails/templates/timesheet-rejected.email.tsx) |
+| *(auth)* | `auth.service.register` | novo utilizador (PENDING) | [email-confirmation.email.tsx](backend/src/emails/templates/email-confirmation.email.tsx) |
+| *(auth)* | `auth.service.forgotPassword` | utilizador ACTIVE | [password-reset.email.tsx](backend/src/emails/templates/password-reset.email.tsx) |
 
 > **Sem CTA**: `INVITATION_DECLINED` é puramente informativo (sem botão).
 > **Com `quote`**: `MENTION` (excerpt do comentário, neutral), `TIMESHEET_REJECTED`
 > (motivo, danger).
+> **Auth emails**: não têm `NotificationType`; não são afectados pela preferência
+> `shouldNotify` do utilizador — são sempre enviados (segurança obrigatória).
 
 ## Pipeline de envio
 
@@ -355,6 +366,185 @@ como anti-abuse.
 8. **AppLayout dropdown**: se a notificação tem navegação (campo `entityPublicId`
    ou `projectPublicId`), mapear em `handleNotifClick` em
    [AppLayout.tsx](frontend/src/components/AppLayout.tsx).
+
+## Fluxos de autenticação por email
+
+Três fluxos de segurança disparados directamente pelo `AuthService`. Não passam
+pelo `NotificationsService` nem criam in-app notifications — são emails transacionais
+obrigatórios de segurança.
+
+### 1 — Confirmação de email no registo
+
+**Trigger**: `AuthService.register()` quando o utilizador se regista via `/auth/register`
+com um email não existente (sem `selfRegistered=false` já existente).
+
+**Condições de envio**:
+- Utilizador criado com `status: PENDING`, `emailVerified: false`
+- Token `EMAIL_CONFIRMATION` (24h) criado via `EmailTokenService.createToken()`
+- Email disparado fire-and-forget (`.catch(() => {})`)
+- Rate limit por email: máx 3 tokens `EMAIL_CONFIRMATION` em 3600s; verificado
+  também no endpoint `POST /auth/resend-confirmation`
+
+**Template**: [email-confirmation.email.tsx](backend/src/emails/templates/email-confirmation.email.tsx)
+- Props: `{ common, preview, body_p1, cta_label, confirmUrl, appUrl }`
+- URL: `${APP_URL}/confirm-email?token=${token}`
+
+**Chaves i18n** (namespace `email`):
+```
+confirmation.subject   "Confirma o teu email — Awesome Project App"
+confirmation.body_p1   "Clica no botão abaixo para confirmar o teu endereço de email..."
+confirmation.cta       "Confirmar email"
+```
+
+**Método no EmailService**: `sendEmailConfirmationEmail({ toEmail, toName, locale, confirmUrl })`
+
+**Após confirmação** (`POST /auth/confirm-email`):
+- Utilizador actualizado: `status: ACTIVE`, `emailVerified: true`
+- Token consumido: `used: true`
+- Frontend redireccionado para `/login?confirmed=true` (toast de sucesso)
+
+**Resend** (`POST /auth/resend-confirmation`):
+- Resposta sempre neutra (nunca revela se email existe)
+- Se utilizador `PENDING` existe: cria novo token, envia email
+- Se não existe ou `ACTIVE`: silencioso
+
+---
+
+### 2 — Convite para projecto (fix do bug + token de conta)
+
+**Bug original**: `ProjectsService.inviteMember()` criava o `ProjectMember` mas
+**nunca enviava email** — os convidados nunca recebiam notificação.
+
+**Fix implementado** (Mai 2026): após criar `ProjectMember`, `inviteMember()` agora:
+1. Cria um token `ACCOUNT_INVITE` (72h) via `EmailTokenService.createToken()`
+2. Constrói `inviteUrl = ${APP_URL}/create-account?token=${token}`
+3. Passa `inviteUrl` ao fan-out de notificação
+
+**Distinção por tipo de utilizador**:
+- **Utilizador existente** (`user.status !== null`): fan-out via
+  `notificationsService.createInvitationReceivedNotification(...)` com `inviteUrl`
+  opcional — o convidado recebe email + in-app notification
+- **Novo utilizador** (email sem conta): `emailService.sendInvitationReceivedEmail(...)`
+  directo — sem in-app notification (utilizador ainda não tem conta)
+
+**Fluxo do convidado sem conta**:
+1. Acede a `/create-account?token=xxx`
+2. Frontend chama `GET /auth/invite-check?token=xxx`
+   - Token inválido/expirado → redirect `/error/token-expired`
+   - `{ requiresAccount: false }` (conta já existe) → redirect `/login`
+   - `{ requiresAccount: true }` → mostrar formulário de criação de conta
+3. Formulário: nome + password + confirmar password
+4. Submit: `POST /auth/create-account-from-invite` com `{ token, name, password }`
+5. Backend: cria conta `ACTIVE + emailVerified: true`, liga `ProjectMember`,
+   emite sessão (auto-login)
+6. Frontend: `login(toAuthUser(data.user))` + redirect `/dashboard`
+
+**Segurança** (OWASP):
+- `GET /auth/invite-check` NÃO devolve email nem detalhes do projecto
+- Apenas `{ requiresAccount: boolean }`
+
+---
+
+### 3 — Recuperação de password
+
+**Trigger**: `AuthService.forgotPassword()` quando utilizador submete o formulário
+em `/forgot-password`.
+
+**Condições de envio**:
+- Resposta HTTP sempre `200` e neutra (nunca revela se email existe — OWASP)
+- Rate limit por email: máx 3 tokens `PASSWORD_RESET` em 900s (15min)
+- Se utilizador `ACTIVE` existe: revoga tokens `PASSWORD_RESET` anteriores,
+  cria novo token (15min), envia email
+- Se não existe, `PENDING`, ou `INACTIVE`: silencioso (sem email, sem erro)
+
+**Template**: [password-reset.email.tsx](backend/src/emails/templates/password-reset.email.tsx)
+- Props: `{ common, preview, body_p1, cta_label, resetUrl, appUrl }`
+- URL: `${APP_URL}/reset-password?token=${token}`
+
+**Chaves i18n** (namespace `email`):
+```
+password_reset.subject   "Repõe a tua password — Awesome Project App"
+password_reset.body_p1   "Clica no botão abaixo para redefinir a tua password. O link expira em 15 minutos."
+password_reset.cta       "Redefinir password"
+```
+
+**Método no EmailService**: `sendPasswordResetEmail({ toEmail, toName, locale, resetUrl })`
+
+**Após reset** (`POST /auth/reset-password`):
+- Password actualizada (bcrypt 10 rounds)
+- **Todas as sessões ativas revogadas** via `SessionsService.revokeAllForUser(userId, 'PASSWORD_RESET')`
+- Cookies de auth limpos na response
+- Token consumido: `used: true`
+- Frontend redireccionado para `/login?reset=true` (toast de sucesso)
+
+**Segurança**:
+- Token inválido/expirado/usado: erro genérico `400` (não revela causa)
+- `TOKEN_ALREADY_USED` → frontend redirect `/error/token-used`
+- Outros erros → frontend redirect `/error/token-expired`
+
+---
+
+### EmailTokenService
+
+[`backend/src/auth/email-token.service.ts`](backend/src/auth/email-token.service.ts)
+
+Service auxiliar que gere todos os tokens de email. Exportado por `AuthModule`
+(injectável em `ProjectsModule` e qualquer outro que importe `AuthModule`).
+
+```typescript
+interface CreateTokenOptions {
+  userId?: number;   // null para ACCOUNT_INVITE de novos utilizadores
+  email?: string;    // email alvo quando userId é null
+  expiresInMs: number;
+}
+
+// Gera token: crypto.randomBytes(32).toString('hex') (64 chars hex)
+createToken(type: TokenType, opts: CreateTokenOptions): Promise<string>
+
+// Valida e retorna token — lança AppException genérica se inválido/expirado/usado
+validateToken(token: string, type: TokenType): Promise<EmailToken>
+
+// Marca token como usado (after use, chamado na mesma transação)
+consumeToken(id: number): Promise<void>
+
+// Invalida tokens anteriores do mesmo tipo (para PASSWORD_RESET)
+revokeExistingTokensForUser(userId: number, type: TokenType): Promise<void>
+
+// Rate limit: conta tokens do tipo criados para email nos últimos windowMs
+checkEmailRateLimit(email: string, type: TokenType, maxCount: number, windowMs: number): Promise<void>
+```
+
+**`TokenType` enum**:
+```prisma
+enum TokenType {
+  EMAIL_CONFIRMATION
+  PASSWORD_RESET
+  ACCOUNT_INVITE
+}
+```
+
+**`EmailToken` model** (em `schema.prisma`):
+```prisma
+model EmailToken {
+  id        Int       @id @default(autoincrement())
+  publicId  String    @unique @default(uuid(7))
+  token     String    @unique            // 64 chars hex (crypto.randomBytes(32))
+  type      TokenType
+  userId    Int?                         // null para ACCOUNT_INVITE sem conta
+  user      User?     @relation(...)
+  email     String?                      // email alvo quando userId é null
+  expiresAt DateTime
+  used      Boolean   @default(false)
+  createdAt DateTime  @default(now())
+
+  @@index([userId, type])
+  @@index([email, type])
+}
+```
+
+**Erro genérico de token**: `AuthService` lança sempre `AppException('INVALID_OR_EXPIRED_TOKEN', 400)`
+para tokens inválidos, expirados ou já usados — nunca revela qual o motivo exacto.
+O frontend mapeia: `TOKEN_ALREADY_USED` → `/error/token-used`, resto → `/error/token-expired`.
 
 ## Anti-padrões
 

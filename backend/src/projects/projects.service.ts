@@ -15,6 +15,9 @@ import { UsageService } from '../usage/usage.service';
 import { HolidaysService } from '../holidays/holidays.service';
 import { AddHolidayDto } from './dto/add-holiday.dto';
 import { NotificationsService } from '../notifications/notifications.service';
+import { EmailTokenService } from '../auth/email-token.service';
+import { EmailService } from '../emails/email.service';
+import { TokenType } from '@prisma/client';
 
 /** User fields included in owner/manager relations */
 const USER_BRIEF = {
@@ -69,6 +72,8 @@ export class ProjectsService {
     private readonly usageService: UsageService,
     private readonly holidaysService: HolidaysService,
     private readonly notificationsService: NotificationsService,
+    private readonly emailTokens: EmailTokenService,
+    private readonly emailService: EmailService,
   ) {}
 
   // ── Helper: resolve publicId → internal numeric id ──────────────────────────
@@ -464,15 +469,35 @@ export class ProjectsService {
       },
     });
 
-    // If the invited user exists on the platform, send a notification (fire-and-forget, non-blocking)
+    // Create ACCOUNT_INVITE token (72h) for the invite link
+    const INVITE_TOKEN_MS = 72 * 60 * 60_000;
+    const inviteToken = await this.emailTokens.createToken(TokenType.ACCOUNT_INVITE, {
+      userId: existingUser?.id ?? undefined,
+      email: existingUser ? undefined : email,
+      expiresInMs: INVITE_TOKEN_MS,
+    });
+    const inviteUrl = `${this.emailService.appUrl}/create-account?token=${inviteToken}`;
+
     if (existingUser) {
+      // Existing user: in-app notification + email (via notification fan-out)
       this.notificationsService.createInvitationReceivedNotification(
         existingUser.id,
         member.invitedBy.name,
         member.project.name,
         member.project.publicId,
         member.publicId,
-      ).catch(() => { /* notification failure must not break the invite creation */ });
+        inviteUrl,
+      ).catch(() => {});
+    } else {
+      // New user: send invite email directly (no in-app notification without an account)
+      this.emailService.sendInvitationReceivedEmail({
+        recipientEmail: email,
+        recipientName: dto.name ?? email,
+        inviterName: member.invitedBy.name,
+        projectName: member.project.name,
+        inviteUrl,
+        locale: null,
+      }).catch(() => {});
     }
 
     // Strip internal fields from response

@@ -23,6 +23,12 @@ import ProjectPermissionsPage from './pages/ProjectPermissionsPage';
 import SessionsPage from './pages/SessionsPage';
 import NotificationPreferencesPage from './pages/NotificationPreferencesPage';
 import UserSettingsPage from './pages/UserSettingsPage';
+import TokenExpiredPage from './errors/pages/TokenExpiredPage';
+import TokenUsedPage from './errors/pages/TokenUsedPage';
+import ConfirmEmailPage from './pages/ConfirmEmailPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
+import CreatePasswordPage from './pages/CreatePasswordPage';
 
 export default function App() {
   return (
@@ -32,6 +38,12 @@ export default function App() {
         {/* Public */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignUpPage />} />
+        <Route path="/confirm-email" element={<ConfirmEmailPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route path="/create-account" element={<CreatePasswordPage />} />
+        <Route path="/error/token-expired" element={<TokenExpiredPage />} />
+        <Route path="/error/token-used" element={<TokenUsedPage />} />
 
         {/* Protected – PLATFORM_ADMIN only */}
         <Route element={<ProtectedRoute />}>

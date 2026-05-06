@@ -5,6 +5,7 @@ import {
   HttpCode,
   HttpStatus,
   Post,
+  Query,
   Req,
   Res,
   UnauthorizedException,
@@ -16,6 +17,11 @@ import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { ConfirmEmailDto } from './dto/confirm-email.dto';
+import { ResendConfirmationDto } from './dto/resend-confirmation.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { CreateAccountFromInviteDto } from './dto/create-account-from-invite.dto';
 import type { JwtPayload } from './jwt.strategy';
 import { UsersService } from '../users/users.service';
 import { LoginThrottlerGuard } from './guards/login-throttler.guard';
@@ -89,5 +95,71 @@ export class AuthController {
       planName: (user as any).userPlans?.[0]?.plan?.name ?? null,
       currentSessionPublicId: request.user.sid,
     };
+  }
+
+  @SkipCsrf()
+  @Throttle({ default: { limit: 10, ttl: 600_000 } })
+  @Post('confirm-email')
+  @HttpCode(HttpStatus.OK)
+  confirmEmail(@Body() dto: ConfirmEmailDto) {
+    return this.authService.confirmEmail(dto.token);
+  }
+
+  @SkipCsrf()
+  @Throttle({ default: { limit: 5, ttl: 600_000 } })
+  @Post('resend-confirmation')
+  @HttpCode(HttpStatus.OK)
+  resendConfirmation(@Body() dto: ResendConfirmationDto) {
+    return this.authService.resendConfirmation(dto.email);
+  }
+
+  @SkipCsrf()
+  @Throttle({ default: { limit: 5, ttl: 600_000 } })
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.authService.forgotPassword(dto.email);
+  }
+
+  @SkipCsrf()
+  @Throttle({ default: { limit: 10, ttl: 600_000 } })
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  resetPassword(
+    @Body() dto: ResetPasswordDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return this.authService.resetPassword(dto.token, dto.password, res);
+  }
+
+  @SkipCsrf()
+  @Throttle({ default: { limit: 20, ttl: 600_000 } })
+  @Get('token-check')
+  @HttpCode(HttpStatus.OK)
+  tokenCheck(
+    @Query('token') token: string,
+    @Query('type') type: string,
+  ) {
+    return this.authService.tokenCheck(token, type);
+  }
+
+  @SkipCsrf()
+  @Throttle({ default: { limit: 20, ttl: 600_000 } })
+  @Get('invite-check')
+  @HttpCode(HttpStatus.OK)
+  inviteCheck(@Query('token') token: string) {
+    return this.authService.inviteCheck(token);
+  }
+
+  @SkipCsrf()
+  @Throttle({ default: { limit: 10, ttl: 600_000 } })
+  @Post('create-account-from-invite')
+  @HttpCode(HttpStatus.CREATED)
+  createAccountFromInvite(
+    @Body() dto: CreateAccountFromInviteDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return this.authService.createAccountFromInvite(dto, req, res);
   }
 }

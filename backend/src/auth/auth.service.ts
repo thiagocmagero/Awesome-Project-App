@@ -3,12 +3,19 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import type { Request, Response } from 'express';
+import { TokenType } from '@prisma/client';
 import { UsersService } from '../users/users.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AppException } from '../common/exceptions/app.exception';
 import { SessionsService } from './sessions.service';
+import { EmailTokenService } from './email-token.service';
+import { EmailService } from '../emails/email.service';
 import { setAuthCookies, clearAuthCookies, parseExpiresInToMs } from './cookies.util';
 import { generateCsrfNonce } from '../common/csrf/csrf.util';
+
+const CONFIRMATION_TOKEN_MS = 24 * 60 * 60_000;   // 24h
+const PASSWORD_RESET_TOKEN_MS = 15 * 60_000;       // 15 min
+const INVITE_TOKEN_MS = 72 * 60 * 60_000;          // 72h
 
 const DEFAULT_ACCESS_MS = 15 * 60_000;
 const DEFAULT_REFRESH_MS = 7 * 86_400_000;
@@ -20,6 +27,8 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly prisma: PrismaService,
     private readonly sessions: SessionsService,
+    private readonly emailTokens: EmailTokenService,
+    private readonly emailService: EmailService,
     private readonly configService: ConfigService,
   ) {}
 
@@ -66,44 +75,161 @@ export class AuthService {
     req: Request,
     res: Response,
   ) {
-    const existing = await this.usersService.findByEmailWithPassword(input.email);
+    const normalizedEmail = input.email.toLowerCase().trim();
+    const existing = await this.usersService.findByEmailWithPassword(normalizedEmail);
 
-    if (existing?.selfRegistered) {
+    // CASE 1: already self-registered and ACTIVE — hard conflict
+    if (existing?.selfRegistered && existing.status === 'ACTIVE') {
       throw new AppException('EMAIL_ALREADY_EXISTS', HttpStatus.CONFLICT);
     }
 
-    const passwordHash = await bcrypt.hash(input.password, 10);
-    let user: { id: number; email: string; profile: { code: string }; userPlans: any[]; [key: string]: any };
+    // CASE 2: PENDING with a valid (unexpired) confirmation token — still waiting
+    if (existing?.status === 'PENDING') {
+      const hasValidToken = await this.prisma.emailToken.count({
+        where: {
+          userId: existing.id,
+          type: TokenType.EMAIL_CONFIRMATION,
+          used: false,
+          expiresAt: { gt: new Date() },
+        },
+      });
+      if (hasValidToken > 0) {
+        throw new AppException('CONFIRMATION_EMAIL_ALREADY_SENT', HttpStatus.CONFLICT);
+      }
+      // Token expired — clean up the stale PENDING user so we can start fresh
+      await this.prisma.user.delete({ where: { id: existing.id } });
+    }
 
-    if (existing && !existing.selfRegistered) {
-      user = await this.usersService.activateInvitedUser(existing.id, {
+    const passwordHash = await bcrypt.hash(input.password, 10);
+
+    // CASE 3: Pre-invited user (selfRegistered=false, ACTIVE) — activate directly (no PENDING)
+    if (existing && !existing.selfRegistered && existing.status === 'ACTIVE') {
+      const user = await this.usersService.activateInvitedUser(existing.id, {
         name: input.name,
         passwordHash,
       });
-    } else {
-      user = await this.usersService.createWithDefaultProfile({
-        email: input.email,
+
+      await this.prisma.projectMember.updateMany({
+        where: { email: normalizedEmail, userId: null },
+        data: { userId: user.id },
+      });
+
+      await this.issueSessionAndCookies(user.id, user.email, user.profile.code, req, res);
+
+      const { id: _id, ...safeUser } = user;
+      return {
+        user: {
+          ...safeUser,
+          planCode: (safeUser as any).userPlans?.[0]?.plan?.code ?? null,
+          planName: (safeUser as any).userPlans?.[0]?.plan?.name ?? null,
+        },
+      };
+    }
+
+    // CASE 4: New registration — create PENDING user and send confirmation email
+    const basicUserProfile = await this.prisma.profile.findUnique({
+      where: { code: 'BASIC_USER' },
+    });
+    if (!basicUserProfile) {
+      throw new AppException('NOT_FOUND', HttpStatus.NOT_FOUND);
+    }
+
+    const pendingUser = await this.prisma.user.create({
+      data: {
+        email: normalizedEmail,
         name: input.name,
         passwordHash,
+        profileId: basicUserProfile.id,
+        selfRegistered: true,
+        status: 'PENDING',
+        emailVerified: false,
+      },
+      select: { id: true, email: true, name: true, locale: true },
+    });
+
+    // Assign default plan
+    const defaultPlan = await this.prisma.plan.findFirst({
+      where: { isDefault: true, planStatus: 'ACTIVE' },
+    });
+    if (defaultPlan) {
+      await this.prisma.userPlan.create({
+        data: { userId: pendingUser.id, planId: defaultPlan.id, isActive: true },
       });
     }
 
-    await this.prisma.projectMember.updateMany({
-      where: { email: input.email, userId: null },
-      data: { userId: user.id },
+    const token = await this.emailTokens.createToken(TokenType.EMAIL_CONFIRMATION, {
+      userId: pendingUser.id,
+      expiresInMs: CONFIRMATION_TOKEN_MS,
     });
 
-    await this.issueSessionAndCookies(user.id, user.email, user.profile.code, req, res);
+    const confirmUrl = `${this.emailService.appUrl}/confirm-email?token=${token}`;
+    this.emailService.sendEmailConfirmationEmail({
+      recipientEmail: pendingUser.email,
+      recipientName: pendingUser.name,
+      confirmUrl,
+      locale: pendingUser.locale,
+    }).catch(() => {});
 
-    const { id: _id, ...safeUser } = user;
+    return { requiresConfirmation: true };
+  }
 
-    return {
-      user: {
-        ...safeUser,
-        planCode: (safeUser as any).userPlans?.[0]?.plan?.code ?? null,
-        planName: (safeUser as any).userPlans?.[0]?.plan?.name ?? null,
-      },
-    };
+  // ─── Confirm Email ──────────────────────────────────────────────
+  async confirmEmail(token: string): Promise<{ success: true }> {
+    const record = await this.emailTokens.validateToken(token, TokenType.EMAIL_CONFIRMATION);
+
+    await this.prisma.user.update({
+      where: { id: record.userId! },
+      data: { status: 'ACTIVE', emailVerified: true },
+    });
+
+    // Link any pending project members with this email
+    const user = await this.prisma.user.findUniqueOrThrow({
+      where: { id: record.userId! },
+      select: { email: true },
+    });
+    await this.prisma.projectMember.updateMany({
+      where: { email: user.email, userId: null },
+      data: { userId: record.userId! },
+    });
+
+    await this.emailTokens.consumeToken(record.id);
+    return { success: true };
+  }
+
+  // ─── Resend Confirmation ────────────────────────────────────────
+  async resendConfirmation(email: string): Promise<{ success: true }> {
+    const normalizedEmail = email.toLowerCase().trim();
+
+    // Always neutral response (OWASP — don't reveal if email is registered)
+    const user = await this.prisma.user.findUnique({
+      where: { email: normalizedEmail },
+      select: { id: true, name: true, email: true, status: true, locale: true },
+    });
+
+    if (user?.status === 'PENDING') {
+      // DB rate limit: max 3 emails per hour
+      await this.emailTokens.checkUserRateLimit(
+        user.id,
+        TokenType.EMAIL_CONFIRMATION,
+        3,
+        60 * 60_000,
+      );
+
+      const token = await this.emailTokens.createToken(TokenType.EMAIL_CONFIRMATION, {
+        userId: user.id,
+        expiresInMs: CONFIRMATION_TOKEN_MS,
+      });
+
+      const confirmUrl = `${this.emailService.appUrl}/confirm-email?token=${token}`;
+      this.emailService.sendEmailConfirmationEmail({
+        recipientEmail: user.email,
+        recipientName: user.name,
+        confirmUrl,
+        locale: user.locale,
+      }).catch(() => {});
+    }
+
+    return { success: true };
   }
 
   // ─── Login ─────────────────────────────────────────────────────
@@ -117,6 +243,11 @@ export class AuthService {
     const isValid = await bcrypt.compare(password, user.passwordHash);
     if (!isValid) {
       throw new AppException('INVALID_CREDENTIALS', HttpStatus.UNAUTHORIZED);
+    }
+
+    // PENDING = registered but email not yet confirmed
+    if (user.status === 'PENDING') {
+      throw new AppException('EMAIL_NOT_CONFIRMED', HttpStatus.FORBIDDEN);
     }
 
     if (user.status !== 'ACTIVE') {
@@ -134,6 +265,185 @@ export class AuthService {
         planName: (safeUser as any).userPlans?.[0]?.plan?.name ?? null,
       },
     };
+  }
+
+  // ─── Forgot Password ────────────────────────────────────────────
+  async forgotPassword(email: string): Promise<{ success: true }> {
+    const normalizedEmail = email.toLowerCase().trim();
+
+    // Always neutral response (OWASP)
+    const user = await this.prisma.user.findUnique({
+      where: { email: normalizedEmail },
+      select: { id: true, name: true, email: true, status: true, locale: true },
+    });
+
+    if (user?.status === 'ACTIVE') {
+      // DB rate limit: max 3 emails per 15 min per email address
+      const since = new Date(Date.now() - 15 * 60_000);
+      const count = await this.prisma.emailToken.count({
+        where: {
+          userId: user.id,
+          type: TokenType.PASSWORD_RESET,
+          createdAt: { gte: since },
+        },
+      });
+      if (count < 3) {
+        // Revoke previous unused reset tokens
+        await this.emailTokens.revokeExistingTokensForUser(user.id, TokenType.PASSWORD_RESET);
+
+        const token = await this.emailTokens.createToken(TokenType.PASSWORD_RESET, {
+          userId: user.id,
+          expiresInMs: PASSWORD_RESET_TOKEN_MS,
+        });
+
+        const resetUrl = `${this.emailService.appUrl}/reset-password?token=${token}`;
+        this.emailService.sendPasswordResetEmail({
+          recipientEmail: user.email,
+          recipientName: user.name,
+          resetUrl,
+          locale: user.locale,
+        }).catch(() => {});
+      }
+    }
+
+    return { success: true };
+  }
+
+  // ─── Reset Password ─────────────────────────────────────────────
+  async resetPassword(token: string, newPassword: string, res: Response): Promise<{ success: true }> {
+    const record = await this.emailTokens.validateToken(token, TokenType.PASSWORD_RESET);
+
+    const user = await this.prisma.user.findUniqueOrThrow({
+      where: { id: record.userId! },
+      select: { id: true, passwordHash: true },
+    });
+
+    // Prevent reuse of the same password
+    const isSame = await bcrypt.compare(newPassword, user.passwordHash);
+    if (isSame) {
+      throw new AppException('SAME_PASSWORD', HttpStatus.BAD_REQUEST);
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash },
+    });
+
+    // Revoke all sessions
+    await this.sessions.revokeAllForUser(user.id, 'PASSWORD_RESET');
+
+    await this.emailTokens.consumeToken(record.id);
+
+    clearAuthCookies(res, this.configService);
+    return { success: true };
+  }
+
+  // ─── Invite Check ───────────────────────────────────────────────
+  async inviteCheck(token: string): Promise<{ requiresAccount: boolean }> {
+    const record = await this.emailTokens.validateToken(token, TokenType.ACCOUNT_INVITE);
+    // Never return email or project details (OWASP)
+    return { requiresAccount: record.userId === null };
+  }
+
+  // ─── Create Account From Invite ─────────────────────────────────
+  async createAccountFromInvite(
+    input: { token: string; name: string; password: string },
+    req: Request,
+    res: Response,
+  ) {
+    const record = await this.emailTokens.validateToken(input.token, TokenType.ACCOUNT_INVITE);
+
+    if (record.userId !== null) {
+      // Account already exists — they should log in instead
+      throw new AppException('ACCOUNT_ALREADY_EXISTS', HttpStatus.CONFLICT);
+    }
+
+    if (!record.email) {
+      throw new AppException('INVALID_OR_EXPIRED_TOKEN', HttpStatus.BAD_REQUEST);
+    }
+
+    const existingByEmail = await this.prisma.user.findUnique({
+      where: { email: record.email },
+      select: { id: true },
+    });
+    if (existingByEmail) {
+      throw new AppException('ACCOUNT_ALREADY_EXISTS', HttpStatus.CONFLICT);
+    }
+
+    const passwordHash = await bcrypt.hash(input.password, 10);
+
+    const basicUserProfile = await this.prisma.profile.findUnique({
+      where: { code: 'BASIC_USER' },
+    });
+    if (!basicUserProfile) {
+      throw new AppException('NOT_FOUND', HttpStatus.NOT_FOUND);
+    }
+
+    const newUser = await this.prisma.user.create({
+      data: {
+        email: record.email,
+        name: input.name,
+        passwordHash,
+        profileId: basicUserProfile.id,
+        selfRegistered: true,
+        status: 'ACTIVE',
+        emailVerified: true,
+      },
+      select: { id: true, email: true, name: true, locale: true },
+    });
+
+    // Assign default plan
+    const defaultPlan = await this.prisma.plan.findFirst({
+      where: { isDefault: true, planStatus: 'ACTIVE' },
+    });
+    if (defaultPlan) {
+      await this.prisma.userPlan.create({
+        data: { userId: newUser.id, planId: defaultPlan.id, isActive: true },
+      });
+    }
+
+    // Link pending ProjectMember records with this email
+    await this.prisma.projectMember.updateMany({
+      where: { email: record.email, userId: null },
+      data: { userId: newUser.id },
+    });
+
+    await this.emailTokens.consumeToken(record.id);
+
+    // Auto-login
+    const fullUser = await this.prisma.user.findUniqueOrThrow({
+      where: { id: newUser.id },
+      include: {
+        profile: true,
+        userPlans: { where: { isActive: true }, take: 1, include: { plan: true } },
+      },
+    });
+
+    await this.issueSessionAndCookies(newUser.id, newUser.email, fullUser.profile.code, req, res);
+
+    const { passwordHash: _ph, id: _id, ...safeUser } = fullUser as any;
+    return {
+      user: {
+        ...safeUser,
+        planCode: safeUser.userPlans?.[0]?.plan?.code ?? null,
+        planName: safeUser.userPlans?.[0]?.plan?.name ?? null,
+      },
+    };
+  }
+
+  // ─── Token Check (validate without consuming) ─────────────────
+  async tokenCheck(token: string, type: string): Promise<{ valid: true }> {
+    const ALLOWED: Record<string, TokenType> = {
+      PASSWORD_RESET: TokenType.PASSWORD_RESET,
+      EMAIL_CONFIRMATION: TokenType.EMAIL_CONFIRMATION,
+    };
+    const tokenType = ALLOWED[type];
+    if (!tokenType) {
+      throw new AppException('INVALID_TOKEN_TYPE', HttpStatus.BAD_REQUEST);
+    }
+    return this.emailTokens.checkToken(token, tokenType);
   }
 
   // ─── Logout (revoga só a sessão actual) ────────────────────────

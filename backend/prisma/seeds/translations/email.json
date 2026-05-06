@@ -46,7 +46,15 @@
     "timesheet_rejected.subject": "{{actorName}} rejected part of your timesheet in {{projectName}}",
     "timesheet_rejected.body_p1": "{{actorName}} rejected your timesheet on {{scopeDate}} in the {{projectName}} project.",
     "timesheet_rejected.quote_intro": "Reason for rejection:",
-    "timesheet_rejected.cta": "Review timesheet"
+    "timesheet_rejected.cta": "Review timesheet",
+
+    "confirmation.subject": "Confirm your email — Awesome Project App",
+    "confirmation.body_p1": "Click the button below to confirm your email address and activate your account.",
+    "confirmation.cta": "Confirm email",
+
+    "password_reset.subject": "Reset your password — Awesome Project App",
+    "password_reset.body_p1": "Click the button below to reset your password. This link expires in 15 minutes.",
+    "password_reset.cta": "Reset password"
   },
   "es": {
     "common.greeting": "Hola {{recipientName}},",
@@ -95,7 +103,15 @@
     "timesheet_rejected.subject": "{{actorName}} rechazó parte de tu hoja de horas en {{projectName}}",
     "timesheet_rejected.body_p1": "{{actorName}} rechazó tu hoja de horas del {{scopeDate}} en el proyecto {{projectName}}.",
     "timesheet_rejected.quote_intro": "Motivo del rechazo:",
-    "timesheet_rejected.cta": "Revisar hoja de horas"
+    "timesheet_rejected.cta": "Revisar hoja de horas",
+
+    "confirmation.subject": "Confirma tu email — Awesome Project App",
+    "confirmation.body_p1": "Haz clic en el botón de abajo para confirmar tu dirección de email y activar tu cuenta.",
+    "confirmation.cta": "Confirmar email",
+
+    "password_reset.subject": "Restablece tu contraseña — Awesome Project App",
+    "password_reset.body_p1": "Haz clic en el botón de abajo para restablecer tu contraseña. Este enlace expira en 15 minutos.",
+    "password_reset.cta": "Restablecer contraseña"
   },
   "pt-BR": {
     "common.greeting": "Olá {{recipientName}},",
@@ -144,7 +160,15 @@
     "timesheet_rejected.subject": "{{actorName}} rejeitou parte da sua timesheet em {{projectName}}",
     "timesheet_rejected.body_p1": "{{actorName}} rejeitou sua timesheet de {{scopeDate}} no projeto {{projectName}}.",
     "timesheet_rejected.quote_intro": "Motivo da rejeição:",
-    "timesheet_rejected.cta": "Revisar timesheet"
+    "timesheet_rejected.cta": "Revisar timesheet",
+
+    "confirmation.subject": "Confirme seu email — Awesome Project App",
+    "confirmation.body_p1": "Clique no botão abaixo para confirmar seu endereço de email e ativar sua conta.",
+    "confirmation.cta": "Confirmar email",
+
+    "password_reset.subject": "Redefina sua senha — Awesome Project App",
+    "password_reset.body_p1": "Clique no botão abaixo para redefinir sua senha. Este link expira em 15 minutos.",
+    "password_reset.cta": "Redefinir senha"
   },
   "pt-PT": {
     "common.greeting": "Olá {{recipientName}},",
@@ -193,6 +217,14 @@
     "timesheet_rejected.subject": "{{actorName}} rejeitou parte da tua timesheet em {{projectName}}",
     "timesheet_rejected.body_p1": "{{actorName}} rejeitou a tua timesheet de {{scopeDate}} no projecto {{projectName}}.",
     "timesheet_rejected.quote_intro": "Motivo da rejeição:",
-    "timesheet_rejected.cta": "Rever timesheet"
+    "timesheet_rejected.cta": "Rever timesheet",
+
+    "confirmation.subject": "Confirma o teu email — Awesome Project App",
+    "confirmation.body_p1": "Clica no botão abaixo para confirmar o teu endereço de email e activar a tua conta.",
+    "confirmation.cta": "Confirmar email",
+
+    "password_reset.subject": "Repõe a tua password — Awesome Project App",
+    "password_reset.body_p1": "Clica no botão abaixo para redefinir a tua password. O link expira em 15 minutos.",
+    "password_reset.cta": "Redefinir password"
   }
 }

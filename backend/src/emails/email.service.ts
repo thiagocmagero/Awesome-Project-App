@@ -46,6 +46,14 @@ import {
   TimesheetRejectedEmail,
   type TimesheetRejectedEmailProps,
 } from './templates/timesheet-rejected.email';
+import {
+  EmailConfirmationEmail,
+  type EmailConfirmationEmailProps,
+} from './templates/email-confirmation.email';
+import {
+  PasswordResetEmail,
+  type PasswordResetEmailProps,
+} from './templates/password-reset.email';
 import type { CommonEmailTexts } from './templates/components/EmailLayout';
 
 /** Locale fallback usado quando o user.locale é null ou não tem traduções. */
@@ -655,6 +663,66 @@ export class EmailService implements OnModuleInit {
       subject,
       element: React.createElement(TimesheetRejectedEmail, props),
       kind: 'TIMESHEET_REJECTED',
+      locale: localeUsed,
+    });
+  }
+
+  // ─── 11. EMAIL_CONFIRMATION ───────────────────────────────────────────────────
+
+  async sendEmailConfirmationEmail(input: {
+    recipientEmail: string;
+    recipientName: string;
+    confirmUrl: string;
+    locale: string | null;
+  }): Promise<void> {
+    const bundle = await this.loadEmailBundle(input.locale);
+    const localeUsed = input.locale ?? FALLBACK_LOCALE;
+    const vars = { recipientName: input.recipientName };
+    const subject = this.t(bundle, 'confirmation.subject', vars);
+
+    const props: EmailConfirmationEmailProps = {
+      common: this.buildCommon(bundle, vars),
+      preview: subject,
+      body_p1: this.t(bundle, 'confirmation.body_p1', vars),
+      cta_label: bundle['confirmation.cta'] ?? 'Confirm email',
+      confirmUrl: input.confirmUrl,
+      appUrl: this.appUrl,
+    };
+    return this.renderAndSend({
+      to: input.recipientEmail,
+      subject,
+      element: React.createElement(EmailConfirmationEmail, props),
+      kind: 'EMAIL_CONFIRMATION',
+      locale: localeUsed,
+    });
+  }
+
+  // ─── 12. PASSWORD_RESET ───────────────────────────────────────────────────────
+
+  async sendPasswordResetEmail(input: {
+    recipientEmail: string;
+    recipientName: string;
+    resetUrl: string;
+    locale: string | null;
+  }): Promise<void> {
+    const bundle = await this.loadEmailBundle(input.locale);
+    const localeUsed = input.locale ?? FALLBACK_LOCALE;
+    const vars = { recipientName: input.recipientName };
+    const subject = this.t(bundle, 'password_reset.subject', vars);
+
+    const props: PasswordResetEmailProps = {
+      common: this.buildCommon(bundle, vars),
+      preview: subject,
+      body_p1: this.t(bundle, 'password_reset.body_p1', vars),
+      cta_label: bundle['password_reset.cta'] ?? 'Reset password',
+      resetUrl: input.resetUrl,
+      appUrl: this.appUrl,
+    };
+    return this.renderAndSend({
+      to: input.recipientEmail,
+      subject,
+      element: React.createElement(PasswordResetEmail, props),
+      kind: 'PASSWORD_RESET',
       locale: localeUsed,
     });
   }

@@ -86,6 +86,11 @@ async function refreshSession(): Promise<boolean> {
   return refreshPromise;
 }
 
+const PUBLIC_PATHS = [
+  '/login', '/signup', '/confirm-email', '/forgot-password',
+  '/reset-password', '/create-account', '/error/',
+];
+
 function redirectToLogin(): void {
   try {
     localStorage.removeItem('app_user');
@@ -93,7 +98,9 @@ function redirectToLogin(): void {
   } catch {
     /* ignore */
   }
-  if (window.location.pathname !== '/login') {
+  const path = window.location.pathname;
+  const isPublic = PUBLIC_PATHS.some((p) => path.startsWith(p));
+  if (!isPublic) {
     window.location.href = '/login';
   }
 }

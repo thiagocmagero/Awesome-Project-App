@@ -7,9 +7,10 @@ import { ProjectPermissionGuard } from './guards/project-permission.guard';
 import { UsageModule } from '../usage/usage.module';
 import { HolidaysModule } from '../holidays/holidays.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
-  imports: [UsageModule, HolidaysModule, NotificationsModule],
+  imports: [UsageModule, HolidaysModule, NotificationsModule, AuthModule],
   providers: [ProjectsService, ProjectPermissionsService, ProjectPermissionGuard],
   controllers: [ProjectsController, ProjectPermissionsController],
   exports: [ProjectsService, ProjectPermissionsService, ProjectPermissionGuard],

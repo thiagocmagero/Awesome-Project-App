@@ -1,14 +1,17 @@
-import { useState, useEffect, FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useState, useEffect, useRef, FormEvent } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth, toAuthUser } from '../contexts/AuthContext';
 import type { ApiAuthUser } from '../contexts/AuthContext';
 import { getApiBase, apiFetch } from '../lib/api';
 import { useTranslation } from 'react-i18next';
+import { useToast } from '../contexts/ToastContext';
 
 export default function LoginPage() {
   const { login, user } = useAuth();
   const navigate = useNavigate();
   const { t } = useTranslation('auth');
+  const { showToast } = useToast();
+  const [searchParams] = useSearchParams();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -22,6 +25,22 @@ export default function LoginPage() {
       navigate('/dashboard', { replace: true });
     }
   }, [user, navigate]);
+
+  const toastShownRef = useRef(false);
+  // Show success toasts from redirects — ref guard prevents double-fire in React StrictMode
+  useEffect(() => {
+    if (toastShownRef.current) return;
+    if (searchParams.get('confirmed') === 'true') {
+      toastShownRef.current = true;
+      showToast('success', t('confirmation_success'));
+      navigate('/login', { replace: true });
+    } else if (searchParams.get('reset') === 'true') {
+      toastShownRef.current = true;
+      showToast('success', t('password_reset_success'));
+      navigate('/login', { replace: true });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Load particles background
   useEffect(() => {
@@ -174,8 +193,9 @@ export default function LoginPage() {
 
                       {/* Password */}
                       <div className="col-xl-12 mb-2">
-                        <label htmlFor="login-password" className="form-label text-default d-block">
+                        <label htmlFor="login-password" className="form-label text-default d-flex justify-content-between align-items-center">
                           {t('form.password')}
+                          <Link to="/forgot-password" className="text-primary fs-13 fw-normal">{t('links.forgot_password')}</Link>
                         </label>
                         <div className="position-relative">
                           <input

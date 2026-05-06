@@ -34,6 +34,9 @@ export default function SignUpPage() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [checkEmail, setCheckEmail] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendMsg, setResendMsg] = useState('');
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -109,6 +112,7 @@ export default function SignUpPage() {
       });
 
       const data = await res.json() as {
+        requiresConfirmation?: boolean;
         user?: ApiRegisterUser;
         message?: string | string[];
       };
@@ -116,6 +120,11 @@ export default function SignUpPage() {
       if (!res.ok) {
         const msg = Array.isArray(data.message) ? data.message.join(' ') : (data.message ?? t('signup.errors.generic'));
         setError(msg);
+        return;
+      }
+
+      if (data.requiresConfirmation) {
+        setCheckEmail(true);
         return;
       }
 
@@ -148,6 +157,72 @@ export default function SignUpPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function handleResend() {
+    setResendLoading(true);
+    setResendMsg('');
+    try {
+      await apiFetch(`${getApiBase()}/auth/resend-confirmation`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+    } catch { /* silent */ }
+    setResendMsg(t('signup.check_email.resent'));
+    setResendLoading(false);
+  }
+
+  if (checkEmail) {
+    return (
+      <div
+        className="authentication-background authenticationcover-background position-relative"
+        id="particles-js"
+        style={{ minHeight: '100vh' }}
+      >
+        <div className="container">
+          <div className="row justify-content-center authentication authentication-basic align-items-center h-100">
+            <div className="col-xxl-4 col-xl-5 col-lg-5 col-md-6 col-sm-8 col-12">
+              <div className="mb-3 d-flex justify-content-center auth-logo">
+                <a href="/login">
+                  <img src="/assets/images/brand-logos/desktop-dark.png" alt="logo" className="desktop-dark" />
+                </a>
+              </div>
+              <div className="card custom-card my-4 border z-3 position-relative">
+                <div className="card-body p-0">
+                  <div className="p-5 text-center">
+                    <div className="mb-4">
+                      <i className="ri-mail-check-line text-primary" style={{ fontSize: 56 }}></i>
+                    </div>
+                    <p className="h4 fw-semibold mb-2">{t('signup.check_email.title')}</p>
+                    <p className="text-muted fs-14 mb-4">
+                      {t('signup.check_email.message', { email })}
+                    </p>
+                    {resendMsg ? (
+                      <p className="text-success fs-13 mb-3">{resendMsg}</p>
+                    ) : (
+                      <button
+                        type="button"
+                        className="btn btn-outline-primary btn-sm mb-3"
+                        onClick={handleResend}
+                        disabled={resendLoading}
+                      >
+                        {resendLoading ? (
+                          <><span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>{t('signup.check_email.resending')}</>
+                        ) : t('signup.check_email.resend')}
+                      </button>
+                    )}
+                    <div>
+                      <Link to="/login" className="text-primary fs-14">{t('signup.check_email.go_login')}</Link>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (

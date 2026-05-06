@@ -193,6 +193,7 @@ export class NotificationsService {
     projectName: string,
     projectPublicId: string,
     invitationPublicId: string,
+    inviteUrl?: string,
   ): Promise<void> {
     if (await this.shouldNotify(userId, NotificationType.INVITATION_RECEIVED, NotificationChannel.IN_APP)) {
       await this.prisma.notification.create({
@@ -217,7 +218,7 @@ export class NotificationsService {
           locale: recipient.locale,
           inviterName,
           projectName,
-          inviteUrl: this.buildProjectsListUrl(),
+          inviteUrl: inviteUrl ?? this.buildProjectsListUrl(),
         })
         .catch(() => {});
     }
