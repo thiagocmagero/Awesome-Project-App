@@ -5,13 +5,21 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { EmailService } from '../emails/email.service';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { UpdateCommentDto } from './dto/update-comment.dto';
-import { EntityType } from '@prisma/client';
+import { EntityType, NotificationChannel, NotificationType } from '@prisma/client';
 
 interface AuthCtx {
   userId: number;
   isAdmin: boolean;
+}
+
+interface MentionedUser {
+  id: number;
+  publicId: string;
+  name: string;
+  email: string;
 }
 
 @Injectable()
@@ -19,6 +27,7 @@ export class CommentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationsService: NotificationsService,
+    private readonly emailService: EmailService,
   ) {}
 
   // ── Helpers ────────────────────────────────────────────────────────────────
@@ -77,6 +86,123 @@ export class CommentsService {
       })),
       reactions: this.groupReactions(comment.reactions),
     };
+  }
+
+  /**
+   * Resolve o nome contextual onde o comentário foi feito (task name ou
+   * project name). Usado nos emails de menção.
+   */
+  private async resolveContextName(
+    projectId: number,
+    entityType: EntityType,
+    entityPublicId: string,
+  ): Promise<string> {
+    if (entityType === EntityType.TASK) {
+      const task = await this.prisma.ganttTask.findUnique({
+        where: { publicId: entityPublicId },
+        select: { text: true },
+      });
+      if (task?.text) return task.text;
+    }
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
+      select: { name: true },
+    });
+    return project?.name ?? '';
+  }
+
+  /**
+   * Constrói o URL absoluto que abre o comentário/task. Mantém-se alinhado
+   * com `handleNotifClick` em AppLayout — TASK abre `/projects/:p/planning/tasks/:t`.
+   */
+  private buildCommentUrl(
+    projectPublicId: string,
+    entityType: EntityType,
+    entityPublicId: string,
+  ): string {
+    const base = (process.env.APP_URL ?? 'http://localhost:5173').replace(/\/+$/, '');
+    if (entityType === EntityType.TASK) {
+      return `${base}/projects/${projectPublicId}/planning/tasks/${entityPublicId}`;
+    }
+    return `${base}/projects/${projectPublicId}/planning`;
+  }
+
+  /**
+   * Dispatcher de notificação de menção (in-app + email).
+   * Fire-and-forget — não throws. Cada canal valida `shouldNotify` antes de
+   * actuar; falhas são logadas mas não propagadas para o caller.
+   */
+  private async dispatchMentionNotifications(input: {
+    actorName: string;
+    actorUserId: number;
+    mentioned: MentionedUser;
+    projectId: number;
+    projectPublicId: string;
+    projectName: string;
+    entityType: EntityType;
+    entityPublicId: string;
+    excerpt: string;
+  }): Promise<void> {
+    const {
+      actorName,
+      actorUserId,
+      mentioned,
+      projectId,
+      projectPublicId,
+      projectName,
+      entityType,
+      entityPublicId,
+      excerpt,
+    } = input;
+
+    if (mentioned.id === actorUserId) return; // never self-notify
+
+    // 1) In-app notification (já existia — `createMentionNotification` valida shouldNotify(IN_APP))
+    this.notificationsService
+      .createMentionNotification(
+        actorName,
+        mentioned.id,
+        projectPublicId,
+        entityType,
+        entityPublicId,
+        excerpt,
+      )
+      .catch(() => {/* silent */});
+
+    // 2) Email — só se o user tiver preferência EMAIL=true para MENTION
+    try {
+      const allowed = await this.notificationsService.shouldNotify(
+        mentioned.id,
+        NotificationType.MENTION,
+        NotificationChannel.EMAIL,
+      );
+      if (!allowed) return;
+
+      const contextName = await this.resolveContextName(
+        projectId,
+        entityType,
+        entityPublicId,
+      );
+      const commentUrl = this.buildCommentUrl(
+        projectPublicId,
+        entityType,
+        entityPublicId,
+      );
+
+      this.emailService
+        .sendMentionEmail({
+          recipientEmail: mentioned.email,
+          recipientName: mentioned.name,
+          actorName,
+          projectName,
+          contextName,
+          excerpt,
+          commentUrl,
+        })
+        .catch(() => {/* silent — emailService also logs internally */});
+    } catch {
+      /* shouldNotify ou resolveContextName falharam — silent */
+    }
   }
 
   /** Agrupa reações por emoji com lista de { publicId, name } */
@@ -163,20 +289,20 @@ export class CommentsService {
     const projectId = await this.resolveProjectId(projectPublicId);
     await this.assertProjectAccess(projectId, ctx);
 
-    // Resolve mention user publicIds → internal ids
-    const mentionedUsers: { publicId: string; id: number; name: string }[] = [];
+    // Resolve mention user publicIds → internal ids (incl. email para envio de email)
+    const mentionedUsers: MentionedUser[] = [];
     if (dto.mentionedUserPublicIds && dto.mentionedUserPublicIds.length > 0) {
       const users = await this.prisma.user.findMany({
         where: { publicId: { in: dto.mentionedUserPublicIds } },
-        select: { id: true, publicId: true, name: true },
+        select: { id: true, publicId: true, name: true, email: true },
       });
       mentionedUsers.push(...users);
     }
 
-    // Get project publicId for notifications
+    // Get project metadata for notifications/email
     const project = await this.prisma.project.findUnique({
       where: { id: projectId },
-      select: { publicId: true },
+      select: { publicId: true, name: true },
     });
 
     const comment = await this.prisma.comment.create({
@@ -197,22 +323,22 @@ export class CommentsService {
       },
     });
 
-    // Fire mention notifications (don't await — fire-and-forget)
+    // Fire mention notifications (in-app + email) — fire-and-forget
+    const excerpt = dto.content.length > 100
+      ? dto.content.slice(0, 97) + '...'
+      : dto.content;
     for (const mentioned of mentionedUsers) {
-      if (mentioned.id === ctx.userId) continue; // don't notify yourself
-      const excerpt = dto.content.length > 100
-        ? dto.content.slice(0, 97) + '...'
-        : dto.content;
-      this.notificationsService
-        .createMentionNotification(
-          actorName,
-          mentioned.id,
-          project!.publicId,
-          dto.entityType,
-          dto.entityPublicId,
-          excerpt,
-        )
-        .catch(() => {/* silent */});
+      this.dispatchMentionNotifications({
+        actorName,
+        actorUserId: ctx.userId,
+        mentioned,
+        projectId,
+        projectPublicId: project!.publicId,
+        projectName: project!.name,
+        entityType: dto.entityType,
+        entityPublicId: dto.entityPublicId,
+        excerpt,
+      }).catch(() => {/* silent */});
     }
 
     return this.serializeComment(comment);
@@ -234,20 +360,20 @@ export class CommentsService {
       throw new ForbiddenException('Só o autor ou administrador pode editar este comentário.');
     }
 
-    // Resolve new mentions
-    const mentionedUsers: { id: number; publicId: string; name: string }[] = [];
+    // Resolve new mentions (incl. email)
+    const mentionedUsers: MentionedUser[] = [];
     if (dto.mentionedUserPublicIds && dto.mentionedUserPublicIds.length > 0) {
       const users = await this.prisma.user.findMany({
         where: { publicId: { in: dto.mentionedUserPublicIds } },
-        select: { id: true, publicId: true, name: true },
+        select: { id: true, publicId: true, name: true, email: true },
       });
       mentionedUsers.push(...users);
     }
 
-    // Get project publicId for notifications
+    // Get project metadata for notifications/email
     const project = await this.prisma.project.findUnique({
       where: { id: comment.projectId },
-      select: { publicId: true },
+      select: { publicId: true, name: true },
     });
 
     // Get previous mentions to notify only new ones
@@ -276,23 +402,23 @@ export class CommentsService {
       },
     });
 
-    // Notify new mentions
+    // Notify new mentions (in-app + email) — fire-and-forget
+    const excerpt = dto.content.length > 100
+      ? dto.content.slice(0, 97) + '...'
+      : dto.content;
     for (const mentioned of mentionedUsers) {
       if (previousMentionIds.has(mentioned.id)) continue;
-      if (mentioned.id === ctx.userId) continue;
-      const excerpt = dto.content.length > 100
-        ? dto.content.slice(0, 97) + '...'
-        : dto.content;
-      this.notificationsService
-        .createMentionNotification(
-          actorName,
-          mentioned.id,
-          project!.publicId,
-          comment.entityType,
-          comment.entityPublicId,
-          excerpt,
-        )
-        .catch(() => {/* silent */});
+      this.dispatchMentionNotifications({
+        actorName,
+        actorUserId: ctx.userId,
+        mentioned,
+        projectId: comment.projectId,
+        projectPublicId: project!.publicId,
+        projectName: project!.name,
+        entityType: comment.entityType,
+        entityPublicId: comment.entityPublicId,
+        excerpt,
+      }).catch(() => {/* silent */});
     }
 
     return this.serializeComment(updated);

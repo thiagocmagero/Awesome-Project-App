@@ -12,6 +12,7 @@ import type { JwtPayload } from '../auth/jwt.strategy';
 import { PlatformConfigService } from './platform-config.service';
 import { UpdateEmailConfigDto } from './dto/update-email-config.dto';
 import { UpdatePlatformLimitsDto } from './dto/update-platform-limits.dto';
+import { EmailService } from '../emails/email.service';
 
 /** Garante que apenas PLATFORM_ADMIN acede a estes endpoints */
 function assertAdmin(user: JwtPayload) {
@@ -23,7 +24,10 @@ function assertAdmin(user: JwtPayload) {
 @Controller('platform-config')
 @UseGuards(JwtAuthGuard)
 export class PlatformConfigController {
-  constructor(private readonly service: PlatformConfigService) {}
+  constructor(
+    private readonly service: PlatformConfigService,
+    private readonly emailService: EmailService,
+  ) {}
 
   // ── Email ───────────────────────────────────────────────────────────────────
 
@@ -32,6 +36,17 @@ export class PlatformConfigController {
   getEmail(@CurrentUser() user: JwtPayload) {
     assertAdmin(user);
     return this.service.getEmailConfig();
+  }
+
+  /**
+   * Estado do transporter SMTP — usado pelo banner do EmailSettingsPage para
+   * mostrar se as env vars (`SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`,
+   * `SMTP_PASSWORD`) estão presentes no container backend.
+   */
+  @Get('email/smtp-status')
+  getSmtpStatus(@CurrentUser() user: JwtPayload) {
+    assertAdmin(user);
+    return this.emailService.getStatus();
   }
 
   /** Cria ou actualiza configuração de email */

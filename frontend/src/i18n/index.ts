@@ -29,6 +29,7 @@ i18n
       'notifications',
       'timesheet',
       'account',
+      'platform_config',
     ],
     backend: {
       loadPath: '/api/i18n/{{lng}}/{{ns}}',

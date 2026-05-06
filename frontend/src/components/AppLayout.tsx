@@ -3,7 +3,6 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { usePendingInvitations } from '../hooks/usePendingInvitations';
 import { useNotifications } from '../hooks/useNotifications';
-import PlatformConfigPanel from './PlatformConfigPanel';
 import { useToast } from '../contexts/ToastContext';
 import { getApiBase, apiFetch } from '../lib/api';
 import { useTranslation } from 'react-i18next';
@@ -135,7 +134,6 @@ function AppLayoutInner() {
     refetchNotifications().catch(() => {});
   });
 
-  const [configOpen, setConfigOpen] = useState(false);
   const isPlatformAdmin = user?.profileCode === 'PLATFORM_ADMIN';
   const [inviteActionLoading, setInviteActionLoading] = useState<string | null>(null);
 
@@ -610,24 +608,6 @@ function AppLayoutInner() {
               </ul>
             </li>
 
-            {/* Platform config (PLATFORM_ADMIN only) */}
-            {isPlatformAdmin && (
-              <li className="header-element">
-                <a
-                  href="#"
-                  className="header-link switcher-icon"
-                  title={t('platform_config.title')}
-                  onClick={(e) => { e.preventDefault(); setConfigOpen(true); }}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="header-link-icon" viewBox="0 0 256 256">
-                    <rect width="256" height="256" fill="none" />
-                    <circle cx="128" cy="128" r="40" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
-                    <path d="M41.43,178.09A99.14,99.14,0,0,1,31.36,153.8l16.78-21a81.59,81.59,0,0,1,0-9.64l-16.77-21a99.43,99.43,0,0,1,10.05-24.3l26.71-3a81,81,0,0,1,6.81-6.81l3-26.7A99.14,99.14,0,0,1,102.2,31.36l21,16.78a81.59,81.59,0,0,1,9.64,0l21-16.77a99.43,99.43,0,0,1,24.3,10.05l3,26.71a81,81,0,0,1,6.81,6.81l26.7,3a99.14,99.14,0,0,1,10.07,24.29l-16.78,21a81.59,81.59,0,0,1,0,9.64l16.77,21a99.43,99.43,0,0,1-10,24.3l-26.71,3a81,81,0,0,1-6.81,6.81l-3,26.7a99.14,99.14,0,0,1-24.29,10.07l-21-16.78a81.59,81.59,0,0,1-9.64,0l-21,16.77a99.43,99.43,0,0,1-24.3-10l-3-26.71a81,81,0,0,1-6.81-6.81Z" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
-                  </svg>
-                </a>
-              </li>
-            )}
-
             {/* Theme switcher trigger */}
             <li className="header-element">
               <a
@@ -829,6 +809,31 @@ function AppLayoutInner() {
                       </li>
                     </ul>
                   </li>
+                  {isPlatformAdmin && (
+                    <li className="slide has-sub">
+                      <a href="#" onClick={(e) => e.preventDefault()} className="side-menu__item">
+                        {t('nav.section.platform')}<i className="ri-arrow-right-s-line side-menu__angle"></i>
+                      </a>
+                      <ul className="slide-menu child2">
+                        <li className="slide">
+                          <NavLink
+                            to="/settings/email"
+                            className={({ isActive }) => `side-menu__item${isActive ? ' active' : ''}`}
+                          >
+                            {t('nav.email_settings')}
+                          </NavLink>
+                        </li>
+                        <li className="slide">
+                          <NavLink
+                            to="/settings/limits"
+                            className={({ isActive }) => `side-menu__item${isActive ? ' active' : ''}`}
+                          >
+                            {t('nav.platform_limits')}
+                          </NavLink>
+                        </li>
+                      </ul>
+                    </li>
+                  )}
                 </ul>
               </li>
 
@@ -1013,11 +1018,6 @@ function AppLayoutInner() {
       </div>
 
       <div id="responsive-overlay"></div>
-
-      {/* Platform configuration panel — PLATFORM_ADMIN only */}
-      {isPlatformAdmin && (
-        <PlatformConfigPanel open={configOpen} onClose={() => setConfigOpen(false)} />
-      )}
     </div>
   );
 }

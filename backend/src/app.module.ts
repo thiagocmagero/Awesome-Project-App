@@ -29,6 +29,7 @@ import { BoardConfigModule } from './board-config/board-config.module';
 import { TimesheetModule } from './timesheet/timesheet.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { CommentsModule } from './comments/comments.module';
+import { EmailsModule } from './emails/emails.module';
 import { I18nModule } from './i18n/i18n.module';
 
 @Module({
@@ -62,6 +63,7 @@ import { I18nModule } from './i18n/i18n.module';
     TimesheetModule,
     NotificationsModule,
     CommentsModule,
+    EmailsModule,
     I18nModule,
   ],
   controllers: [AppController],

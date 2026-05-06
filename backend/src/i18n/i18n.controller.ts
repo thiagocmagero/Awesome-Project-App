@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Header,
   Param,
   Patch,
   Post,
@@ -24,6 +25,10 @@ export class I18nController {
   constructor(private readonly i18nService: I18nService) {}
 
   // ── 1. GET /locales/active — public ──────────────────────────────────────────
+  // Skip-throttle + cache HTTP curto: o LanguageSelector chama isto ao montar
+  // do AppLayout em todas as páginas; F5 spam saturava o throttler global.
+  @SkipThrottle()
+  @Header('Cache-Control', 'public, max-age=60')
   @Get('locales/active')
   getActiveLocales() {
     return this.i18nService.getActiveLocales();
@@ -118,6 +123,13 @@ export class I18nController {
   }
 
   // ── 13. GET /:locale/:namespace — public ─────────────────────────────────────
+  // Skip-throttle + cache HTTP: o i18next-http-backend faz fan-out de ~17
+  // requests em paralelo no boot/F5 (um por namespace registado) e isto
+  // saturava rapidamente o limit global de 300/min — sobretudo com múltiplas
+  // tabs ou hot-reload em dev. Como é read-only puro, o cache de 60s é seguro;
+  // edições no backoffice ficam visíveis em ≤60s.
+  @SkipThrottle()
+  @Header('Cache-Control', 'public, max-age=60')
   @Get(':locale/:namespace')
   getNamespace(
     @Param('locale') locale: string,

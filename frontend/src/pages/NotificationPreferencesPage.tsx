@@ -119,14 +119,9 @@ export default function NotificationPreferencesPage() {
                         <th className="text-center" style={{ width: 110 }}>
                           {t('table.in_app')}
                         </th>
-                        {/* EMAIL — coming soon */}
+                        {/* EMAIL — active */}
                         <th className="text-center" style={{ width: 110 }}>
-                          <span className="d-flex flex-column align-items-center gap-1">
-                            {t('table.email')}
-                            <span className="badge bg-secondary-transparent text-secondary fs-10">
-                              {t('table.coming_soon')}
-                            </span>
-                          </span>
+                          {t('table.email')}
                         </th>
                         {/* BROWSER — coming soon */}
                         <th className="text-center" style={{ width: 110 }}>
@@ -142,7 +137,9 @@ export default function NotificationPreferencesPage() {
                     <tbody>
                       {NOTIFICATION_TYPES.map((type) => {
                         const inAppEnabled = isEnabled(prefs, type, 'IN_APP');
-                        const savingKey = `${type}_IN_APP`;
+                        const emailEnabled = isEnabled(prefs, type, 'EMAIL');
+                        const inAppKey = `${type}_IN_APP`;
+                        const emailKey = `${type}_EMAIL`;
                         return (
                           <tr key={type}>
                             <td className="ps-4 fw-medium">{t(`type.${type}`)}</td>
@@ -157,25 +154,23 @@ export default function NotificationPreferencesPage() {
                                   role="switch"
                                   id={`toggle-${type}-IN_APP`}
                                   checked={inAppEnabled}
-                                  disabled={saving === savingKey}
+                                  disabled={saving === inAppKey}
                                   onChange={(e) => handleToggle(type, 'IN_APP', e.target.checked)}
                                 />
                               </div>
                             </td>
 
-                            {/* EMAIL — disabled placeholder */}
+                            {/* EMAIL toggle */}
                             <td className="text-center">
-                              <div
-                                className="form-check form-switch d-inline-flex justify-content-center"
-                                title={t('table.coming_soon')}
-                              >
+                              <div className="form-check form-switch d-inline-flex justify-content-center">
                                 <input
                                   className="form-check-input"
                                   type="checkbox"
                                   role="switch"
-                                  disabled
-                                  checked={false}
-                                  onChange={() => {}}
+                                  id={`toggle-${type}-EMAIL`}
+                                  checked={emailEnabled}
+                                  disabled={saving === emailKey}
+                                  onChange={(e) => handleToggle(type, 'EMAIL', e.target.checked)}
                                 />
                               </div>
                             </td>

@@ -14,8 +14,9 @@
     "strict": true,
     "skipLibCheck": true,
     "moduleResolution": "node",
+    "jsx": "react-jsx",
     "types": ["node"]
   },
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
   "exclude": ["node_modules", "dist"]
 }

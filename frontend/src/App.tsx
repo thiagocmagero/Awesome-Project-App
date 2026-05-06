@@ -15,6 +15,8 @@ import HolidaysPage from './pages/HolidaysPage';
 import TimesheetsPage from './pages/TimesheetsPage';
 import GanttSettingsPage from './pages/GanttSettingsPage';
 import CalendarSettingsPage from './pages/CalendarSettingsPage';
+import EmailSettingsPage from './pages/EmailSettingsPage';
+import PlatformLimitsPage from './pages/PlatformLimitsPage';
 import SignUpPage from './pages/SignUpPage';
 import TranslationsPage from './pages/TranslationsPage';
 import ProjectPermissionsPage from './pages/ProjectPermissionsPage';
@@ -48,6 +50,8 @@ export default function App() {
             <Route path="/timesheets" element={<TimesheetsPage />} />
             <Route path="/settings/gantt" element={<GanttSettingsPage />} />
             <Route path="/settings/calendar" element={<CalendarSettingsPage />} />
+            <Route path="/settings/email" element={<EmailSettingsPage />} />
+            <Route path="/settings/limits" element={<PlatformLimitsPage />} />
             <Route path="/settings/account" element={<UserSettingsPage />} />
             <Route path="/settings/sessions" element={<SessionsPage />} />
             <Route path="/settings/notifications" element={<NotificationPreferencesPage />} />
