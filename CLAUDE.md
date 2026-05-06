@@ -51,6 +51,34 @@ SEMPRE que fizer alterações ao código, indicar no final da resposta:
 <comandos ou "Sem alterações necessárias">
 ```
 
+## Regra obrigatória — Segurança: Guard em todas as rotas de escrita
+
+**Premissa máxima e irrevogável da aplicação.** TODA a rota que altera dados
+ao nível de um projecto DEVE ter:
+
+```typescript
+@UseGuards(JwtAuthGuard, ProjectPermissionGuard)
+@RequireProjectPermission(ProjectAction.XXXXX)
+```
+
+**Sem excepções.** Mesmo que o endpoint valide ownership no service, o guard é
+obrigatório — garante consistência, defesa em profundidade, e protege se algum
+service for refactored sem manter a verificação.
+
+**Princípios derivados:**
+- Authentication (JWT) e authorization (guards) são a **defesa primária**.
+- Nenhum endpoint de escrita pode confiar apenas em validação interna do service.
+- Todo `@Post`/`@Patch`/`@Put`/`@Delete` que toca dados de projecto tem guard.
+- Endpoints de leitura cross-tenant (ex.: `/api/projects`) filtram no service
+  por ownership/membership; mesmo aí, autenticação é mandatória.
+- A API **nunca** expõe `id` numérico interno — apenas `publicId` UUID v7.
+  Excepção documentada: `GanttTask.id`/`GanttLink.id`/`parent`/`source`/`target`
+  por compatibilidade DHTMLX (IDs locais ao projecto, scoped pelo guard).
+
+Detalhes completos, hierarquia de roles, padrão UI espelho (`canDo()`),
+intercepts em widgets DHTMLX e anti-padrões em @docs/claude/permissions.md
+e @docs/claude/tools/permissions/overview.md.
+
 ## Regra obrigatória — Actualização do CLAUDE.md
 
 SEMPRE que uma regra for criada ou alterada, reflectir obrigatoriamente neste `CLAUDE.md` e no ficheiro modular relevante em `docs/claude/`. O `CLAUDE.md` é a fonte de verdade das instruções do projecto.
