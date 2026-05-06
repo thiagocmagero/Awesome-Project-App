@@ -1,50 +1,50 @@
 {
   "en": {
-    "page.title": "Account",
-    "page.subtitle": "Manage your personal preferences and region settings.",
-    "tab.account": "Account",
-    "tab.region_language": "Region & Language",
-    "form.name": "Name",
+    "error.timezone_save": "Could not update timezone.",
     "form.email": "Email",
+    "form.name": "Name",
     "form.timezone": "Timezone",
     "form.timezone_hint": "Used on global pages (notifications, sessions) and as the default when creating new projects. Inside a project, the project's timezone takes precedence.",
+    "page.subtitle": "Manage your personal preferences and region settings.",
+    "page.title": "Account",
     "success.timezone_saved": "Timezone updated.",
-    "error.timezone_save": "Could not update timezone."
+    "tab.account": "Account",
+    "tab.region_language": "Region & Language"
   },
   "es": {
-    "page.title": "Cuenta",
-    "page.subtitle": "Gestiona tus preferencias personales y ajustes regionales.",
-    "tab.account": "Cuenta",
-    "tab.region_language": "Región e Idioma",
-    "form.name": "Nombre",
+    "error.timezone_save": "No se pudo actualizar la zona horaria.",
     "form.email": "Correo electrónico",
+    "form.name": "Nombre",
     "form.timezone": "Zona horaria",
     "form.timezone_hint": "Usado en páginas globales (notificaciones, sesiones) y como predeterminado al crear nuevos proyectos. Dentro de un proyecto, la zona horaria del proyecto tiene prioridad.",
+    "page.subtitle": "Gestiona tus preferencias personales y ajustes regionales.",
+    "page.title": "Cuenta",
     "success.timezone_saved": "Zona horaria actualizada.",
-    "error.timezone_save": "No se pudo actualizar la zona horaria."
+    "tab.account": "Cuenta",
+    "tab.region_language": "Región e Idioma"
   },
   "pt-BR": {
-    "page.title": "Conta",
-    "page.subtitle": "Gerencie suas preferências pessoais e configurações regionais.",
-    "tab.account": "Conta",
-    "tab.region_language": "Região e Idioma",
-    "form.name": "Nome",
+    "error.timezone_save": "Não foi possível atualizar o fuso horário.",
     "form.email": "E-mail",
+    "form.name": "Nome",
     "form.timezone": "Fuso horário",
     "form.timezone_hint": "Usado em páginas globais (notificações, sessões) e como padrão ao criar novos projetos. Dentro de um projeto, o fuso do projeto tem prioridade.",
+    "page.subtitle": "Gerencie suas preferências pessoais e configurações regionais.",
+    "page.title": "Conta",
     "success.timezone_saved": "Fuso horário atualizado.",
-    "error.timezone_save": "Não foi possível atualizar o fuso horário."
+    "tab.account": "Conta",
+    "tab.region_language": "Região e Idioma"
   },
   "pt-PT": {
-    "page.title": "Conta",
-    "page.subtitle": "Gere as suas preferências pessoais e configurações regionais.",
-    "tab.account": "Conta",
-    "tab.region_language": "Região e Idioma",
-    "form.name": "Nome",
+    "error.timezone_save": "Não foi possível actualizar o timezone.",
     "form.email": "Email",
+    "form.name": "Nome",
     "form.timezone": "Timezone",
     "form.timezone_hint": "Usado em páginas globais (notificações, sessões) e como default ao criar projectos novos. Dentro de um projecto, o timezone do projecto tem precedência.",
+    "page.subtitle": "Gere as suas preferências pessoais e configurações regionais.",
+    "page.title": "Conta",
     "success.timezone_saved": "Timezone actualizado.",
-    "error.timezone_save": "Não foi possível actualizar o timezone."
+    "tab.account": "Conta",
+    "tab.region_language": "Região e Idioma"
   }
 }
