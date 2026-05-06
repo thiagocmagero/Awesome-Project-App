@@ -8,6 +8,38 @@ import { CreateFeatureFlagDto } from './dto/create-feature-flag.dto';
 import { UpdateFeatureFlagDto } from './dto/update-feature-flag.dto';
 import { SetUserOverrideDto } from './dto/set-user-override.dto';
 
+// Selects sem `id` numérico nem FKs internos. Resposta API usa só publicId.
+const FEATURE_FLAG_SELECT = {
+  publicId: true,
+  key: true,
+  label: true,
+  description: true,
+  enabledGlobally: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;
+
+const FEATURE_FLAG_FULL_SELECT = {
+  ...FEATURE_FLAG_SELECT,
+  planFlags: {
+    select: {
+      publicId: true,
+      enabled: true,
+      plan: { select: { publicId: true, code: true, name: true } },
+    },
+  },
+  _count: { select: { userFlags: true } },
+} as const;
+
+const USER_FEATURE_FLAG_SELECT = {
+  publicId: true,
+  enabled: true,
+  createdAt: true,
+  updatedAt: true,
+  user:        { select: { publicId: true, name: true, email: true } },
+  featureFlag: { select: { publicId: true, key: true, label: true } },
+} as const;
+
 @Injectable()
 export class FeatureFlagsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -52,10 +84,7 @@ export class FeatureFlagsService {
   async findAll() {
     return this.prisma.featureFlag.findMany({
       orderBy: { id: 'asc' },
-      include: {
-        planFlags: { include: { plan: { select: { id: true, publicId: true, code: true, name: true } } } },
-        _count: { select: { userFlags: true } },
-      },
+      select: FEATURE_FLAG_FULL_SELECT,
     });
   }
 
@@ -70,23 +99,29 @@ export class FeatureFlagsService {
         description: dto.description,
         enabledGlobally: dto.enabledGlobally ?? false,
       },
+      select: FEATURE_FLAG_SELECT,
     });
   }
 
   async update(publicId: string, dto: UpdateFeatureFlagDto) {
-    const flag = await this.resolveFlag(publicId);
+    const flagId = await this.resolveFlagId(publicId);
 
     const data: Record<string, unknown> = {};
     if ('label' in dto) data.label = dto.label;
     if ('description' in dto) data.description = dto.description;
     if ('enabledGlobally' in dto) data.enabledGlobally = dto.enabledGlobally;
 
-    return this.prisma.featureFlag.update({ where: { id: flag.id }, data });
+    return this.prisma.featureFlag.update({
+      where: { id: flagId },
+      data,
+      select: FEATURE_FLAG_SELECT,
+    });
   }
 
   async remove(publicId: string) {
-    const flag = await this.resolveFlag(publicId);
-    return this.prisma.featureFlag.delete({ where: { id: flag.id } });
+    const flagId = await this.resolveFlagId(publicId);
+    await this.prisma.featureFlag.delete({ where: { id: flagId } });
+    return { deleted: publicId };
   }
 
   // ── User Overrides ──────────────────────────────────────────────────────
@@ -99,12 +134,14 @@ export class FeatureFlagsService {
       where: { userId_featureFlagId: { userId, featureFlagId } },
       update: { enabled: dto.enabled },
       create: { userId, featureFlagId, enabled: dto.enabled },
+      select: USER_FEATURE_FLAG_SELECT,
     });
   }
 
   async removeUserOverride(publicId: string) {
     const id = await this.resolveUserOverrideId(publicId);
-    return this.prisma.userFeatureFlag.delete({ where: { id } });
+    await this.prisma.userFeatureFlag.delete({ where: { id } });
+    return { deleted: publicId };
   }
 
   // ── Resolution logic ────────────────────────────────────────────────────

@@ -29,6 +29,16 @@ function deepMerge(base: GanttConfigData, override: GanttConfigData): GanttConfi
   };
 }
 
+// Selects sem `id`, `userId`, `projectId` numéricos. Resposta API expõe só
+// publicId + scope + config + updatedAt. Frontend (GanttSettingsPage,
+// useGanttConfig) só consome `.config`.
+const GANTT_CONFIG_SELECT = {
+  publicId:  true,
+  scope:     true,
+  config:    true,
+  updatedAt: true,
+} as const;
+
 @Injectable()
 export class GanttConfigService {
   constructor(private readonly prisma: PrismaService) {}
@@ -38,12 +48,14 @@ export class GanttConfigService {
   getGlobal() {
     return this.prisma.ganttConfig.findFirst({
       where: { scope: GanttConfigScope.GLOBAL, userId: null, projectId: null },
+      select: GANTT_CONFIG_SELECT,
     });
   }
 
   getForUser(userId: number) {
     return this.prisma.ganttConfig.findFirst({
       where: { scope: GanttConfigScope.USER, userId, projectId: null },
+      select: GANTT_CONFIG_SELECT,
     });
   }
 
@@ -54,7 +66,22 @@ export class GanttConfigService {
     });
     return this.prisma.ganttConfig.findFirst({
       where: { scope: GanttConfigScope.PROJECT, userId, projectId: project.id },
+      select: GANTT_CONFIG_SELECT,
     });
+  }
+
+  // ── Internal helper para upsert (precisa do `id` numérico) ───────────────────
+
+  private async getInternalId(
+    scope: GanttConfigScope,
+    userId: number | null,
+    projectId: number | null,
+  ): Promise<number | null> {
+    const rec = await this.prisma.ganttConfig.findFirst({
+      where: { scope, userId, projectId },
+      select: { id: true },
+    });
+    return rec?.id ?? null;
   }
 
   // ── Resolve (merged) ─────────────────────────────────────────────────────────
@@ -79,28 +106,32 @@ export class GanttConfigService {
   // ── Upserts ──────────────────────────────────────────────────────────────────
 
   async upsertGlobal(dto: UpsertGanttConfigDto) {
-    const existing = await this.getGlobal();
-    if (existing) {
+    const existingId = await this.getInternalId(GanttConfigScope.GLOBAL, null, null);
+    if (existingId !== null) {
       return this.prisma.ganttConfig.update({
-        where: { id: existing.id },
+        where: { id: existingId },
         data: { config: dto as object },
+        select: GANTT_CONFIG_SELECT,
       });
     }
     return this.prisma.ganttConfig.create({
       data: { scope: GanttConfigScope.GLOBAL, userId: null, projectId: null, config: dto as object },
+      select: GANTT_CONFIG_SELECT,
     });
   }
 
   async upsertUser(userId: number, dto: UpsertGanttConfigDto) {
-    const existing = await this.getForUser(userId);
-    if (existing) {
+    const existingId = await this.getInternalId(GanttConfigScope.USER, userId, null);
+    if (existingId !== null) {
       return this.prisma.ganttConfig.update({
-        where: { id: existing.id },
+        where: { id: existingId },
         data: { config: dto as object },
+        select: GANTT_CONFIG_SELECT,
       });
     }
     return this.prisma.ganttConfig.create({
       data: { scope: GanttConfigScope.USER, userId, projectId: null, config: dto as object },
+      select: GANTT_CONFIG_SELECT,
     });
   }
 
@@ -110,18 +141,17 @@ export class GanttConfigService {
       select: { id: true },
     });
 
-    const existing = await this.prisma.ganttConfig.findFirst({
-      where: { scope: GanttConfigScope.PROJECT, userId, projectId: project.id },
-    });
-
-    if (existing) {
+    const existingId = await this.getInternalId(GanttConfigScope.PROJECT, userId, project.id);
+    if (existingId !== null) {
       return this.prisma.ganttConfig.update({
-        where: { id: existing.id },
+        where: { id: existingId },
         data: { config: dto as object },
+        select: GANTT_CONFIG_SELECT,
       });
     }
     return this.prisma.ganttConfig.create({
       data: { scope: GanttConfigScope.PROJECT, userId, projectId: project.id, config: dto as object },
+      select: GANTT_CONFIG_SELECT,
     });
   }
 }

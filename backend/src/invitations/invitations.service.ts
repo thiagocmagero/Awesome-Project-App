@@ -10,12 +10,71 @@ import { NotificationsService } from '../notifications/notifications.service';
 
 const IS_ADMIN = (u: JwtPayload) => u.profileCode === 'PLATFORM_ADMIN';
 
-/** Fields returned for each invitation */
+/**
+ * Include interno — mantém `id` em invitedBy/project para uso do service
+ * (notificações precisam do `userId` numérico do convidante). NÃO devolver
+ * directamente na API; usar `serializeInvite()` antes.
+ */
 const INVITE_INCLUDE = {
-  project: { select: { id: true, publicId: true, name: true } },
+  project: { select: { id: true, publicId: true, name: true, ownerId: true } },
   invitedBy: { select: { id: true, publicId: true, name: true, email: true } },
   user: { select: { id: true, publicId: true, name: true, email: true } },
 } as const;
+
+type InviteWithIncludes = {
+  publicId: string;
+  email: string | null;
+  status: InviteStatus;
+  role: string;
+  createdAt: Date;
+  updatedAt: Date;
+  project:   { publicId: string; name: string };
+  invitedBy: { publicId: string; name: string; email: string };
+  user:      { publicId: string; name: string; email: string } | null;
+  // Campos internos não devolvidos:
+  // id, userId, projectId, invitedById, teamId, project.id, project.ownerId,
+  // invitedBy.id, user.id
+};
+
+/**
+ * Serializa um convite para a API — retira todos os `id` numéricos. O
+ * service mantém os IDs internos (via INVITE_INCLUDE) para fazer queries e
+ * disparar notificações; só os endpoints públicos passam por aqui.
+ */
+function serializeInvite(invite: {
+  publicId: string;
+  email: string | null;
+  status: InviteStatus;
+  role: string;
+  createdAt: Date;
+  updatedAt: Date;
+  project:   { publicId: string; name: string };
+  invitedBy: { publicId: string; name: string; email: string };
+  user:      { publicId: string; name: string; email: string } | null;
+}): InviteWithIncludes {
+  return {
+    publicId:  invite.publicId,
+    email:     invite.email,
+    status:    invite.status,
+    role:      invite.role,
+    createdAt: invite.createdAt,
+    updatedAt: invite.updatedAt,
+    project: {
+      publicId: invite.project.publicId,
+      name:     invite.project.name,
+    },
+    invitedBy: {
+      publicId: invite.invitedBy.publicId,
+      name:     invite.invitedBy.name,
+      email:    invite.invitedBy.email,
+    },
+    user: invite.user ? {
+      publicId: invite.user.publicId,
+      name:     invite.user.name,
+      email:    invite.user.email,
+    } : null,
+  };
+}
 
 @Injectable()
 export class InvitationsService {
@@ -37,7 +96,7 @@ export class InvitationsService {
 
   /** Convites pendentes para o utilizador autenticado */
   async getPending(requestingUser: JwtPayload) {
-    return this.prisma.projectMember.findMany({
+    const rows = await this.prisma.projectMember.findMany({
       where: {
         userId: requestingUser.sub,
         status: InviteStatus.INVITED,
@@ -45,15 +104,17 @@ export class InvitationsService {
       include: INVITE_INCLUDE,
       orderBy: { createdAt: 'asc' },
     });
+    return rows.map(serializeInvite);
   }
 
   /** Todos os convites recebidos pelo utilizador (incluindo aceites/recusados) */
   async getAll(requestingUser: JwtPayload) {
-    return this.prisma.projectMember.findMany({
+    const rows = await this.prisma.projectMember.findMany({
       where: { userId: requestingUser.sub },
       include: INVITE_INCLUDE,
       orderBy: { createdAt: 'desc' },
     });
+    return rows.map(serializeInvite);
   }
 
   /** Aceitar convite */
@@ -68,10 +129,7 @@ export class InvitationsService {
     const updated = await this.prisma.projectMember.update({
       where: { id },
       data: { status: InviteStatus.ACCEPTED },
-      include: {
-        ...INVITE_INCLUDE,
-        // teamId is a scalar — Prisma returns it with the record
-      },
+      include: INVITE_INCLUDE,
     });
 
     // Add user to the designated team (upsert to avoid duplicates)
@@ -92,7 +150,7 @@ export class InvitationsService {
       invite.project.publicId,
     ).catch(() => { /* notification failure must not break accept */ });
 
-    return updated;
+    return serializeInvite(updated);
   }
 
   /** Recusar convite */
@@ -119,7 +177,7 @@ export class InvitationsService {
       invite.project.publicId,
     ).catch(() => { /* notification failure must not break decline */ });
 
-    return updated;
+    return serializeInvite(updated);
   }
 
   /** Reenviar convite (reset para INVITED) — apenas quem convidou ou PLATFORM_ADMIN */
@@ -141,11 +199,12 @@ export class InvitationsService {
       throw new AppException('FORBIDDEN', HttpStatus.FORBIDDEN);
     }
 
-    return this.prisma.projectMember.update({
+    const updated = await this.prisma.projectMember.update({
       where: { id },
       data: { status: InviteStatus.INVITED },
       include: INVITE_INCLUDE,
     });
+    return serializeInvite(updated);
   }
 
   // ─── Private helpers ────────────────────────────────────────────────────────

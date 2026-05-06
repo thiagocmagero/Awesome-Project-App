@@ -51,21 +51,32 @@ function deepMerge(base: CalendarConfigData, override: CalendarConfigData): Cale
   };
 }
 
+// Selects sem `id`/`userId`/`projectId` numéricos. Frontend só consome
+// `.config` (ver useCalendarConfig.ts e CalendarSettingsPage.tsx).
+const CALENDAR_CONFIG_SELECT = {
+  publicId:  true,
+  scope:     true,
+  config:    true,
+  updatedAt: true,
+} as const;
+
 @Injectable()
 export class CalendarConfigService {
   constructor(private readonly prisma: PrismaService) {}
 
-  // ── Getters (raw records) ───────────────────────────────────────────────────
+  // ── Getters (sem `id` numérico — só publicId+scope+config) ──────────────────
 
   getGlobal() {
     return this.prisma.calendarConfig.findFirst({
       where: { scope: CalendarConfigScope.GLOBAL, userId: null, projectId: null },
+      select: CALENDAR_CONFIG_SELECT,
     });
   }
 
   getForUser(userId: number) {
     return this.prisma.calendarConfig.findFirst({
       where: { scope: CalendarConfigScope.USER, userId, projectId: null },
+      select: CALENDAR_CONFIG_SELECT,
     });
   }
 
@@ -76,7 +87,22 @@ export class CalendarConfigService {
     });
     return this.prisma.calendarConfig.findFirst({
       where: { scope: CalendarConfigScope.PROJECT, userId, projectId: project.id },
+      select: CALENDAR_CONFIG_SELECT,
     });
+  }
+
+  // ── Internal helper para upsert (precisa do `id` interno) ───────────────────
+
+  private async getInternalId(
+    scope: CalendarConfigScope,
+    userId: number | null,
+    projectId: number | null,
+  ): Promise<number | null> {
+    const rec = await this.prisma.calendarConfig.findFirst({
+      where: { scope, userId, projectId },
+      select: { id: true },
+    });
+    return rec?.id ?? null;
   }
 
   // ── Resolve (3 níveis) ──────────────────────────────────────────────────────
@@ -101,11 +127,12 @@ export class CalendarConfigService {
   // ── Upserts ─────────────────────────────────────────────────────────────────
 
   async upsertGlobal(dto: UpsertCalendarConfigDto) {
-    const existing = await this.getGlobal();
-    if (existing) {
+    const existingId = await this.getInternalId(CalendarConfigScope.GLOBAL, null, null);
+    if (existingId !== null) {
       return this.prisma.calendarConfig.update({
-        where: { id: existing.id },
+        where: { id: existingId },
         data: { config: dto as object },
+        select: CALENDAR_CONFIG_SELECT,
       });
     }
     return this.prisma.calendarConfig.create({
@@ -115,15 +142,17 @@ export class CalendarConfigService {
         projectId: null,
         config: dto as object,
       },
+      select: CALENDAR_CONFIG_SELECT,
     });
   }
 
   async upsertUser(userId: number, dto: UpsertCalendarConfigDto) {
-    const existing = await this.getForUser(userId);
-    if (existing) {
+    const existingId = await this.getInternalId(CalendarConfigScope.USER, userId, null);
+    if (existingId !== null) {
       return this.prisma.calendarConfig.update({
-        where: { id: existing.id },
+        where: { id: existingId },
         data: { config: dto as object },
+        select: CALENDAR_CONFIG_SELECT,
       });
     }
     return this.prisma.calendarConfig.create({
@@ -133,6 +162,7 @@ export class CalendarConfigService {
         projectId: null,
         config: dto as object,
       },
+      select: CALENDAR_CONFIG_SELECT,
     });
   }
 
@@ -141,13 +171,12 @@ export class CalendarConfigService {
       where: { publicId: projectPublicId },
       select: { id: true },
     });
-    const existing = await this.prisma.calendarConfig.findFirst({
-      where: { scope: CalendarConfigScope.PROJECT, userId, projectId: project.id },
-    });
-    if (existing) {
+    const existingId = await this.getInternalId(CalendarConfigScope.PROJECT, userId, project.id);
+    if (existingId !== null) {
       return this.prisma.calendarConfig.update({
-        where: { id: existing.id },
+        where: { id: existingId },
         data: { config: dto as object },
+        select: CALENDAR_CONFIG_SELECT,
       });
     }
     return this.prisma.calendarConfig.create({
@@ -157,6 +186,7 @@ export class CalendarConfigService {
         projectId: project.id,
         config: dto as object,
       },
+      select: CALENDAR_CONFIG_SELECT,
     });
   }
 }

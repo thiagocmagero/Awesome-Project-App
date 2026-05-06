@@ -264,24 +264,26 @@ export function parseGanttData({
     title: tRef.current('gantt:gantt.today_marker') + ': ' + dateToStr(now),
   });
 
-  // Só mostrar no resource grid os recursos que têm tarefas associadas
-  const assignedNodeIds = new Set<number>();
+  // Só mostrar no resource grid os recursos que têm tarefas associadas.
+  // `task.owner_id` agora é array de publicIds (UUIDs do GanttResourceNode).
+  const assignedNodeIds = new Set<string>();
   for (const task of tasks) {
     for (const oid of task.owner_id ?? []) {
-      const nid = Number(oid);
-      if (!isNaN(nid)) assignedNodeIds.add(nid);
+      if (typeof oid === 'string' && oid.length > 0) assignedNodeIds.add(oid);
     }
   }
 
   // Folhas com tarefas + os seus grupos-pai
   const activeLeaves = resourceNodes.filter((n) => !n.isGroup && assignedNodeIds.has(n.id));
-  const activeGroupIds = new Set(activeLeaves.map((n) => n.parent));
+  const activeGroupIds = new Set<string>(
+    activeLeaves.map((n) => n.parent).filter((p): p is string => p !== null),
+  );
   const activeGroups = resourceNodes.filter((n) => n.isGroup && activeGroupIds.has(n.id));
 
   const resourceData = [...activeGroups, ...activeLeaves].map((n) => ({
     id: n.id,
     text: n.text,
-    parent: n.parent || null,
+    parent: n.parent ?? null,
     isGroup: n.isGroup,
     hoursPerDay: n.hoursPerDay,
   }));

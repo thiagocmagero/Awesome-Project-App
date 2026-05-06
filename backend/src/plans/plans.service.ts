@@ -10,11 +10,67 @@ import { UpsertPlanLimitDto } from './dto/upsert-plan-limit.dto';
 import { UpsertPlanPricingDto } from './dto/upsert-plan-pricing.dto';
 import { AssignPlanDto } from './dto/assign-plan.dto';
 
-const PLAN_INCLUDE = {
-  limits: true,
-  pricing: true,
-  featureFlags: { include: { featureFlag: true } },
+// Selects explícitos — nunca expor `id` numérico nem FKs internos (`planId`,
+// `featureFlagId`). Resposta usa só `publicId` em todas as relações. Frontend
+// (PlansPage.tsx) já só consome publicIds.
+const PLAN_SELECT = {
+  publicId: true,
+  code: true,
+  name: true,
+  description: true,
+  planStatus: true,
+  validUntil: true,
+  isDefault: true,
+  createdAt: true,
+  updatedAt: true,
+  limits: {
+    select: {
+      publicId: true,
+      limitKey: true,
+      limitValue: true,
+      description: true,
+    },
+  },
+  pricing: {
+    select: {
+      publicId: true,
+      billingCycle: true,
+      basePrice: true,
+      promotionalPrice: true,
+      promotionEndDate: true,
+      trialDays: true,
+    },
+  },
+  featureFlags: {
+    select: {
+      publicId: true,
+      enabled: true,
+      featureFlag: { select: { publicId: true, key: true, label: true } },
+    },
+  },
   _count: { select: { userPlans: { where: { isActive: true } } } },
+} as const;
+
+const PLAN_LIMIT_SELECT = {
+  publicId: true,
+  limitKey: true,
+  limitValue: true,
+  description: true,
+} as const;
+
+const PLAN_PRICING_SELECT = {
+  publicId: true,
+  billingCycle: true,
+  basePrice: true,
+  promotionalPrice: true,
+  promotionEndDate: true,
+  trialDays: true,
+} as const;
+
+const PLAN_FEATURE_FLAG_SELECT = {
+  publicId: true,
+  enabled: true,
+  featureFlag: { select: { publicId: true, key: true, label: true } },
 } as const;
 
 @Injectable()
@@ -26,7 +82,7 @@ export class PlansService {
   private async resolvePlan(publicId: string) {
     const plan = await this.prisma.plan.findUnique({
       where: { publicId },
-      include: PLAN_INCLUDE,
+      select: PLAN_SELECT,
     });
     if (!plan) throw new AppException('PLAN_NOT_FOUND', HttpStatus.NOT_FOUND);
     return plan;
@@ -91,7 +147,7 @@ export class PlansService {
   async findAll() {
     return this.prisma.plan.findMany({
       orderBy: { id: 'asc' },
-      include: PLAN_INCLUDE,
+      select: PLAN_SELECT,
     });
   }
 
@@ -115,13 +171,12 @@ export class PlansService {
         validUntil: dto.validUntil ? new Date(dto.validUntil) : null,
         isDefault: dto.isDefault ?? false,
       },
-      include: PLAN_INCLUDE,
+      select: PLAN_SELECT,
     });
   }
 
   async update(publicId: string, dto: UpdatePlanDto) {
-    const plan = await this.resolvePlan(publicId);
-    const id = plan.id;
+    const id = await this.resolvePlanId(publicId);
 
     if (dto.isDefault) {
       await this.prisma.plan.updateMany({
@@ -140,7 +195,7 @@ export class PlansService {
     return this.prisma.plan.update({
       where: { id },
       data,
-      include: PLAN_INCLUDE,
+      select: PLAN_SELECT,
     });
   }
 
@@ -153,6 +208,7 @@ export class PlansService {
       where: { planId_limitKey: { planId, limitKey: dto.limitKey } },
       update: { limitValue: dto.limitValue, description: dto.description },
       create: { planId, limitKey: dto.limitKey, limitValue: dto.limitValue, description: dto.description },
+      select: PLAN_LIMIT_SELECT,
     });
   }
 
@@ -162,7 +218,8 @@ export class PlansService {
 
     const limit = await this.prisma.planLimit.findFirst({ where: { id: limitId, planId } });
     if (!limit) throw new AppException('PLAN_NOT_FOUND', HttpStatus.NOT_FOUND);
-    return this.prisma.planLimit.delete({ where: { id: limitId } });
+    await this.prisma.planLimit.delete({ where: { id: limitId } });
+    return { deleted: limitPublicId };
   }
 
   // ── Pricing ─────────────────────────────────────────────────────────────
@@ -186,6 +243,7 @@ export class PlansService {
         promotionEndDate: dto.promotionEndDate ? new Date(dto.promotionEndDate) : null,
         trialDays: dto.trialDays ?? 0,
       },
+      select: PLAN_PRICING_SELECT,
     });
   }
 
@@ -195,7 +253,8 @@ export class PlansService {
 
     const pricing = await this.prisma.planPricing.findFirst({ where: { id: pricingId, planId } });
     if (!pricing) throw new AppException('PLAN_NOT_FOUND', HttpStatus.NOT_FOUND);
-    return this.prisma.planPricing.delete({ where: { id: pricingId } });
+    await this.prisma.planPricing.delete({ where: { id: pricingId } });
+    return { deleted: pricingPublicId };
   }
 
   // ── Feature Flags association ───────────────────────────────────────────
@@ -211,7 +270,7 @@ export class PlansService {
 
     return this.prisma.planFeatureFlag.create({
       data: { planId, featureFlagId, enabled },
-      include: { featureFlag: true },
+      select: PLAN_FEATURE_FLAG_SELECT,
     });
   }
 
@@ -224,7 +283,7 @@ export class PlansService {
     return this.prisma.planFeatureFlag.update({
       where: { id: pfId },
       data: { enabled },
-      include: { featureFlag: true },
+      select: PLAN_FEATURE_FLAG_SELECT,
     });
   }
 
@@ -234,7 +293,8 @@ export class PlansService {
 
     const pf = await this.prisma.planFeatureFlag.findFirst({ where: { id: pfId, planId } });
     if (!pf) throw new AppException('NOT_FOUND', HttpStatus.NOT_FOUND);
-    return this.prisma.planFeatureFlag.delete({ where: { id: pfId } });
+    await this.prisma.planFeatureFlag.delete({ where: { id: pfId } });
+    return { deleted: pfPublicId };
   }
 
   // ── Plan Assignment ─────────────────────────────────────────────────────
@@ -265,7 +325,14 @@ export class PlansService {
           assignedById,
           notes: dto.notes,
         },
-        include: { plan: true },
+        select: {
+          publicId: true,
+          isActive: true,
+          assignedAt: true,
+          expiresAt: true,
+          notes: true,
+          plan: { select: { publicId: true, code: true, name: true } },
+        },
       });
     });
   }
@@ -276,9 +343,14 @@ export class PlansService {
     return this.prisma.userPlan.findMany({
       where: { userId },
       orderBy: { assignedAt: 'desc' },
-      include: {
-        plan: { select: { id: true, publicId: true, code: true, name: true } },
-        assignedBy: { select: { id: true, publicId: true, name: true, email: true } },
+      select: {
+        publicId: true,
+        isActive: true,
+        assignedAt: true,
+        expiresAt: true,
+        notes: true,
+        plan:       { select: { publicId: true, code: true, name: true } },
+        assignedBy: { select: { publicId: true, name: true, email: true } },
       },
     });
   }

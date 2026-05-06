@@ -345,11 +345,16 @@ export class PlanningService {
       }
     }
 
-    // 10. Return serialized nodes
+    // 10. Return serialized nodes — usa publicId (não `id` numérico interno)
+    // tanto no `id` como no `parent`. DHTMLX aceita strings como ids; o
+    // resource_property `owner_id` matches por igualdade. Cobertura de
+    // segurança: GanttResourceNode.id e User.id deixam de vazar para a API.
+    const idToPublicId = new Map<number, string>();
+    for (const n of finalNodes) idToPublicId.set(n.id, n.publicId);
     return finalNodes.map((n) => ({
-      id: n.id,
+      id: n.publicId,
       text: n.text,
-      parent: n.parentId ?? 0,
+      parent: n.parentId !== null ? (idToPublicId.get(n.parentId) ?? null) : null,
       hoursPerDay: n.hoursPerDay,
       isGroup: n.isGroup,
     }));
@@ -391,12 +396,73 @@ export class PlanningService {
       commentCounts.map((c) => [c.entityPublicId, c._count.id]),
     );
 
+    // Map para hidratar `owner_id` numéricos (BD) → publicIds (wire format).
+    // Inclui apenas leaves (groups não aparecem em ownerIds).
+    const nodeIdToPublicId = await this.buildNodeIdToPublicIdMap(projectId);
+
     return {
-      data: tasks.map((t) => this.serializeTask(t, commentCountMap.get(t.publicId) ?? 0)),
+      data: tasks.map((t) =>
+        this.serializeTask(t, commentCountMap.get(t.publicId) ?? 0, nodeIdToPublicId),
+      ),
       links: links.map((l) => this.serializeLink(l)),
       resources,
       nonWorkingDays,
     };
+  }
+
+  /**
+   * Constrói Map<numericId, publicId> dos GanttResourceNode dum projecto.
+   * Usado para hidratar `task.ownerIds` (ints stringified em BD) para
+   * publicIds (UUIDs) no wire format. A coluna BD continua a guardar ints
+   * para reversibilidade — só o wire muda.
+   */
+  private async buildNodeIdToPublicIdMap(projectId: number): Promise<Map<number, string>> {
+    const nodes = await this.prisma.ganttResourceNode.findMany({
+      where: { projectId },
+      select: { id: true, publicId: true },
+    });
+    const map = new Map<number, string>();
+    for (const n of nodes) map.set(n.id, n.publicId);
+    return map;
+  }
+
+  /**
+   * Resolve `owner_id: string[]` recebido do DTO (publicIds UUID) para os
+   * ints stringified que `GanttTask.ownerIds` guarda. Lança 400 se algum
+   * publicId não pertence a um GanttResourceNode deste projecto.
+   *
+   * Aceita também ints stringified para retrocompatibilidade durante a
+   * transição (o frontend pode estar a cachear payloads antigos).
+   */
+  private async resolveOwnerIdsFromPublicIds(
+    projectId: number,
+    inputIds: string[],
+  ): Promise<string[]> {
+    if (inputIds.length === 0) return [];
+    // Separa publicIds (UUIDs) de ints stringified legacy.
+    const uuids: string[] = [];
+    const ints: string[] = [];
+    for (const id of inputIds) {
+      if (/^\d+$/.test(id)) ints.push(id);
+      else uuids.push(id);
+    }
+
+    const result: string[] = [...ints]; // legacy passa-através
+
+    if (uuids.length > 0) {
+      const nodes = await this.prisma.ganttResourceNode.findMany({
+        where: { projectId, publicId: { in: uuids } },
+        select: { id: true, publicId: true },
+      });
+      const found = new Set(nodes.map((n) => n.publicId));
+      const missing = uuids.filter((u) => !found.has(u));
+      if (missing.length > 0) {
+        throw new AppException('INVALID_OWNER_ID', HttpStatus.BAD_REQUEST);
+      }
+      for (const n of nodes) result.push(String(n.id));
+    }
+
+    return result;
   }
 
   // ── Tasks ───────────────────────────────────────────────────────────────────
@@ -466,6 +532,12 @@ export class PlanningService {
       resolvedParentId = parentTask?.id ?? null;
     }
 
+    // owner_id no DTO chega em publicIds UUIDs — converter para ints
+    // stringified (formato persistido na coluna `ownerIds`).
+    const ownerIdsToStore = dto.owner_id
+      ? await this.resolveOwnerIdsFromPublicIds(projectId, dto.owner_id)
+      : [];
+
     const task = await this.prisma.ganttTask.create({
       data: {
         projectId,
@@ -476,7 +548,7 @@ export class PlanningService {
         duration: dto.duration,
         durationUnit,
         progress: dto.progress ?? 0,
-        ownerIds: dto.owner_id ?? [],
+        ownerIds: ownerIdsToStore,
         parentId: resolvedParentId,
         priority: dto.priority ?? null,
         constraintType: dto.constraint_type ?? null,
@@ -486,8 +558,9 @@ export class PlanningService {
       },
     });
 
-    // Notificar owners atribuídos na criação
-    if (requestingUser && (dto.owner_id ?? []).length > 0) {
+    // Notificar owners atribuídos na criação. `notifyNewOwners` espera ints
+    // stringified (matches em GanttResourceNode.id) — usa o array já resolvido.
+    if (requestingUser && ownerIdsToStore.length > 0) {
       const projectMeta = await this.prisma.project.findUnique({
         where: { id: projectId },
         select: { publicId: true },
@@ -498,7 +571,7 @@ export class PlanningService {
       });
       const assignerName = requester?.name ?? 'Alguém';
       await this.notifyNewOwners(
-        dto.owner_id ?? [],
+        ownerIdsToStore,
         [],
         task.publicId,
         task.text,
@@ -507,7 +580,8 @@ export class PlanningService {
       );
     }
 
-    return this.serializeTask(task, 0);
+    const nodeMap = await this.buildNodeIdToPublicIdMap(projectId);
+    return this.serializeTask(task, 0, nodeMap);
   }
 
   async updateTask(taskPublicId: string, dto: UpdateTaskDto, requestingUser?: JwtPayload) {
@@ -539,7 +613,10 @@ export class PlanningService {
     if (dto.duration !== undefined) data.duration = dto.duration;
     if (dto.durationUnit !== undefined) data.durationUnit = dto.durationUnit;
     if (dto.progress !== undefined) data.progress = dto.progress;
-    if (dto.owner_id !== undefined) data.ownerIds = dto.owner_id;
+    // owner_id chega em publicIds UUIDs — converter para ints stringified.
+    if (dto.owner_id !== undefined) {
+      data.ownerIds = await this.resolveOwnerIdsFromPublicIds(existing.projectId, dto.owner_id);
+    }
     if (dto.parent !== undefined)
       data.parentId = dto.parent !== 0 ? dto.parent : null;
     if (dto.priority !== undefined) data.priority = dto.priority;
@@ -582,7 +659,8 @@ export class PlanningService {
     const previousOwnerIds = existing.ownerIds;
     const task = await this.prisma.ganttTask.update({ where: { id }, data });
 
-    // Notificar novos owners
+    // Notificar novos owners — ambos os arrays em ints stringified
+    // (post-resolução). `data.ownerIds` é o array que foi gravado.
     if (requestingUser && dto.owner_id !== undefined) {
       const projectRecord = await this.prisma.project.findUnique({
         where: { id: existing.projectId },
@@ -593,8 +671,9 @@ export class PlanningService {
         select: { name: true },
       });
       const assignerName = requester?.name ?? 'Alguém';
+      const newOwnerIds = (data.ownerIds as string[]) ?? [];
       await this.notifyNewOwners(
-        dto.owner_id,
+        newOwnerIds,
         previousOwnerIds,
         task.publicId,
         task.text,
@@ -603,7 +682,8 @@ export class PlanningService {
       );
     }
 
-    return this.serializeTask(task, 0);
+    const nodeMap = await this.buildNodeIdToPublicIdMap(existing.projectId);
+    return this.serializeTask(task, 0, nodeMap);
   }
 
   /**
@@ -977,7 +1057,17 @@ export class PlanningService {
     boardPosition?: number | null;
     boardColumn?: { publicId: string } | null;
     boardSwimlane?: { publicId: string } | null;
-  }, commentCount = 0) {
+  }, commentCount = 0, nodeIdToPublicId?: Map<number, string>) {
+    // owner_id wire format: publicIds (UUIDs) do GanttResourceNode. A coluna
+    // BD `ownerIds` continua a guardar ints stringified — convertemos na
+    // boundary para evitar leak de IDs internos. Se o map não for fornecido
+    // (ex.: chamadas isoladas de createTask/updateTask) devolvemos sem
+    // conversão; o caller responsável por hidratar.
+    const ownerWire = nodeIdToPublicId
+      ? t.ownerIds
+          .map((id) => nodeIdToPublicId.get(parseInt(id, 10)) ?? null)
+          .filter((id): id is string => id !== null)
+      : t.ownerIds;
     return {
       id: t.id,
       publicId: t.publicId,
@@ -992,7 +1082,7 @@ export class PlanningService {
       duration: t.duration,
       durationUnit: t.durationUnit,
       progress: t.progress,
-      owner_id: t.ownerIds,
+      owner_id: ownerWire,
       parent: t.parentId ?? 0,
       priority: t.priority ?? undefined,
       constraint_type: t.constraintType ?? undefined,

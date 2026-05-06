@@ -28,7 +28,7 @@ export interface TaskModalProps {
   taskFormLoading: boolean;
   tasks: GanttTask[];
   boardColumns: ITaskState[];
-  allResourcesByType: Map<number, { label: string; items: Array<{ id: string; name: string }> }>;
+  allResourcesByType: Map<string, { label: string; items: Array<{ id: string; name: string }> }>;
   // DOM refs for FlatPickr / Choices (managed by orchestrator effects)
   fpStartRef: RefObject<HTMLInputElement>;
   fpConstraintRef: RefObject<HTMLInputElement>;

@@ -12,7 +12,7 @@ import { avatarColorFor, initialsOf as initials } from '../../../lib/avatars';
 export interface TaskTableProps {
   filteredTasks: Array<GanttTask & { depth: number }>;
   boardColumns: ITaskState[];
-  nodeMap: Map<number, ResourceNode>;
+  nodeMap: Map<string, ResourceNode>;
   /** True when the column filter is active (distinguishes "no tasks" from "filtered to empty"). */
   isFiltered: boolean;
   openEditTask: (task: GanttTask) => void;
@@ -130,8 +130,9 @@ export function TaskTable({
                   {visibleTasks.map((tk) => {
                     const owners = (tk.owner_id ?? [])
                       .map((oid: string) => {
-                        const node = nodeMap.get(Number(oid));
-                        return node ? { name: node.text, publicId: String(node.id) } : null;
+                        // owner_id agora é publicId (UUID) do GanttResourceNode.
+                        const node = nodeMap.get(oid);
+                        return node ? { name: node.text, publicId: node.id } : null;
                       })
                       .filter(Boolean) as Array<{ name: string; publicId: string }>;
                     const visibleOwners = owners.slice(0, 3);

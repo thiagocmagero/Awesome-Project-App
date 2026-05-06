@@ -82,21 +82,32 @@ function deepMerge(base: BoardConfigData, override: BoardConfigData): BoardConfi
   };
 }
 
+// Selects sem `id`/`userId`/`projectId` numéricos. Frontend só consome
+// `.config` (ver useBoardConfig.ts).
+const BOARD_CONFIG_SELECT = {
+  publicId:  true,
+  scope:     true,
+  config:    true,
+  updatedAt: true,
+} as const;
+
 @Injectable()
 export class BoardConfigService {
   constructor(private readonly prisma: PrismaService) {}
 
-  // ── Getters (raw records) ───────────────────────────────────────────────────
+  // ── Getters (sem `id` numérico — só publicId+scope+config) ──────────────────
 
   getGlobal() {
     return this.prisma.boardConfig.findFirst({
       where: { scope: BoardConfigScope.GLOBAL, userId: null, projectId: null },
+      select: BOARD_CONFIG_SELECT,
     });
   }
 
   getForUser(userId: number) {
     return this.prisma.boardConfig.findFirst({
       where: { scope: BoardConfigScope.USER, userId, projectId: null },
+      select: BOARD_CONFIG_SELECT,
     });
   }
 
@@ -107,7 +118,22 @@ export class BoardConfigService {
     });
     return this.prisma.boardConfig.findFirst({
       where: { scope: BoardConfigScope.PROJECT, userId, projectId: project.id },
+      select: BOARD_CONFIG_SELECT,
     });
+  }
+
+  // ── Internal helper para upsert (precisa do `id` interno) ───────────────────
+
+  private async getInternalId(
+    scope: BoardConfigScope,
+    userId: number | null,
+    projectId: number | null,
+  ): Promise<number | null> {
+    const rec = await this.prisma.boardConfig.findFirst({
+      where: { scope, userId, projectId },
+      select: { id: true },
+    });
+    return rec?.id ?? null;
   }
 
   // ── Resolve (3 níveis) ──────────────────────────────────────────────────────
@@ -132,11 +158,12 @@ export class BoardConfigService {
   // ── Upserts ─────────────────────────────────────────────────────────────────
 
   async upsertGlobal(dto: UpsertBoardConfigDto) {
-    const existing = await this.getGlobal();
-    if (existing) {
+    const existingId = await this.getInternalId(BoardConfigScope.GLOBAL, null, null);
+    if (existingId !== null) {
       return this.prisma.boardConfig.update({
-        where: { id: existing.id },
+        where: { id: existingId },
         data: { config: dto as object },
+        select: BOARD_CONFIG_SELECT,
       });
     }
     return this.prisma.boardConfig.create({
@@ -146,15 +173,17 @@ export class BoardConfigService {
         projectId: null,
         config: dto as object,
       },
+      select: BOARD_CONFIG_SELECT,
     });
   }
 
   async upsertUser(userId: number, dto: UpsertBoardConfigDto) {
-    const existing = await this.getForUser(userId);
-    if (existing) {
+    const existingId = await this.getInternalId(BoardConfigScope.USER, userId, null);
+    if (existingId !== null) {
       return this.prisma.boardConfig.update({
-        where: { id: existing.id },
+        where: { id: existingId },
         data: { config: dto as object },
+        select: BOARD_CONFIG_SELECT,
       });
     }
     return this.prisma.boardConfig.create({
@@ -164,6 +193,7 @@ export class BoardConfigService {
         projectId: null,
         config: dto as object,
       },
+      select: BOARD_CONFIG_SELECT,
     });
   }
 
@@ -172,13 +202,12 @@ export class BoardConfigService {
       where: { publicId: projectPublicId },
       select: { id: true },
     });
-    const existing = await this.prisma.boardConfig.findFirst({
-      where: { scope: BoardConfigScope.PROJECT, userId, projectId: project.id },
-    });
-    if (existing) {
+    const existingId = await this.getInternalId(BoardConfigScope.PROJECT, userId, project.id);
+    if (existingId !== null) {
       return this.prisma.boardConfig.update({
-        where: { id: existing.id },
+        where: { id: existingId },
         data: { config: dto as object },
+        select: BOARD_CONFIG_SELECT,
       });
     }
     return this.prisma.boardConfig.create({
@@ -188,6 +217,7 @@ export class BoardConfigService {
         projectId: project.id,
         config: dto as object,
       },
+      select: BOARD_CONFIG_SELECT,
     });
   }
 }

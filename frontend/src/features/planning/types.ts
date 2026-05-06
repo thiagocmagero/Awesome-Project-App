@@ -105,11 +105,14 @@ export interface UserTypeLookup {
   label: string;
 }
 
-/** Nó da árvore de recursos do Gantt — vem do backend (GanttResourceNode) */
+/** Nó da árvore de recursos do Gantt — vem do backend (GanttResourceNode).
+ *  `id` e `parent` são `publicId` UUIDs do `GanttResourceNode`. `parent: null`
+ *  indica nó raiz (grupo top-level). DHTMLX aceita string como id e usa-o
+ *  para matching com `task.owner_id` (também publicId desde Maio 2026). */
 export interface ResourceNode {
-  id: number;
+  id: string;
   text: string;
-  parent: number;   // 0 = raiz (grupo)
+  parent: string | null;
   hoursPerDay: number;
   isGroup: boolean;
 }

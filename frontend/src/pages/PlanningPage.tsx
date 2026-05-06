@@ -856,15 +856,15 @@ export default function PlanningPage() {
   }, [project]);
 
   const allResourcesByType = useMemo(() => {
-    const groups = new Map<number, { label: string; items: Array<{ id: string; name: string }> }>();
+    const groups = new Map<string, { label: string; items: Array<{ id: string; name: string }> }>();
     for (const n of resourceNodes) if (n.isGroup) groups.set(n.id, { label: n.text, items: [] });
-    for (const n of resourceNodes) if (!n.isGroup) groups.get(n.parent)?.items.push({ id: String(n.id), name: n.text });
+    for (const n of resourceNodes) if (!n.isGroup && n.parent) groups.get(n.parent)?.items.push({ id: n.id, name: n.text });
     return groups;
   }, [resourceNodes]);
 
   const nodeMap = useMemo(() => {
     const m = new Map<typeof resourceNodes[0], typeof resourceNodes[0]>();
-    const result = new Map<number, typeof resourceNodes[0]>();
+    const result = new Map<string, typeof resourceNodes[0]>();
     for (const n of resourceNodes) if (!n.isGroup) result.set(n.id, n);
     void m;
     return result;

@@ -25,8 +25,9 @@ interface UseBoardDataInput {
   project?: ProjectDetail | null;
   /**
    * Nós de recursos do Gantt (folhas = utilizadores/externos). Usados para
-   * construir o mapa de avatares por resource-node-id (que é o que `task.owner_id`
-   * contém — IDs numéricos do `GanttResourceNode`, não publicIds de User).
+   * construir o mapa de avatares por resource-node publicId (que é o que
+   * `task.owner_id` contém desde Maio 2026 — publicIds UUID do
+   * `GanttResourceNode`, não publicIds de User).
    */
   resourceNodes: ResourceNode[];
   /** publicId do utilizador autenticado (passado ao widget como `currentUser`). */
@@ -133,17 +134,17 @@ export function useBoardData({
         taskToCard(task, idToPublicId, fallbackColumnPublicId, primarySwimlanePublicId, idToText, childCounts),
       );
 
-    // ── Users — indexados por resource-node-id (string) ─────────────────────
-    // `task.owner_id` contém IDs numéricos (como strings) dos GanttResourceNode,
-    // não publicIds de User. O KanbanCard faz lookup de `card.users[i]` dentro
-    // de `cardShape.users.values`, portanto as entradas têm de usar o mesmo
-    // identificador: `String(node.id)`.
+    // ── Users — indexados por resource-node publicId ────────────────────────
+    // Desde Maio 2026 `task.owner_id` é array de publicIds (UUIDs) do
+    // GanttResourceNode (não User.publicId). O KanbanCard faz lookup de
+    // `card.users[i]` dentro de `cardShape.users.values` — o `id` aqui tem de
+    // bater certo com o publicId que vai estar em `card.users`.
     const users: BoardUserOption[] = resourceNodes
       .filter((n) => !n.isGroup)       // só folhas (utilizadores / externos)
       .map((n) => ({
-        id: String(n.id),
+        id: n.id,
         label: n.text,
-        color: colorFor(String(n.id)),
+        color: colorFor(n.id),
       }));
 
     return {
