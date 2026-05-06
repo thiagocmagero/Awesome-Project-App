@@ -16,6 +16,8 @@ export interface AuthUser {
   planName: string | null;
   /** IANA timezone identifier — null antes da detecção do browser na primeira sessão. */
   timezone: string | null;
+  /** Locale preferido (ex.: 'pt-PT', 'en'). null antes do sync com o i18next. */
+  locale: string | null;
   currentSessionPublicId?: string;
 }
 
@@ -57,6 +59,7 @@ export interface ApiAuthUser {
   planCode: string | null;
   planName: string | null;
   timezone: string | null;
+  locale: string | null;
   currentSessionPublicId?: string;
 }
 
@@ -75,6 +78,7 @@ export function toAuthUser(raw: ApiAuthUser): AuthUser {
     planCode: raw.planCode ?? null,
     planName: raw.planName ?? null,
     timezone: raw.timezone ?? null,
+    locale: raw.locale ?? null,
     currentSessionPublicId: raw.currentSessionPublicId,
   };
 }

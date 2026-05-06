@@ -18,6 +18,7 @@ const USER_SELECT = {
   name: true,
   status: true,
   timezone: true,
+  locale: true,
   profile: { select: { publicId: true, code: true, label: true } },
   userType: { select: { publicId: true, code: true, label: true } },
   level: { select: { publicId: true, code: true, label: true, order: true } },
@@ -276,6 +277,38 @@ export class UsersService {
     return this.prisma.user.update({
       where: { id: userId },
       data: { timezone },
+      select: USER_SELECT,
+    });
+  }
+
+  /**
+   * Endpoint dedicado para o próprio user actualizar o seu locale.
+   *
+   * Aceita `null` para "limpar" (volta à detecção do browser).
+   * Para um valor não-null, valida que existe na tabela `Locale` e está
+   * activo — caso contrário devolve null (defensivo: input inválido =
+   * cair no fallback do frontend).
+   *
+   * Usado por:
+   * - LanguageSelector no header (quando user autenticado).
+   * - Aba "Região e Idioma" da UserSettingsPage.
+   * - AppLayout sync effect na primeira sessão (BD null + i18next resolved).
+   */
+  async updateMyLocale(userId: number, locale: string | null) {
+    let resolved: string | null = null;
+    if (locale) {
+      const found = await this.prisma.locale.findFirst({
+        where: { code: locale, isActive: true },
+        select: { code: true },
+      });
+      if (!found) {
+        throw new AppException('LOCALE_NOT_SUPPORTED', HttpStatus.BAD_REQUEST);
+      }
+      resolved = found.code;
+    }
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { locale: resolved },
       select: USER_SELECT,
     });
   }

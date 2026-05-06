@@ -6,6 +6,12 @@ import { useToast } from '../contexts/ToastContext';
 import { getApiBase, apiFetch } from '../lib/api';
 import { TimezoneSelect } from '../components/TimezoneSelect';
 
+interface ActiveLocale {
+  code: string;
+  name: string;
+  flag: string | null;
+}
+
 /**
  * Página "Conta" do utilizador — configurações pessoais.
  * Hoje: aba "Região e Idioma" com seletor de timezone.
@@ -17,7 +23,7 @@ export default function UserSettingsPage() {
   const { user, refreshUser } = useAuth();
   const api = getApiBase();
   const { showToast } = useToast();
-  const { t } = useTranslation('account');
+  const { t, i18n } = useTranslation('account');
   const { t: tc } = useTranslation('common');
 
   const [savingTz, setSavingTz] = useState(false);
@@ -29,6 +35,22 @@ export default function UserSettingsPage() {
     setTzValue(user?.timezone ?? null);
     lastSyncedTz.current = user?.timezone ?? null;
   }, [user?.timezone]);
+
+  // Locale (idioma)
+  const [savingLocale, setSavingLocale] = useState(false);
+  const [localeValue, setLocaleValue] = useState<string | null>(user?.locale ?? null);
+  const [locales, setLocales] = useState<ActiveLocale[]>([]);
+
+  useEffect(() => {
+    setLocaleValue(user?.locale ?? null);
+  }, [user?.locale]);
+
+  useEffect(() => {
+    fetch('/api/i18n/locales/active')
+      .then((r) => r.json())
+      .then((data) => { if (Array.isArray(data)) setLocales(data); })
+      .catch(() => {});
+  }, []);
 
   async function handleTimezoneChange(next: string | null) {
     if (next === tzValue) return;
@@ -51,6 +73,30 @@ export default function UserSettingsPage() {
       showToast('danger', t('error.timezone_save'));
     } finally {
       setSavingTz(false);
+    }
+  }
+
+  async function handleLocaleChange(next: string) {
+    if (next === localeValue) return;
+    const previous = localeValue;
+    setLocaleValue(next);
+    setSavingLocale(true);
+    try {
+      const res = await apiFetch(`${api}/users/me/locale`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ locale: next }),
+      });
+      if (!res.ok) throw new Error('save failed');
+      // Aplica imediatamente no i18next para a UI reflectir.
+      i18n.changeLanguage(next).catch(() => {});
+      await refreshUser();
+      showToast('success', t('success.language_saved'));
+    } catch {
+      setLocaleValue(previous);
+      showToast('danger', t('error.language_save'));
+    } finally {
+      setSavingLocale(false);
     }
   }
 
@@ -139,7 +185,7 @@ export default function UserSettingsPage() {
                   </div>
                 </div>
 
-                {/* Aba Região e Idioma — timezone */}
+                {/* Aba Região e Idioma — timezone + idioma */}
                 <div
                   className="tab-pane fade"
                   id="tab-region"
@@ -161,6 +207,29 @@ export default function UserSettingsPage() {
                         disabled={savingTz}
                       />
                       <div className="form-text">{t('form.timezone_hint')}</div>
+                    </div>
+                    <div className="col-md-8">
+                      <label className="form-label" htmlFor="user-locale">
+                        {t('form.language')}
+                        {savingLocale && (
+                          <span className="ms-2 spinner-border spinner-border-sm" role="status" />
+                        )}
+                      </label>
+                      <select
+                        id="user-locale"
+                        className="form-select"
+                        value={localeValue ?? ''}
+                        onChange={(e) => handleLocaleChange(e.target.value)}
+                        disabled={savingLocale || locales.length === 0}
+                      >
+                        {!localeValue && <option value="" disabled>—</option>}
+                        {locales.map((l) => (
+                          <option key={l.code} value={l.code}>
+                            {l.name}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="form-text">{t('form.language_hint')}</div>
                     </div>
                   </div>
                 </div>

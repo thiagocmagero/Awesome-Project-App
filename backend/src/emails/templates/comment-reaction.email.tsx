@@ -2,29 +2,23 @@ import * as React from 'react';
 import { SimpleEmail } from './components/SimpleEmail';
 import type { CommonEmailTexts } from './components/EmailLayout';
 
-export interface CommentMentionEmailProps {
+export interface CommentReactionEmailProps {
   common: CommonEmailTexts;
   preview: string;
   body_p1: string;
   cta_label: string;
-  /** Excerpt do comentário (input do utilizador — não traduzido). */
-  excerpt: string;
   commentUrl: string;
   appUrl: string;
 }
 
-/**
- * Email enviado a um utilizador mencionado num comentário. O `excerpt` é
- * mostrado num bloco quote — não é traduzido (é o texto literal do user).
- */
-export function CommentMentionEmail(props: CommentMentionEmailProps) {
+/** Email enviado ao autor de um comentário quando alguém reage com emoji. */
+export function CommentReactionEmail(props: CommentReactionEmailProps) {
   return (
     <SimpleEmail
       previewText={props.preview}
       appUrl={props.appUrl}
       common={props.common}
       paragraphs={[props.body_p1]}
-      quote={{ content: props.excerpt, tone: 'neutral' }}
       cta={{ label: props.cta_label, url: props.commentUrl }}
     />
   );

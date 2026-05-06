@@ -10,9 +10,33 @@ import {
   Text,
 } from '@react-email/components';
 
+/**
+ * Textos comuns reutilizados pelo wrapper visual e por todos os templates.
+ * O `EmailService.buildCommon(bundle, vars)` constrói este objecto a partir
+ * do namespace `email` (`common.*` chaves) já interpolado.
+ */
+export interface CommonEmailTexts {
+  /** "Olá {{recipientName}}," — já interpolado. */
+  greeting: string;
+  /** Frase de aviso no footer ("Recebeste este email porque..."). */
+  footer_text: string;
+  /** Texto do link "Gerir preferências" (aponta para `prefsUrl`). */
+  footer_pref_link: string;
+  /** Intro do hint "Se o botão não funcionar, copia este link..." (sem URL). */
+  hint_link_intro: string;
+  /** Linha de copyright já com {{year}} substituído. */
+  copyright: string;
+  /** URL absoluta para o utilizador gerir preferências de notificação. */
+  prefsUrl: string;
+}
+
 interface Props {
+  /** Texto curto que aparece nas previews dos clientes (Gmail, Outlook, ...). */
   previewText: string;
-  appUrl?: string;
+  /** APP_URL usada para construir links no footer. */
+  appUrl: string;
+  /** Strings comuns já em locale + interpoladas. */
+  common: CommonEmailTexts;
   children: React.ReactNode;
 }
 
@@ -21,13 +45,13 @@ interface Props {
  *
  * Mantém intencionalmente o styling inline (regras de email clients que
  * descartam `<style>` global). A paleta acompanha o template Zynix da app.
+ *
+ * Locale-agnostic: todas as strings vêm em `common`. O brand "Awesome
+ * Project App" é nome próprio — não traduz.
  */
-export function EmailLayout({ previewText, appUrl, children }: Props) {
-  const baseUrl = appUrl ?? 'http://localhost:5173';
-  const prefsUrl = `${baseUrl}/settings/notifications`;
-
+export function EmailLayout({ previewText, common, children }: Props) {
   return (
-    <Html lang="pt">
+    <Html>
       <Head />
       <Preview>{previewText}</Preview>
       <Body style={bodyStyle}>
@@ -39,16 +63,13 @@ export function EmailLayout({ previewText, appUrl, children }: Props) {
           <Hr style={hrStyle} />
           <Section style={footerStyle}>
             <Text style={footerTextStyle}>
-              Recebeste este email porque tens notificações por email activadas
-              na tua conta.{' '}
-              <a href={prefsUrl} style={footerLinkStyle}>
-                Gerir preferências
+              {common.footer_text}{' '}
+              <a href={common.prefsUrl} style={footerLinkStyle}>
+                {common.footer_pref_link}
               </a>
               .
             </Text>
-            <Text style={footerSmallStyle}>
-              © {new Date().getFullYear()} Awesome Project App
-            </Text>
+            <Text style={footerSmallStyle}>{common.copyright}</Text>
           </Section>
         </Container>
       </Body>

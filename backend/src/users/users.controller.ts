@@ -18,6 +18,7 @@ import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateMyTimezoneDto } from './dto/update-my-timezone.dto';
+import { UpdateMyLocaleDto } from './dto/update-my-locale.dto';
 
 @Controller('users')
 @UseGuards(JwtAuthGuard)
@@ -63,6 +64,22 @@ export class UsersController {
     @CurrentUser() currentUser: JwtPayload,
   ) {
     return this.usersService.updateMyTimezone(currentUser.sub, dto.timezone ?? null);
+  }
+
+  /**
+   * Actualiza apenas o locale (idioma) do próprio user. Usado por:
+   * - LanguageSelector no header (autenticado).
+   * - Aba "Região e Idioma" da UserSettingsPage.
+   * - AppLayout sync effect na primeira sessão.
+   * Tem que estar declarado ANTES de @Patch(':id') por causa do pattern
+   * matching das rotas (3 segments vs 2).
+   */
+  @Patch('me/locale')
+  updateMyLocale(
+    @Body() dto: UpdateMyLocaleDto,
+    @CurrentUser() currentUser: JwtPayload,
+  ) {
+    return this.usersService.updateMyLocale(currentUser.sub, dto.locale ?? null);
   }
 
   /** Atualiza utilizador — validação de ownership no service */

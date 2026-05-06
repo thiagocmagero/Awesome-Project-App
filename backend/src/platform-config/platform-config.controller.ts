@@ -49,6 +49,21 @@ export class PlatformConfigController {
     return this.emailService.getStatus();
   }
 
+  /**
+   * Disponibilidade pública do canal email — qualquer user JWT pode ler.
+   * Devolve apenas o booleano agregado (enabled + smtp_ready). NÃO expõe
+   * `reason`, host, credenciais nem `fromEmail` — princípio: utilizador
+   * final nunca vê motivos técnicos. Detalhes ficam no `getSmtpStatus`
+   * (admin only).
+   */
+  @Get('email/availability')
+  async getEmailAvailability() {
+    const config = await this.service.getEmailConfig();
+    if (!config.enabled) return { available: false };
+    const smtp = this.emailService.getStatus();
+    return { available: smtp.ready };
+  }
+
   /** Cria ou actualiza configuração de email */
   @Patch('email')
   updateEmail(

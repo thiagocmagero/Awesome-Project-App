@@ -1,11 +1,17 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { EntityType, NotificationChannel, NotificationType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { EmailService } from '../emails/email.service';
 import { NotificationResponseDto } from './dto/notification-response.dto';
 
 @Injectable()
 export class NotificationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(NotificationsService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly emailService: EmailService,
+  ) {}
 
   // ─── Preference guard ────────────────────────────────────────────────────────
 
@@ -21,7 +27,82 @@ export class NotificationsService {
     return pref?.enabled ?? true;
   }
 
+  // ─── Resolvers (helpers privados) ────────────────────────────────────────────
+
+  /** Lê email + name + locale do destinatário. Devolve null se não encontrar. */
+  private async resolveRecipient(userId: number) {
+    return this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true, name: true, locale: true },
+    });
+  }
+
+  /** Lê o nome do projecto a partir do publicId. Devolve string vazia se ausente. */
+  private async resolveProjectName(projectPublicId: string): Promise<string> {
+    const p = await this.prisma.project.findUnique({
+      where: { publicId: projectPublicId },
+      select: { name: true },
+    });
+    return p?.name ?? '';
+  }
+
+  /** Resolve o nome contextual (task name ou project name). */
+  private async resolveContextName(
+    projectPublicId: string,
+    entityType: EntityType,
+    entityPublicId: string,
+  ): Promise<string> {
+    if (entityType === EntityType.TASK) {
+      const task = await this.prisma.ganttTask.findUnique({
+        where: { publicId: entityPublicId },
+        select: { text: true },
+      });
+      if (task?.text) return task.text;
+    }
+    return this.resolveProjectName(projectPublicId);
+  }
+
+  /** Base URL (APP_URL com trailing slash removido). */
+  private get baseUrl(): string {
+    return (process.env.APP_URL ?? 'http://localhost:5173').replace(/\/+$/, '');
+  }
+
+  private buildTaskUrl(projectPublicId: string, taskPublicId: string): string {
+    return `${this.baseUrl}/projects/${projectPublicId}/planning/tasks/${taskPublicId}`;
+  }
+
+  private buildEntityUrl(
+    projectPublicId: string,
+    entityType: EntityType,
+    entityPublicId: string,
+  ): string {
+    if (entityType === EntityType.TASK) {
+      return this.buildTaskUrl(projectPublicId, entityPublicId);
+    }
+    return `${this.baseUrl}/projects/${projectPublicId}/planning`;
+  }
+
+  private buildProjectUrl(projectPublicId: string): string {
+    return `${this.baseUrl}/projects/${projectPublicId}/planning`;
+  }
+
+  private buildProjectsListUrl(): string {
+    return `${this.baseUrl}/projects`;
+  }
+
+  private buildTimesheetUrl(projectPublicId: string, weekStart: string): string {
+    return `${this.baseUrl}/projects/${projectPublicId}/planning?tab=timesheet&week=${weekStart}`;
+  }
+
   // ─── Creators ────────────────────────────────────────────────────────────────
+  //
+  // Cada `createXxxNotification` faz fan-out independente:
+  //   - IN_APP: cria registo `Notification` se `shouldNotify(IN_APP)`.
+  //   - EMAIL:  resolve destinatário e dispara email se `shouldNotify(EMAIL)`.
+  //
+  // Os dois canais são independentes — user pode ter só um, ambos, ou nenhum.
+  // Falhas em qualquer ramo são silenciosas (logger.error / .catch). Os
+  // callers são todos fire-and-forget.
 
   async createMentionNotification(
     actorName: string,
@@ -31,18 +112,40 @@ export class NotificationsService {
     entityPublicId: string,
     excerpt: string,
   ): Promise<void> {
-    if (!(await this.shouldNotify(mentionedUserId, NotificationType.MENTION, NotificationChannel.IN_APP))) return;
-    await this.prisma.notification.create({
-      data: {
-        userId: mentionedUserId,
-        type: NotificationType.MENTION,
-        title: `${actorName} mencionou-te`,
-        body: excerpt,
-        entityType,
-        entityPublicId,
-        projectPublicId,
-      },
-    });
+    if (await this.shouldNotify(mentionedUserId, NotificationType.MENTION, NotificationChannel.IN_APP)) {
+      await this.prisma.notification.create({
+        data: {
+          userId: mentionedUserId,
+          type: NotificationType.MENTION,
+          title: `${actorName} mencionou-te`,
+          body: excerpt,
+          entityType,
+          entityPublicId,
+          projectPublicId,
+        },
+      });
+    }
+
+    if (await this.shouldNotify(mentionedUserId, NotificationType.MENTION, NotificationChannel.EMAIL)) {
+      const recipient = await this.resolveRecipient(mentionedUserId);
+      if (!recipient?.email) return;
+      const [projectName, contextName] = await Promise.all([
+        this.resolveProjectName(projectPublicId),
+        this.resolveContextName(projectPublicId, entityType, entityPublicId),
+      ]);
+      this.emailService
+        .sendMentionEmail({
+          recipientEmail: recipient.email,
+          recipientName: recipient.name,
+          locale: recipient.locale,
+          actorName,
+          projectName,
+          contextName,
+          excerpt,
+          commentUrl: this.buildEntityUrl(projectPublicId, entityType, entityPublicId),
+        })
+        .catch(() => {/* silent — emailService logs internally */});
+    }
   }
 
   async createTaskAssignedNotification(
@@ -52,18 +155,36 @@ export class NotificationsService {
     taskPublicId: string,
     taskName: string,
   ): Promise<void> {
-    if (!(await this.shouldNotify(assigneeUserId, NotificationType.TASK_ASSIGNED, NotificationChannel.IN_APP))) return;
-    await this.prisma.notification.create({
-      data: {
-        userId: assigneeUserId,
-        type: NotificationType.TASK_ASSIGNED,
-        title: `${assignerName} atribuiu-te uma tarefa`,
-        body: taskName,
-        entityType: EntityType.TASK,
-        entityPublicId: taskPublicId,
-        projectPublicId,
-      },
-    });
+    if (await this.shouldNotify(assigneeUserId, NotificationType.TASK_ASSIGNED, NotificationChannel.IN_APP)) {
+      await this.prisma.notification.create({
+        data: {
+          userId: assigneeUserId,
+          type: NotificationType.TASK_ASSIGNED,
+          title: `${assignerName} atribuiu-te uma tarefa`,
+          body: taskName,
+          entityType: EntityType.TASK,
+          entityPublicId: taskPublicId,
+          projectPublicId,
+        },
+      });
+    }
+
+    if (await this.shouldNotify(assigneeUserId, NotificationType.TASK_ASSIGNED, NotificationChannel.EMAIL)) {
+      const recipient = await this.resolveRecipient(assigneeUserId);
+      if (!recipient?.email) return;
+      const projectName = await this.resolveProjectName(projectPublicId);
+      this.emailService
+        .sendTaskAssignedEmail({
+          recipientEmail: recipient.email,
+          recipientName: recipient.name,
+          locale: recipient.locale,
+          actorName: assignerName,
+          projectName,
+          taskName,
+          taskUrl: this.buildTaskUrl(projectPublicId, taskPublicId),
+        })
+        .catch(() => {});
+    }
   }
 
   async createInvitationReceivedNotification(
@@ -73,17 +194,33 @@ export class NotificationsService {
     projectPublicId: string,
     invitationPublicId: string,
   ): Promise<void> {
-    if (!(await this.shouldNotify(userId, NotificationType.INVITATION_RECEIVED, NotificationChannel.IN_APP))) return;
-    await this.prisma.notification.create({
-      data: {
-        userId,
-        type: NotificationType.INVITATION_RECEIVED,
-        title: `${inviterName} convidou-te para um projeto`,
-        body: `Projeto: ${projectName}`,
-        entityPublicId: invitationPublicId,
-        projectPublicId,
-      },
-    });
+    if (await this.shouldNotify(userId, NotificationType.INVITATION_RECEIVED, NotificationChannel.IN_APP)) {
+      await this.prisma.notification.create({
+        data: {
+          userId,
+          type: NotificationType.INVITATION_RECEIVED,
+          title: `${inviterName} convidou-te para um projeto`,
+          body: `Projeto: ${projectName}`,
+          entityPublicId: invitationPublicId,
+          projectPublicId,
+        },
+      });
+    }
+
+    if (await this.shouldNotify(userId, NotificationType.INVITATION_RECEIVED, NotificationChannel.EMAIL)) {
+      const recipient = await this.resolveRecipient(userId);
+      if (!recipient?.email) return;
+      this.emailService
+        .sendInvitationReceivedEmail({
+          recipientEmail: recipient.email,
+          recipientName: recipient.name,
+          locale: recipient.locale,
+          inviterName,
+          projectName,
+          inviteUrl: this.buildProjectsListUrl(),
+        })
+        .catch(() => {});
+    }
   }
 
   async createInvitationAcceptedNotification(
@@ -92,16 +229,32 @@ export class NotificationsService {
     projectName: string,
     projectPublicId: string,
   ): Promise<void> {
-    if (!(await this.shouldNotify(userId, NotificationType.INVITATION_ACCEPTED, NotificationChannel.IN_APP))) return;
-    await this.prisma.notification.create({
-      data: {
-        userId,
-        type: NotificationType.INVITATION_ACCEPTED,
-        title: `${inviteeName} aceitou o convite`,
-        body: `Projeto: ${projectName}`,
-        projectPublicId,
-      },
-    });
+    if (await this.shouldNotify(userId, NotificationType.INVITATION_ACCEPTED, NotificationChannel.IN_APP)) {
+      await this.prisma.notification.create({
+        data: {
+          userId,
+          type: NotificationType.INVITATION_ACCEPTED,
+          title: `${inviteeName} aceitou o convite`,
+          body: `Projeto: ${projectName}`,
+          projectPublicId,
+        },
+      });
+    }
+
+    if (await this.shouldNotify(userId, NotificationType.INVITATION_ACCEPTED, NotificationChannel.EMAIL)) {
+      const recipient = await this.resolveRecipient(userId);
+      if (!recipient?.email) return;
+      this.emailService
+        .sendInvitationAcceptedEmail({
+          recipientEmail: recipient.email,
+          recipientName: recipient.name,
+          locale: recipient.locale,
+          inviteeName,
+          projectName,
+          projectUrl: this.buildProjectUrl(projectPublicId),
+        })
+        .catch(() => {});
+    }
   }
 
   async createInvitationDeclinedNotification(
@@ -110,16 +263,31 @@ export class NotificationsService {
     projectName: string,
     projectPublicId: string,
   ): Promise<void> {
-    if (!(await this.shouldNotify(userId, NotificationType.INVITATION_DECLINED, NotificationChannel.IN_APP))) return;
-    await this.prisma.notification.create({
-      data: {
-        userId,
-        type: NotificationType.INVITATION_DECLINED,
-        title: `${inviteeName} recusou o convite`,
-        body: `Projeto: ${projectName}`,
-        projectPublicId,
-      },
-    });
+    if (await this.shouldNotify(userId, NotificationType.INVITATION_DECLINED, NotificationChannel.IN_APP)) {
+      await this.prisma.notification.create({
+        data: {
+          userId,
+          type: NotificationType.INVITATION_DECLINED,
+          title: `${inviteeName} recusou o convite`,
+          body: `Projeto: ${projectName}`,
+          projectPublicId,
+        },
+      });
+    }
+
+    if (await this.shouldNotify(userId, NotificationType.INVITATION_DECLINED, NotificationChannel.EMAIL)) {
+      const recipient = await this.resolveRecipient(userId);
+      if (!recipient?.email) return;
+      this.emailService
+        .sendInvitationDeclinedEmail({
+          recipientEmail: recipient.email,
+          recipientName: recipient.name,
+          locale: recipient.locale,
+          inviteeName,
+          projectName,
+        })
+        .catch(() => {});
+    }
   }
 
   async createCommentReactionNotification(
@@ -129,17 +297,40 @@ export class NotificationsService {
     projectPublicId: string,
     entityPublicId: string,
   ): Promise<void> {
-    if (!(await this.shouldNotify(userId, NotificationType.COMMENT_REACTION, NotificationChannel.IN_APP))) return;
-    await this.prisma.notification.create({
-      data: {
-        userId,
-        type: NotificationType.COMMENT_REACTION,
-        title: `${reactorName} reagiu ao teu comentário`,
-        body: `Reação: ${emoji}`,
-        projectPublicId,
-        entityPublicId,
-      },
-    });
+    if (await this.shouldNotify(userId, NotificationType.COMMENT_REACTION, NotificationChannel.IN_APP)) {
+      await this.prisma.notification.create({
+        data: {
+          userId,
+          type: NotificationType.COMMENT_REACTION,
+          title: `${reactorName} reagiu ao teu comentário`,
+          body: `Reação: ${emoji}`,
+          projectPublicId,
+          entityPublicId,
+        },
+      });
+    }
+
+    if (await this.shouldNotify(userId, NotificationType.COMMENT_REACTION, NotificationChannel.EMAIL)) {
+      const recipient = await this.resolveRecipient(userId);
+      if (!recipient?.email) return;
+      // Reactions estão sempre num comment ligado a uma TASK no fluxo actual.
+      const [projectName, contextName] = await Promise.all([
+        this.resolveProjectName(projectPublicId),
+        this.resolveContextName(projectPublicId, EntityType.TASK, entityPublicId),
+      ]);
+      this.emailService
+        .sendCommentReactionEmail({
+          recipientEmail: recipient.email,
+          recipientName: recipient.name,
+          locale: recipient.locale,
+          actorName: reactorName,
+          emoji,
+          projectName,
+          contextName,
+          commentUrl: this.buildEntityUrl(projectPublicId, EntityType.TASK, entityPublicId),
+        })
+        .catch(() => {});
+    }
   }
 
   // ─── Timesheet notifications ─────────────────────────────────────────────────
@@ -152,16 +343,33 @@ export class NotificationsService {
     projectPublicId: string,
     weekStartIso: string,
   ): Promise<void> {
-    if (!(await this.shouldNotify(approverUserId, NotificationType.TIMESHEET_SUBMITTED, NotificationChannel.IN_APP))) return;
-    await this.prisma.notification.create({
-      data: {
-        userId: approverUserId,
-        type: NotificationType.TIMESHEET_SUBMITTED,
-        title: `${submitterName} submeteu uma timesheet`,
-        body: `Projeto: ${projectName} · Semana: ${weekStartIso}`,
-        projectPublicId,
-      },
-    });
+    if (await this.shouldNotify(approverUserId, NotificationType.TIMESHEET_SUBMITTED, NotificationChannel.IN_APP)) {
+      await this.prisma.notification.create({
+        data: {
+          userId: approverUserId,
+          type: NotificationType.TIMESHEET_SUBMITTED,
+          title: `${submitterName} submeteu uma timesheet`,
+          body: `Projeto: ${projectName} · Semana: ${weekStartIso}`,
+          projectPublicId,
+        },
+      });
+    }
+
+    if (await this.shouldNotify(approverUserId, NotificationType.TIMESHEET_SUBMITTED, NotificationChannel.EMAIL)) {
+      const recipient = await this.resolveRecipient(approverUserId);
+      if (!recipient?.email) return;
+      this.emailService
+        .sendTimesheetSubmittedEmail({
+          recipientEmail: recipient.email,
+          recipientName: recipient.name,
+          locale: recipient.locale,
+          submitterName,
+          projectName,
+          weekStart: weekStartIso,
+          timesheetUrl: this.buildTimesheetUrl(projectPublicId, weekStartIso),
+        })
+        .catch(() => {});
+    }
   }
 
   /** Disparada quando a semana de um user fica totalmente APPROVED. */
@@ -172,16 +380,33 @@ export class NotificationsService {
     projectPublicId: string,
     weekStartIso: string,
   ): Promise<void> {
-    if (!(await this.shouldNotify(submitterUserId, NotificationType.TIMESHEET_APPROVED, NotificationChannel.IN_APP))) return;
-    await this.prisma.notification.create({
-      data: {
-        userId: submitterUserId,
-        type: NotificationType.TIMESHEET_APPROVED,
-        title: `${approverName} aprovou a tua timesheet`,
-        body: `Projeto: ${projectName} · Semana: ${weekStartIso}`,
-        projectPublicId,
-      },
-    });
+    if (await this.shouldNotify(submitterUserId, NotificationType.TIMESHEET_APPROVED, NotificationChannel.IN_APP)) {
+      await this.prisma.notification.create({
+        data: {
+          userId: submitterUserId,
+          type: NotificationType.TIMESHEET_APPROVED,
+          title: `${approverName} aprovou a tua timesheet`,
+          body: `Projeto: ${projectName} · Semana: ${weekStartIso}`,
+          projectPublicId,
+        },
+      });
+    }
+
+    if (await this.shouldNotify(submitterUserId, NotificationType.TIMESHEET_APPROVED, NotificationChannel.EMAIL)) {
+      const recipient = await this.resolveRecipient(submitterUserId);
+      if (!recipient?.email) return;
+      this.emailService
+        .sendTimesheetApprovedEmail({
+          recipientEmail: recipient.email,
+          recipientName: recipient.name,
+          locale: recipient.locale,
+          approverName,
+          projectName,
+          weekStart: weekStartIso,
+          timesheetUrl: this.buildTimesheetUrl(projectPublicId, weekStartIso),
+        })
+        .catch(() => {});
+    }
   }
 
   /** Disparada quando a semana de um user passa a PARTIAL. */
@@ -192,16 +417,33 @@ export class NotificationsService {
     projectPublicId: string,
     weekStartIso: string,
   ): Promise<void> {
-    if (!(await this.shouldNotify(submitterUserId, NotificationType.TIMESHEET_PARTIALLY_APPROVED, NotificationChannel.IN_APP))) return;
-    await this.prisma.notification.create({
-      data: {
-        userId: submitterUserId,
-        type: NotificationType.TIMESHEET_PARTIALLY_APPROVED,
-        title: `${approverName} aprovou parte da tua timesheet`,
-        body: `Projeto: ${projectName} · Semana: ${weekStartIso} · Há dias pendentes ou rejeitados`,
-        projectPublicId,
-      },
-    });
+    if (await this.shouldNotify(submitterUserId, NotificationType.TIMESHEET_PARTIALLY_APPROVED, NotificationChannel.IN_APP)) {
+      await this.prisma.notification.create({
+        data: {
+          userId: submitterUserId,
+          type: NotificationType.TIMESHEET_PARTIALLY_APPROVED,
+          title: `${approverName} aprovou parte da tua timesheet`,
+          body: `Projeto: ${projectName} · Semana: ${weekStartIso} · Há dias pendentes ou rejeitados`,
+          projectPublicId,
+        },
+      });
+    }
+
+    if (await this.shouldNotify(submitterUserId, NotificationType.TIMESHEET_PARTIALLY_APPROVED, NotificationChannel.EMAIL)) {
+      const recipient = await this.resolveRecipient(submitterUserId);
+      if (!recipient?.email) return;
+      this.emailService
+        .sendTimesheetPartiallyApprovedEmail({
+          recipientEmail: recipient.email,
+          recipientName: recipient.name,
+          locale: recipient.locale,
+          approverName,
+          projectName,
+          weekStart: weekStartIso,
+          timesheetUrl: this.buildTimesheetUrl(projectPublicId, weekStartIso),
+        })
+        .catch(() => {});
+    }
   }
 
   /**
@@ -216,16 +458,34 @@ export class NotificationsService {
     scopeDateIso: string,
     reason: string,
   ): Promise<void> {
-    if (!(await this.shouldNotify(submitterUserId, NotificationType.TIMESHEET_REJECTED, NotificationChannel.IN_APP))) return;
-    await this.prisma.notification.create({
-      data: {
-        userId: submitterUserId,
-        type: NotificationType.TIMESHEET_REJECTED,
-        title: `${approverName} rejeitou parte da tua timesheet`,
-        body: `Projeto: ${projectName} · Data: ${scopeDateIso} · Motivo: ${reason}`,
-        projectPublicId,
-      },
-    });
+    if (await this.shouldNotify(submitterUserId, NotificationType.TIMESHEET_REJECTED, NotificationChannel.IN_APP)) {
+      await this.prisma.notification.create({
+        data: {
+          userId: submitterUserId,
+          type: NotificationType.TIMESHEET_REJECTED,
+          title: `${approverName} rejeitou parte da tua timesheet`,
+          body: `Projeto: ${projectName} · Data: ${scopeDateIso} · Motivo: ${reason}`,
+          projectPublicId,
+        },
+      });
+    }
+
+    if (await this.shouldNotify(submitterUserId, NotificationType.TIMESHEET_REJECTED, NotificationChannel.EMAIL)) {
+      const recipient = await this.resolveRecipient(submitterUserId);
+      if (!recipient?.email) return;
+      this.emailService
+        .sendTimesheetRejectedEmail({
+          recipientEmail: recipient.email,
+          recipientName: recipient.name,
+          locale: recipient.locale,
+          approverName,
+          projectName,
+          scopeDate: scopeDateIso,
+          reason,
+          timesheetUrl: this.buildTimesheetUrl(projectPublicId, scopeDateIso),
+        })
+        .catch(() => {});
+    }
   }
 
   // ─── Queries ─────────────────────────────────────────────────────────────────

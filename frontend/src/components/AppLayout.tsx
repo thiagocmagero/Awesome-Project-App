@@ -5,6 +5,7 @@ import { usePendingInvitations } from '../hooks/usePendingInvitations';
 import { useNotifications } from '../hooks/useNotifications';
 import { useToast } from '../contexts/ToastContext';
 import { getApiBase, apiFetch } from '../lib/api';
+import i18nInstance from '../i18n';
 import { useTranslation } from 'react-i18next';
 import { TimezoneProvider, useTimezone } from '../contexts/TimezoneContext';
 import { relativeTimeInTimezone } from '../lib/dateFormatting';
@@ -45,6 +46,7 @@ interface ActiveLocale {
 function LanguageSelector() {
   const { i18n: i18nInstance } = useTranslation('common');
   const currentLocale = i18nInstance.language;
+  const { user, refreshUser } = useAuth();
   const [locales, setLocales] = useState<ActiveLocale[]>([]);
 
   useEffect(() => {
@@ -53,6 +55,24 @@ function LanguageSelector() {
       .then((data) => { if (Array.isArray(data)) setLocales(data); })
       .catch(() => {});
   }, []);
+
+  /**
+   * Muda o idioma activo. Se o user está autenticado, persiste em BD via
+   * PATCH /users/me/locale (fire-and-forget) — assim a preferência sincroniza
+   * entre dispositivos e o backend pode usar para escolher locale dos emails.
+   * Sem user (futura landing page sem login), apenas localStorage via i18next.
+   */
+  function handleSelect(code: string) {
+    i18nInstance.changeLanguage(code).catch(() => {});
+    if (!user) return;
+    apiFetch(`${getApiBase()}/users/me/locale`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ locale: code }),
+    })
+      .then((r) => { if (r.ok) refreshUser().catch(() => {}); })
+      .catch(() => {/* silent — UI já reflectiu a mudança via i18next */});
+  }
 
   if (locales.length === 0) return null;
 
@@ -82,7 +102,7 @@ function LanguageSelector() {
             <a
               className={`dropdown-item d-flex align-items-center gap-2${currentLocale === locale.code ? ' active' : ''}`}
               href="#"
-              onClick={(e) => { e.preventDefault(); i18nInstance.changeLanguage(locale.code); }}
+              onClick={(e) => { e.preventDefault(); handleSelect(locale.code); }}
             >
               {locale.flag && (
                 <span className="avatar avatar-rounded avatar-xs">
@@ -1024,12 +1044,17 @@ function AppLayoutInner() {
 
 /**
  * Wrapper raiz — envolve a árvore com TimezoneProvider (cross-project, baseado
- * em user.timezone) e dispara a detecção do browser na primeira sessão se o
- * user ainda não tem timezone definida. Ver docs/claude/timezone.md.
+ * em user.timezone) e dispara:
+ *  1) Detecção do browser timezone na primeira sessão (PATCH /users/me/timezone).
+ *  2) Sync do locale (BD ↔ i18next): se BD vazia, patch com `i18n.language`;
+ *     se BD tem valor diferente do i18next actual (ex.: user mudou noutro
+ *     device), `i18n.changeLanguage(user.locale)`.
+ * Ver docs/claude/timezone.md.
  */
 export default function AppLayout() {
   const { user, refreshUser } = useAuth();
   const detectAttempted = useRef(false);
+  const localeSyncAttempted = useRef(false);
 
   useEffect(() => {
     if (!user || user.timezone || detectAttempted.current) return;
@@ -1048,6 +1073,33 @@ export default function AppLayout() {
     })
       .then((r) => { if (r.ok) refreshUser().catch(() => {}); })
       .catch(() => {});
+  }, [user, refreshUser]);
+
+  // Sync do locale entre BD e i18next — corre uma vez por sessão.
+  useEffect(() => {
+    if (!user || localeSyncAttempted.current) return;
+    const current = i18nInstance.language;
+
+    // Cenário B: BD tem locale e difere do i18next → BD wins (ex.: user
+    // mudou de idioma noutro dispositivo, queremos reflectir aqui).
+    if (user.locale && user.locale !== current) {
+      localeSyncAttempted.current = true;
+      i18nInstance.changeLanguage(user.locale).catch(() => {});
+      return;
+    }
+
+    // Cenário A: BD vazia e i18next já resolveu (de localStorage ou navigator).
+    // Persiste para que o backend conheça a preferência (necessário p/ emails).
+    if (!user.locale && current) {
+      localeSyncAttempted.current = true;
+      apiFetch(`${getApiBase()}/users/me/locale`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ locale: current }),
+      })
+        .then((r) => { if (r.ok) refreshUser().catch(() => {}); })
+        .catch(() => {/* 400 = locale não suportado pela app; fica null em BD */});
+    }
   }, [user, refreshUser]);
 
   return (

@@ -18,6 +18,7 @@ interface ApiRegisterUser {
   planCode: string | null;
   planName: string | null;
   timezone: string | null;
+  locale: string | null;
 }
 
 export default function SignUpPage() {
@@ -137,6 +138,7 @@ export default function SignUpPage() {
         planCode: data.user.planCode ?? null,
         planName: data.user.planName ?? null,
         timezone: data.user.timezone ?? null,
+        locale: data.user.locale ?? null,
       };
 
       login(authUser);

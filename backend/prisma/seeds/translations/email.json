@@ -1,0 +1,198 @@
+{
+  "en": {
+    "common.greeting": "Hi {{recipientName}},",
+    "common.footer_text": "You're receiving this email because you have email notifications enabled.",
+    "common.footer_pref_link": "Manage preferences",
+    "common.hint_link_intro": "If the button doesn't work, copy this link into your browser:",
+    "common.copyright": "© {{year}} Awesome Project App",
+
+    "mention.subject": "{{actorName}} mentioned you in {{contextName}}",
+    "mention.body_p1": "{{actorName}} mentioned you in a comment on {{contextName}} in the {{projectName}} project:",
+    "mention.cta": "View comment",
+
+    "task_assigned.subject": "{{actorName}} assigned you the task {{taskName}}",
+    "task_assigned.body_p1": "{{actorName}} assigned you the task {{taskName}} in the {{projectName}} project.",
+    "task_assigned.cta": "View task",
+
+    "invitation_received.subject": "{{actorName}} invited you to {{projectName}}",
+    "invitation_received.body_p1": "{{actorName}} invited you to join the project {{projectName}}.",
+    "invitation_received.body_p2": "Sign in to accept or decline the invitation.",
+    "invitation_received.cta": "View invitation",
+
+    "invitation_accepted.subject": "{{actorName}} accepted your invitation to {{projectName}}",
+    "invitation_accepted.body_p1": "{{actorName}} accepted the invitation to join the project {{projectName}}.",
+    "invitation_accepted.cta": "View project",
+
+    "invitation_declined.subject": "{{actorName}} declined your invitation to {{projectName}}",
+    "invitation_declined.body_p1": "{{actorName}} declined the invitation to join the project {{projectName}}.",
+
+    "comment_reaction.subject": "{{actorName}} reacted {{emoji}} to your comment",
+    "comment_reaction.body_p1": "{{actorName}} reacted with {{emoji}} to a comment of yours on {{contextName}} in the {{projectName}} project.",
+    "comment_reaction.cta": "View comment",
+
+    "timesheet_submitted.subject": "{{actorName}} submitted a timesheet in {{projectName}}",
+    "timesheet_submitted.body_p1": "{{actorName}} submitted the timesheet for the week of {{weekStart}} in the {{projectName}} project for your approval.",
+    "timesheet_submitted.cta": "Review timesheet",
+
+    "timesheet_approved.subject": "Your timesheet in {{projectName}} was approved",
+    "timesheet_approved.body_p1": "{{actorName}} approved your timesheet for the week of {{weekStart}} in the {{projectName}} project.",
+    "timesheet_approved.cta": "View timesheet",
+
+    "timesheet_partially_approved.subject": "Your timesheet in {{projectName}} was partially approved",
+    "timesheet_partially_approved.body_p1": "{{actorName}} approved part of your timesheet for the week of {{weekStart}} in the {{projectName}} project.",
+    "timesheet_partially_approved.body_p2": "Some days are pending or rejected — check the details.",
+    "timesheet_partially_approved.cta": "View timesheet",
+
+    "timesheet_rejected.subject": "{{actorName}} rejected part of your timesheet in {{projectName}}",
+    "timesheet_rejected.body_p1": "{{actorName}} rejected your timesheet on {{scopeDate}} in the {{projectName}} project.",
+    "timesheet_rejected.quote_intro": "Reason for rejection:",
+    "timesheet_rejected.cta": "Review timesheet"
+  },
+  "es": {
+    "common.greeting": "Hola {{recipientName}},",
+    "common.footer_text": "Recibes este correo porque tienes activadas las notificaciones por email.",
+    "common.footer_pref_link": "Gestionar preferencias",
+    "common.hint_link_intro": "Si el botón no funciona, copia este enlace en tu navegador:",
+    "common.copyright": "© {{year}} Awesome Project App",
+
+    "mention.subject": "{{actorName}} te mencionó en {{contextName}}",
+    "mention.body_p1": "{{actorName}} te mencionó en un comentario en {{contextName}} del proyecto {{projectName}}:",
+    "mention.cta": "Ver comentario",
+
+    "task_assigned.subject": "{{actorName}} te asignó la tarea {{taskName}}",
+    "task_assigned.body_p1": "{{actorName}} te asignó la tarea {{taskName}} en el proyecto {{projectName}}.",
+    "task_assigned.cta": "Ver tarea",
+
+    "invitation_received.subject": "{{actorName}} te invitó a {{projectName}}",
+    "invitation_received.body_p1": "{{actorName}} te invitó a participar en el proyecto {{projectName}}.",
+    "invitation_received.body_p2": "Inicia sesión para aceptar o rechazar la invitación.",
+    "invitation_received.cta": "Ver invitación",
+
+    "invitation_accepted.subject": "{{actorName}} aceptó tu invitación a {{projectName}}",
+    "invitation_accepted.body_p1": "{{actorName}} aceptó la invitación para participar en el proyecto {{projectName}}.",
+    "invitation_accepted.cta": "Ver proyecto",
+
+    "invitation_declined.subject": "{{actorName}} rechazó tu invitación a {{projectName}}",
+    "invitation_declined.body_p1": "{{actorName}} rechazó la invitación para participar en el proyecto {{projectName}}.",
+
+    "comment_reaction.subject": "{{actorName}} reaccionó {{emoji}} a tu comentario",
+    "comment_reaction.body_p1": "{{actorName}} reaccionó con {{emoji}} a un comentario tuyo en {{contextName}} del proyecto {{projectName}}.",
+    "comment_reaction.cta": "Ver comentario",
+
+    "timesheet_submitted.subject": "{{actorName}} envió una hoja de horas en {{projectName}}",
+    "timesheet_submitted.body_p1": "{{actorName}} envió la hoja de horas de la semana del {{weekStart}} en el proyecto {{projectName}} para tu aprobación.",
+    "timesheet_submitted.cta": "Revisar hoja de horas",
+
+    "timesheet_approved.subject": "Tu hoja de horas en {{projectName}} fue aprobada",
+    "timesheet_approved.body_p1": "{{actorName}} aprobó tu hoja de horas de la semana del {{weekStart}} en el proyecto {{projectName}}.",
+    "timesheet_approved.cta": "Ver hoja de horas",
+
+    "timesheet_partially_approved.subject": "Tu hoja de horas en {{projectName}} fue parcialmente aprobada",
+    "timesheet_partially_approved.body_p1": "{{actorName}} aprobó parte de tu hoja de horas de la semana del {{weekStart}} en el proyecto {{projectName}}.",
+    "timesheet_partially_approved.body_p2": "Algunos días están pendientes o rechazados — revisa los detalles.",
+    "timesheet_partially_approved.cta": "Ver hoja de horas",
+
+    "timesheet_rejected.subject": "{{actorName}} rechazó parte de tu hoja de horas en {{projectName}}",
+    "timesheet_rejected.body_p1": "{{actorName}} rechazó tu hoja de horas del {{scopeDate}} en el proyecto {{projectName}}.",
+    "timesheet_rejected.quote_intro": "Motivo del rechazo:",
+    "timesheet_rejected.cta": "Revisar hoja de horas"
+  },
+  "pt-BR": {
+    "common.greeting": "Olá {{recipientName}},",
+    "common.footer_text": "Você está recebendo este email porque tem as notificações por email ativadas.",
+    "common.footer_pref_link": "Gerenciar preferências",
+    "common.hint_link_intro": "Se o botão não funcionar, copie este link para o seu navegador:",
+    "common.copyright": "© {{year}} Awesome Project App",
+
+    "mention.subject": "{{actorName}} mencionou você em {{contextName}}",
+    "mention.body_p1": "{{actorName}} mencionou você em um comentário em {{contextName}} do projeto {{projectName}}:",
+    "mention.cta": "Ver comentário",
+
+    "task_assigned.subject": "{{actorName}} atribuiu a você a tarefa {{taskName}}",
+    "task_assigned.body_p1": "{{actorName}} atribuiu a você a tarefa {{taskName}} no projeto {{projectName}}.",
+    "task_assigned.cta": "Ver tarefa",
+
+    "invitation_received.subject": "{{actorName}} convidou você para {{projectName}}",
+    "invitation_received.body_p1": "{{actorName}} convidou você para participar do projeto {{projectName}}.",
+    "invitation_received.body_p2": "Faça login para aceitar ou recusar o convite.",
+    "invitation_received.cta": "Ver convite",
+
+    "invitation_accepted.subject": "{{actorName}} aceitou seu convite para {{projectName}}",
+    "invitation_accepted.body_p1": "{{actorName}} aceitou o convite para participar do projeto {{projectName}}.",
+    "invitation_accepted.cta": "Ver projeto",
+
+    "invitation_declined.subject": "{{actorName}} recusou seu convite para {{projectName}}",
+    "invitation_declined.body_p1": "{{actorName}} recusou o convite para participar do projeto {{projectName}}.",
+
+    "comment_reaction.subject": "{{actorName}} reagiu {{emoji}} ao seu comentário",
+    "comment_reaction.body_p1": "{{actorName}} reagiu com {{emoji}} a um comentário seu em {{contextName}} do projeto {{projectName}}.",
+    "comment_reaction.cta": "Ver comentário",
+
+    "timesheet_submitted.subject": "{{actorName}} enviou uma timesheet em {{projectName}}",
+    "timesheet_submitted.body_p1": "{{actorName}} enviou a timesheet da semana de {{weekStart}} no projeto {{projectName}} para sua aprovação.",
+    "timesheet_submitted.cta": "Revisar timesheet",
+
+    "timesheet_approved.subject": "Sua timesheet em {{projectName}} foi aprovada",
+    "timesheet_approved.body_p1": "{{actorName}} aprovou sua timesheet da semana de {{weekStart}} no projeto {{projectName}}.",
+    "timesheet_approved.cta": "Ver timesheet",
+
+    "timesheet_partially_approved.subject": "Sua timesheet em {{projectName}} foi parcialmente aprovada",
+    "timesheet_partially_approved.body_p1": "{{actorName}} aprovou parte da sua timesheet da semana de {{weekStart}} no projeto {{projectName}}.",
+    "timesheet_partially_approved.body_p2": "Alguns dias estão pendentes ou rejeitados — verifique os detalhes.",
+    "timesheet_partially_approved.cta": "Ver timesheet",
+
+    "timesheet_rejected.subject": "{{actorName}} rejeitou parte da sua timesheet em {{projectName}}",
+    "timesheet_rejected.body_p1": "{{actorName}} rejeitou sua timesheet de {{scopeDate}} no projeto {{projectName}}.",
+    "timesheet_rejected.quote_intro": "Motivo da rejeição:",
+    "timesheet_rejected.cta": "Revisar timesheet"
+  },
+  "pt-PT": {
+    "common.greeting": "Olá {{recipientName}},",
+    "common.footer_text": "Recebeste este email porque tens as notificações por email activadas.",
+    "common.footer_pref_link": "Gerir preferências",
+    "common.hint_link_intro": "Se o botão não funcionar, copia este link para o teu browser:",
+    "common.copyright": "© {{year}} Awesome Project App",
+
+    "mention.subject": "{{actorName}} mencionou-te em {{contextName}}",
+    "mention.body_p1": "{{actorName}} mencionou-te num comentário em {{contextName}} do projecto {{projectName}}:",
+    "mention.cta": "Ver comentário",
+
+    "task_assigned.subject": "{{actorName}} atribuiu-te a tarefa {{taskName}}",
+    "task_assigned.body_p1": "{{actorName}} atribuiu-te a tarefa {{taskName}} no projecto {{projectName}}.",
+    "task_assigned.cta": "Ver tarefa",
+
+    "invitation_received.subject": "{{actorName}} convidou-te para {{projectName}}",
+    "invitation_received.body_p1": "{{actorName}} convidou-te para participar no projecto {{projectName}}.",
+    "invitation_received.body_p2": "Inicia sessão para aceitar ou recusar o convite.",
+    "invitation_received.cta": "Ver convite",
+
+    "invitation_accepted.subject": "{{actorName}} aceitou o teu convite para {{projectName}}",
+    "invitation_accepted.body_p1": "{{actorName}} aceitou o convite para participar no projecto {{projectName}}.",
+    "invitation_accepted.cta": "Ver projecto",
+
+    "invitation_declined.subject": "{{actorName}} recusou o teu convite para {{projectName}}",
+    "invitation_declined.body_p1": "{{actorName}} recusou o convite para participar no projecto {{projectName}}.",
+
+    "comment_reaction.subject": "{{actorName}} reagiu {{emoji}} ao teu comentário",
+    "comment_reaction.body_p1": "{{actorName}} reagiu com {{emoji}} a um comentário teu em {{contextName}} do projecto {{projectName}}.",
+    "comment_reaction.cta": "Ver comentário",
+
+    "timesheet_submitted.subject": "{{actorName}} submeteu uma timesheet em {{projectName}}",
+    "timesheet_submitted.body_p1": "{{actorName}} submeteu a timesheet da semana de {{weekStart}} no projecto {{projectName}} para a tua aprovação.",
+    "timesheet_submitted.cta": "Rever timesheet",
+
+    "timesheet_approved.subject": "A tua timesheet em {{projectName}} foi aprovada",
+    "timesheet_approved.body_p1": "{{actorName}} aprovou a tua timesheet da semana de {{weekStart}} no projecto {{projectName}}.",
+    "timesheet_approved.cta": "Ver timesheet",
+
+    "timesheet_partially_approved.subject": "A tua timesheet em {{projectName}} foi parcialmente aprovada",
+    "timesheet_partially_approved.body_p1": "{{actorName}} aprovou parte da tua timesheet da semana de {{weekStart}} no projecto {{projectName}}.",
+    "timesheet_partially_approved.body_p2": "Alguns dias estão pendentes ou rejeitados — verifica o detalhe.",
+    "timesheet_partially_approved.cta": "Ver timesheet",
+
+    "timesheet_rejected.subject": "{{actorName}} rejeitou parte da tua timesheet em {{projectName}}",
+    "timesheet_rejected.body_p1": "{{actorName}} rejeitou a tua timesheet de {{scopeDate}} no projecto {{projectName}}.",
+    "timesheet_rejected.quote_intro": "Motivo da rejeição:",
+    "timesheet_rejected.cta": "Rever timesheet"
+  }
+}

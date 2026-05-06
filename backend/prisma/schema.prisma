@@ -325,6 +325,13 @@ model User {
   /// PATCH /users/me/timezone na primeira sessão. Ver docs/claude/timezone.md.
   timezone String?
 
+  /// Locale preferido do utilizador (ex.: 'pt-PT', 'en'). Tem que coincidir
+  /// com um `Locale.code` activo. null ⇒ frontend usa detecção do browser
+  /// (navigator.languages) ou fallback 'en'. Sincronizado via
+  /// PATCH /users/me/locale (header LanguageSelector + UserSettingsPage).
+  /// Usado pelo backend para escolher o idioma dos emails transacionais.
+  locale String?
+
   createdAt DateTime @default(now()) @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @db.Timestamptz(6)
 }

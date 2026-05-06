@@ -22,6 +22,10 @@ export default function NotificationPreferencesPage() {
   const [prefs, setPrefs] = useState<NotificationPreference[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null); // key = `${type}_${channel}`
+  // Disponibilidade do canal email — devolve `false` se o admin desligou OU
+  // se as env vars SMTP estão em falta. A UI usa um único estado opaco; a
+  // razão técnica nunca é exposta ao utilizador.
+  const [emailAvailable, setEmailAvailable] = useState(true);
 
   const fetchPrefs = useCallback(async () => {
     if (!token) return;
@@ -37,7 +41,23 @@ export default function NotificationPreferencesPage() {
 
   useEffect(() => { fetchPrefs(); }, [fetchPrefs]);
 
+  // Disponibilidade do canal email (independente do load das prefs)
+  useEffect(() => {
+    if (!token) return;
+    apiFetch(`${api}/platform-config/email/availability`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { available: boolean } | null) => {
+        if (d) setEmailAvailable(d.available);
+      })
+      .catch(() => {/* fail-open: assume available; backend continua a validar no envio */});
+  }, [token, api]);
+
   async function handleToggle(type: NotificationType, channel: NotificationChannel, newValue: boolean) {
+    // Defesa em profundidade — o `disabled` do DOM já bloqueia, mas se algum
+    // cliente contornar (ex.: chamada manual) ignoramos a mutação.
+    if (channel === 'EMAIL' && !emailAvailable) return;
     const key = `${type}_${channel}`;
     setSaving(key);
 
@@ -97,6 +117,17 @@ export default function NotificationPreferencesPage() {
 
       {/* Card */}
       <div className="row">
+        {!emailAvailable && (
+          <div className="col-xl-10">
+            <div className="alert alert-warning-transparent d-flex align-items-start gap-2 mb-3">
+              <i className="ri-error-warning-line fs-16 mt-1" />
+              <div className="fs-13">
+                {t('email_unavailable.message')}{' '}
+                <a href="mailto:support@awesomeproject.app">support@awesomeproject.app</a>
+              </div>
+            </div>
+          </div>
+        )}
         <div className="col-xl-10">
           <div className="card custom-card">
             <div className="card-header">
@@ -119,9 +150,18 @@ export default function NotificationPreferencesPage() {
                         <th className="text-center" style={{ width: 110 }}>
                           {t('table.in_app')}
                         </th>
-                        {/* EMAIL — active */}
+                        {/* EMAIL — gated by EmailConfig.enabled + SMTP availability */}
                         <th className="text-center" style={{ width: 110 }}>
-                          {t('table.email')}
+                          {emailAvailable ? (
+                            t('table.email')
+                          ) : (
+                            <span className="d-flex flex-column align-items-center gap-1">
+                              {t('table.email')}
+                              <span className="badge bg-secondary-transparent text-secondary fs-10">
+                                {t('table.email_unavailable')}
+                              </span>
+                            </span>
+                          )}
                         </th>
                         {/* BROWSER — coming soon */}
                         <th className="text-center" style={{ width: 110 }}>
@@ -160,7 +200,7 @@ export default function NotificationPreferencesPage() {
                               </div>
                             </td>
 
-                            {/* EMAIL toggle */}
+                            {/* EMAIL toggle — disabled se canal indisponível */}
                             <td className="text-center">
                               <div className="form-check form-switch d-inline-flex justify-content-center">
                                 <input
@@ -169,7 +209,7 @@ export default function NotificationPreferencesPage() {
                                   role="switch"
                                   id={`toggle-${type}-EMAIL`}
                                   checked={emailEnabled}
-                                  disabled={saving === emailKey}
+                                  disabled={saving === emailKey || !emailAvailable}
                                   onChange={(e) => handleToggle(type, 'EMAIL', e.target.checked)}
                                 />
                               </div>
