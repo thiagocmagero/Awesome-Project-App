@@ -156,11 +156,13 @@ export default function PlanningPage() {
   const [savingHours, setSavingHours]         = useState<Record<string, boolean>>({});
   const [commentTask, setCommentTask]         = useState<{ publicId: string; name: string } | null>(null);
   const [scriptsReady, setScriptsReady]       = useState(false);
-  const { enabled: ganttEnabled } = useFeatureFlag('gantt_view');
+  // Phase 5: passa projectId para resolução context-aware. Quando o user é
+  // LICENSED no workspace do owner, herda as features do plano do owner.
+  const { enabled: ganttEnabled } = useFeatureFlag('gantt_view', projectId ?? null);
   const showGantt = ganttEnabled || user?.profileCode === 'PLATFORM_ADMIN';
-  const { enabled: calendarEnabled } = useFeatureFlag('calendar_view');
+  const { enabled: calendarEnabled } = useFeatureFlag('calendar_view', projectId ?? null);
   const showCalendar = calendarEnabled || user?.profileCode === 'PLATFORM_ADMIN';
-  const { enabled: timesheetEnabled } = useFeatureFlag('timesheet_view');
+  const { enabled: timesheetEnabled } = useFeatureFlag('timesheet_view', projectId ?? null);
   const showTimesheet = timesheetEnabled || user?.profileCode === 'PLATFORM_ADMIN';
   // Timesheet UI state.
   // Default inicial 'mine' — depois um effect logo abaixo promove para 'team' se

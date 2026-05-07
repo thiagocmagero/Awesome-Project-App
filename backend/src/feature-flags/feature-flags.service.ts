@@ -7,6 +7,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateFeatureFlagDto } from './dto/create-feature-flag.dto';
 import { UpdateFeatureFlagDto } from './dto/update-feature-flag.dto';
 import { SetUserOverrideDto } from './dto/set-user-override.dto';
+import { SubscriptionsService } from '../plans/subscriptions.service';
 
 // Selects sem `id` numérico nem FKs internos. Resposta API usa só publicId.
 const FEATURE_FLAG_SELECT = {
@@ -42,7 +43,10 @@ const USER_FEATURE_FLAG_SELECT = {
 
 @Injectable()
 export class FeatureFlagsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly subscriptions: SubscriptionsService,
+  ) {}
 
   // ── Resolve helpers ─────────────────────────────────────────────────────
 
@@ -148,30 +152,34 @@ export class FeatureFlagsService {
 
   /**
    * Resolve if a feature is enabled for a specific user.
-   * Priority: enabledGlobally → user override → plan flag → false
-   * NOTE: receives numeric userId internally (from JWT sub)
+   * Priority: enabledGlobally → user override → plan flag (context-aware) → false
+   *
+   * Phase 5: aceita `ctx.projectPublicId` para resolução context-aware.
+   * Quando o requesting user é LICENSED no workspace do owner, o plano
+   * resolve via Subscription do owner em vez do próprio.
    */
-  async isEnabled(userId: number, flagKey: string): Promise<boolean> {
+  async isEnabled(
+    userId: number,
+    flagKey: string,
+    ctx?: { projectPublicId?: string | null },
+  ): Promise<boolean> {
     const flag = await this.prisma.featureFlag.findUnique({ where: { key: flagKey } });
     if (!flag) return false;
 
     // 1. Global switch
     if (flag.enabledGlobally) return true;
 
-    // 2. Per-user override
+    // 2. Per-user override (sempre do requesting user, não do owner)
     const userOverride = await this.prisma.userFeatureFlag.findUnique({
       where: { userId_featureFlagId: { userId, featureFlagId: flag.id } },
     });
     if (userOverride) return userOverride.enabled;
 
-    // 3. Plan-level flag
-    const activePlan = await this.prisma.userPlan.findFirst({
-      where: { userId, isActive: true },
-      select: { planId: true },
-    });
-    if (activePlan) {
+    // 3. Plan-level flag (context-aware via Subscription)
+    const planId = await this.subscriptions.resolvePlanIdForContext(userId, ctx);
+    if (planId) {
       const planFlag = await this.prisma.planFeatureFlag.findUnique({
-        where: { planId_featureFlagId: { planId: activePlan.planId, featureFlagId: flag.id } },
+        where: { planId_featureFlagId: { planId, featureFlagId: flag.id } },
       });
       if (planFlag) return planFlag.enabled;
     }
@@ -181,8 +189,8 @@ export class FeatureFlagsService {
   }
 
   /**
-   * Get all flags with resolved status for a user.
-   * NOTE: receives numeric userId internally (from JWT sub)
+   * Get all flags with resolved status for a user. Sem contexto — usado pela
+   * página /my-flags do utilizador (próprio plano).
    */
   async getResolvedFlags(userId: number) {
     const flags = await this.prisma.featureFlag.findMany({ orderBy: { key: 'asc' } });

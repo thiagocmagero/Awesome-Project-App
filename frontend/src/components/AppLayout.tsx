@@ -609,9 +609,12 @@ function AppLayoutInner() {
                   </NavLink>
                 </li>
                 <li>
-                  <NavLink to="/users" className="dropdown-item d-flex align-items-center gap-2 py-2">
+                  <NavLink
+                    to={isPlatformAdmin ? '/users' : '/workspace/users'}
+                    className="dropdown-item d-flex align-items-center gap-2 py-2"
+                  >
                     <i className="ri-group-line fs-16 text-muted"></i>
-                    {user?.profileCode === 'BASIC_USER' ? t('nav.people') : t('nav.users')}
+                    {isPlatformAdmin ? t('nav.users') : t('nav.workspace_users')}
                   </NavLink>
                 </li>
                 <li>
@@ -700,8 +703,13 @@ function AppLayoutInner() {
               {/* ─ Gestão ─ */}
               <li className="slide__category"><span className="category-name">{t('nav.section.management')}</span></li>
 
+              {/* Utilizadores: PLATFORM_ADMIN vê gestão global (/users);
+                  outros utilizadores vêem membros do seu workspace (/workspace/users). */}
               <li className="slide">
-                <NavLink to="/users" className={({ isActive }) => `side-menu__item${isActive ? ' active' : ''}`}>
+                <NavLink
+                  to={isPlatformAdmin ? '/users' : '/workspace/users'}
+                  className={({ isActive }) => `side-menu__item${isActive ? ' active' : ''}`}
+                >
                   <svg xmlns="http://www.w3.org/2000/svg" className="side-menu__icon" viewBox="0 0 256 256">
                     <rect width="256" height="256" fill="none" />
                     <circle cx="80" cy="96" r="64" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
@@ -710,7 +718,7 @@ function AppLayoutInner() {
                     <path d="M187.93,112c9.97,16.82,17.07,40.43,17.07,72a8,8,0,0,1-8,8" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
                   </svg>
                   <span className="side-menu__label">
-                    {user?.profileCode === 'BASIC_USER' ? t('nav.people') : t('nav.users')}
+                    {isPlatformAdmin ? t('nav.users') : t('nav.workspace_users')}
                   </span>
                 </NavLink>
               </li>
@@ -839,6 +847,7 @@ function AppLayoutInner() {
                       </li>
                     </ul>
                   </li>
+                  {/* Workspace > Membros movido para o topo da Gestão (sem sub-menu). */}
                   {isPlatformAdmin && (
                     <li className="slide has-sub">
                       <a href="#" onClick={(e) => e.preventDefault()} className="side-menu__item">

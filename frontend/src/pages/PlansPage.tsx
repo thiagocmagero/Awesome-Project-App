@@ -13,7 +13,7 @@ interface PlanItem {
   publicId: string; code: string; name: string; description: string | null;
   planStatus: string; validUntil: string | null; isDefault: boolean;
   limits: PlanLimit[]; pricing: PlanPricing[]; featureFlags: PlanFeatureFlag[];
-  _count: { userPlans: number };
+  _count: { subscriptions: number };
   createdAt: string; updatedAt: string;
 }
 interface FeatureFlagItem { publicId: string; key: string; label: string; enabledGlobally: boolean }
@@ -34,6 +34,7 @@ const LIMIT_KEYS = [
   'max_holidays',
   'max_storage_mb',
   'max_api_calls',
+  'max_licensed_seats',
 ];
 
 const BILLING_CYCLES = ['MONTHLY', 'ANNUAL', 'ONE_TIME'];
@@ -322,7 +323,7 @@ export default function PlansPage() {
                           : <span className="text-muted">-</span>
                         }
                       </td>
-                      <td><span className="badge bg-light text-dark">{plan._count.userPlans}</span></td>
+                      <td><span className="badge bg-light text-dark">{plan._count.subscriptions}</span></td>
                       <td>{plan.isDefault ? <span className="badge bg-primary-transparent text-primary">{t('badge.default')}</span> : '-'}</td>
                       <td>
                         <button className="btn btn-sm btn-primary-light" title={tc('actions.edit')} onClick={() => openEdit(plan)}>

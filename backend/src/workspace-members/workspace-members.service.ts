@@ -1,0 +1,384 @@
+import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
+import { TokenType } from '@prisma/client';
+import { AppException } from '../common/exceptions/app.exception';
+import { PrismaService } from '../prisma/prisma.service';
+import { EmailTokenService } from '../auth/email-token.service';
+import { EmailService } from '../emails/email.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { InviteWorkspaceMemberDto } from './dto/invite-workspace-member.dto';
+import { UpdateWorkspaceMemberDto } from './dto/update-workspace-member.dto';
+import { SetWorkspaceMemberProjectsDto } from './dto/set-projects.dto';
+
+const INVITE_TOKEN_MS = 72 * 60 * 60_000;
+
+@Injectable()
+export class WorkspaceMembersService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly emailTokens: EmailTokenService,
+    private readonly emailService: EmailService,
+    private readonly notifications: NotificationsService,
+  ) {}
+
+  // ── Listing ──────────────────────────────────────────────────────────────
+
+  async listMembers(ownerId: number) {
+    const rows = await this.prisma.workspaceMember.findMany({
+      where: { ownerId },
+      orderBy: [{ memberType: 'desc' }, { createdAt: 'asc' }],
+      include: {
+        user: { select: { publicId: true, name: true, email: true, avatarKey: true } },
+      },
+    });
+    return rows.map((r) => this.toPublic(r));
+  }
+
+  async listSeatsSummary(ownerId: number) {
+    const sub = await this.prisma.subscription.findUnique({
+      where: { userId: ownerId },
+      include: { plan: { select: { publicId: true, code: true, name: true, limits: true } } },
+    });
+    if (!sub) {
+      return { used: 0, total: 0, plan: null };
+    }
+    const seatLimit = sub.plan.limits.find((l) => l.limitKey === 'max_licensed_seats');
+    const base = seatLimit?.limitValue ?? 0;
+    const total = base < 0 ? -1 : base + sub.extraSeats;
+    const used = await this.prisma.workspaceMember.count({
+      where: { ownerId, memberType: 'LICENSED', status: 'ACCEPTED' },
+    });
+    return {
+      used,
+      total,
+      base,
+      extraSeats: sub.extraSeats,
+      plan: { publicId: sub.plan.publicId, code: sub.plan.code, name: sub.plan.name },
+    };
+  }
+
+  // ── Invite ───────────────────────────────────────────────────────────────
+
+  async inviteMember(ownerId: number, dto: InviteWorkspaceMemberDto) {
+    if (dto.memberType === 'LICENSED') {
+      await this.assertCanLicense(ownerId);
+    }
+
+    const existingUser = await this.prisma.user.findUnique({
+      where: { email: dto.email },
+      select: { id: true, name: true, email: true, locale: true },
+    });
+
+    // Owner cannot invite themselves
+    if (existingUser?.id === ownerId) {
+      throw new AppException('CANNOT_INVITE_SELF', HttpStatus.BAD_REQUEST);
+    }
+
+    const existing = await this.prisma.workspaceMember.findUnique({
+      where: { ownerId_email: { ownerId, email: dto.email } },
+    });
+    if (existing && existing.status === 'ACCEPTED') {
+      throw new AppException('ALREADY_MEMBER', HttpStatus.CONFLICT);
+    }
+
+    const member = await this.prisma.workspaceMember.upsert({
+      where: { ownerId_email: { ownerId, email: dto.email } },
+      create: {
+        ownerId,
+        userId: existingUser?.id ?? null,
+        email: dto.email,
+        name: dto.name ?? existingUser?.name ?? null,
+        memberType: dto.memberType ?? 'BASIC',
+        status: 'INVITED',
+        invitedById: ownerId,
+      },
+      update: {
+        userId: existingUser?.id ?? undefined,
+        name: dto.name ?? existingUser?.name ?? undefined,
+        memberType: dto.memberType ?? undefined,
+        status: 'INVITED',
+        acceptedAt: null,
+        declinedAt: null,
+        invitedById: ownerId,
+      },
+    });
+
+    await this.sendInvite(member.id, ownerId, existingUser);
+    return this.getById(member.id);
+  }
+
+  async resendInvite(ownerId: number, publicId: string) {
+    const member = await this.findOwnedMember(ownerId, publicId);
+    if (member.status === 'ACCEPTED') {
+      throw new AppException('ALREADY_ACCEPTED', HttpStatus.CONFLICT);
+    }
+
+    const existingUser = await this.prisma.user.findUnique({
+      where: { email: member.email },
+      select: { id: true, name: true, email: true, locale: true },
+    });
+
+    await this.prisma.workspaceMember.update({
+      where: { id: member.id },
+      data: { status: 'INVITED', declinedAt: null },
+    });
+
+    await this.sendInvite(member.id, ownerId, existingUser);
+    return this.getById(member.id);
+  }
+
+  private async sendInvite(
+    memberId: number,
+    ownerId: number,
+    existingUser: { id: number; name: string; email: string; locale: string | null } | null,
+  ) {
+    const member = await this.prisma.workspaceMember.findUniqueOrThrow({
+      where: { id: memberId },
+    });
+    const owner = await this.prisma.user.findUniqueOrThrow({
+      where: { id: ownerId },
+      select: { name: true, email: true },
+    });
+
+    const token = await this.emailTokens.createToken(TokenType.ACCOUNT_INVITE, {
+      userId: existingUser?.id,
+      email: existingUser ? undefined : member.email,
+      expiresInMs: INVITE_TOKEN_MS,
+    });
+    const inviteUrl = `${this.emailService.appUrl}/create-account?token=${token}`;
+
+    if (existingUser) {
+      // Notify in-app + email via NotificationsService.
+      // Reusing INVITATION_RECEIVED — workspace invites share semantics with
+      // project invites at the user-facing level. The invitation publicId
+      // identifies the WorkspaceMember (used by frontend to fetch context).
+      this.notifications
+        .createInvitationReceivedNotification(
+          existingUser.id,
+          owner.name,
+          'Workspace',
+          member.publicId, // projectPublicId placeholder — workspace has no project
+          member.publicId, // invitationPublicId
+          inviteUrl,
+        )
+        .catch(() => {});
+    } else {
+      // New email — send direct (no in-app notification possible)
+      this.emailService
+        .sendInvitationReceivedEmail({
+          recipientEmail: member.email,
+          recipientName: member.name ?? member.email,
+          inviterName: owner.name,
+          projectName: 'Workspace',
+          inviteUrl,
+          locale: null,
+        })
+        .catch(() => {});
+    }
+  }
+
+  // ── Member type (BASIC ↔ LICENSED) ───────────────────────────────────────
+
+  async updateMemberType(ownerId: number, publicId: string, dto: UpdateWorkspaceMemberDto) {
+    const member = await this.findOwnedMember(ownerId, publicId);
+    if (member.memberType === dto.memberType) return this.getById(member.id);
+
+    if (dto.memberType === 'LICENSED') {
+      await this.assertCanLicense(ownerId);
+    }
+
+    await this.prisma.workspaceMember.update({
+      where: { id: member.id },
+      data: { memberType: dto.memberType },
+    });
+    return this.getById(member.id);
+  }
+
+  // ── Remove ───────────────────────────────────────────────────────────────
+
+  async removeMember(ownerId: number, publicId: string) {
+    const member = await this.findOwnedMember(ownerId, publicId);
+
+    await this.prisma.$transaction(async (tx) => {
+      // Cascade: remove ProjectMember rows in owner's projects
+      if (member.userId) {
+        const ownerProjects = await tx.project.findMany({
+          where: { ownerId, status: 'ACTIVE' },
+          select: { id: true },
+        });
+        await tx.projectMember.deleteMany({
+          where: {
+            userId: member.userId,
+            projectId: { in: ownerProjects.map((p) => p.id) },
+          },
+        });
+      }
+      await tx.workspaceMember.delete({ where: { id: member.id } });
+    });
+
+    return { deleted: publicId };
+  }
+
+  // ── Project assignments ──────────────────────────────────────────────────
+
+  async getMemberProjects(ownerId: number, publicId: string) {
+    const member = await this.findOwnedMember(ownerId, publicId);
+    const ownerProjects = await this.prisma.project.findMany({
+      where: { ownerId, status: 'ACTIVE' },
+      select: {
+        publicId: true,
+        name: true,
+        members: {
+          where: member.userId ? { userId: member.userId } : { email: member.email },
+          select: { role: true, status: true },
+        },
+      },
+      orderBy: { name: 'asc' },
+    });
+    return ownerProjects.map((p) => ({
+      publicId: p.publicId,
+      name: p.name,
+      assigned: p.members.length > 0,
+      role: (p.members[0]?.role ?? null) as 'OWNER' | 'CONTRIBUTOR' | 'READER' | null,
+      status: p.members[0]?.status ?? null,
+    }));
+  }
+
+  async setMemberProjects(
+    ownerId: number,
+    publicId: string,
+    dto: SetWorkspaceMemberProjectsDto,
+  ) {
+    const member = await this.findOwnedMember(ownerId, publicId);
+    if (!member.userId) {
+      throw new AppException('MEMBER_NOT_REGISTERED', HttpStatus.BAD_REQUEST);
+    }
+
+    const ownerProjects = await this.prisma.project.findMany({
+      where: { ownerId, status: 'ACTIVE' },
+      select: { id: true, publicId: true },
+    });
+    const projectMap = new Map(ownerProjects.map((p) => [p.publicId, p.id]));
+
+    // Validate all assignments belong to this owner
+    for (const a of dto.assignments) {
+      if (!projectMap.has(a.projectPublicId)) {
+        throw new AppException('PROJECT_NOT_FOUND', HttpStatus.NOT_FOUND);
+      }
+    }
+
+    const targetIds = new Set(dto.assignments.map((a) => projectMap.get(a.projectPublicId)!));
+
+    await this.prisma.$transaction(async (tx) => {
+      // Remove unselected projects
+      const toRemove = ownerProjects.filter((p) => !targetIds.has(p.id)).map((p) => p.id);
+      if (toRemove.length > 0) {
+        await tx.projectMember.deleteMany({
+          where: {
+            userId: member.userId!,
+            projectId: { in: toRemove },
+          },
+        });
+      }
+
+      // Upsert selected projects
+      for (const a of dto.assignments) {
+        const projectId = projectMap.get(a.projectPublicId)!;
+        await tx.projectMember.upsert({
+          where: { projectId_email: { projectId, email: member.email } },
+          create: {
+            projectId,
+            userId: member.userId!,
+            email: member.email,
+            name: member.name,
+            role: a.role,
+            status: 'ACCEPTED',
+            invitedById: ownerId,
+          },
+          update: {
+            role: a.role,
+            userId: member.userId!,
+            status: 'ACCEPTED',
+          },
+        });
+      }
+    });
+
+    return this.getMemberProjects(ownerId, publicId);
+  }
+
+  // ── Helpers ──────────────────────────────────────────────────────────────
+
+  /**
+   * Lança SEAT_LIMIT_REACHED se já não houver seats LICENSED disponíveis.
+   * Resolve plano via Subscription do owner; usa `max_licensed_seats` + extraSeats.
+   */
+  private async assertCanLicense(ownerId: number) {
+    const summary = await this.listSeatsSummary(ownerId);
+    if (summary.total === -1) return; // unlimited
+    if (summary.used >= summary.total) {
+      // Throw HttpException directly (richer payload than AppException):
+      // frontend renderiza CTA "Adquirir seats" baseado em `code` + `used/total`.
+      throw new HttpException(
+        {
+          error_code: 'SEAT_LIMIT_REACHED',
+          statusCode: HttpStatus.CONFLICT,
+          used: summary.used,
+          total: summary.total,
+        },
+        HttpStatus.CONFLICT,
+      );
+    }
+  }
+
+  private async findOwnedMember(ownerId: number, publicId: string) {
+    const member = await this.prisma.workspaceMember.findUnique({ where: { publicId } });
+    if (!member || member.ownerId !== ownerId) {
+      throw new AppException('NOT_FOUND', HttpStatus.NOT_FOUND);
+    }
+    return member;
+  }
+
+  private async getById(id: number) {
+    const row = await this.prisma.workspaceMember.findUniqueOrThrow({
+      where: { id },
+      include: {
+        user: { select: { publicId: true, name: true, email: true, avatarKey: true } },
+      },
+    });
+    return this.toPublic(row);
+  }
+
+  private toPublic(row: {
+    publicId: string;
+    email: string;
+    name: string | null;
+    memberType: 'BASIC' | 'LICENSED';
+    status: 'INVITED' | 'ACCEPTED' | 'DECLINED';
+    acceptedAt: Date | null;
+    declinedAt: Date | null;
+    createdAt: Date;
+    updatedAt: Date;
+    user: { publicId: string; name: string; email: string; avatarKey: string | null } | null;
+  }) {
+    return {
+      publicId: row.publicId,
+      email: row.email,
+      name: row.name,
+      memberType: row.memberType,
+      status: row.status,
+      acceptedAt: row.acceptedAt,
+      declinedAt: row.declinedAt,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+      user: row.user
+        ? {
+            publicId: row.user.publicId,
+            name: row.user.name,
+            email: row.user.email,
+            // avatarKey kept here but caller (controller) can re-resolve via StorageService
+            avatarKey: row.user.avatarKey,
+          }
+        : null,
+    };
+  }
+}

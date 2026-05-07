@@ -1,14 +1,28 @@
 import { SetMetadata } from '@nestjs/common';
+import type { ProjectIdSource } from './require-feature.decorator';
 
 export const PLAN_LIMIT_KEY = 'plan_limit_key';
 
+export interface CheckPlanLimitOptions {
+  projectIdFrom?: ProjectIdSource;
+}
+
+export interface CheckPlanLimitMetadata {
+  key: string;
+  projectIdFrom?: ProjectIdSource;
+}
+
 /**
- * Marks a route as requiring a plan limit check before execution.
- * Must be used together with JwtAuthGuard + PlanLimitGuard.
+ * Marca uma rota como dependente de limite de plano. Phase 5+ aceita
+ * `projectIdFrom` para resolver o plano do owner do projecto quando
+ * apropriado (LICENSED workspace member).
  *
  * @example
- * @UseGuards(JwtAuthGuard, PlanLimitGuard)
- * @CheckPlanLimit('max_projects')
+ *   @CheckPlanLimit('max_projects')                                  // sem contexto: caller's plan
+ *   @CheckPlanLimit('max_tasks', { projectIdFrom: 'params.projectId' })  // contexto-aware
  */
-export const CheckPlanLimit = (limitKey: string) =>
-  SetMetadata(PLAN_LIMIT_KEY, limitKey);
+export const CheckPlanLimit = (limitKey: string, options?: CheckPlanLimitOptions) =>
+  SetMetadata(PLAN_LIMIT_KEY, {
+    key: limitKey,
+    projectIdFrom: options?.projectIdFrom,
+  } satisfies CheckPlanLimitMetadata);

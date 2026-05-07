@@ -23,6 +23,7 @@ import ProjectPermissionsPage from './pages/ProjectPermissionsPage';
 import SessionsPage from './pages/SessionsPage';
 import NotificationPreferencesPage from './pages/NotificationPreferencesPage';
 import UserSettingsPage from './pages/UserSettingsPage';
+import WorkspaceUsersPage from './pages/WorkspaceUsersPage';
 import TokenExpiredPage from './errors/pages/TokenExpiredPage';
 import TokenUsedPage from './errors/pages/TokenUsedPage';
 import ConfirmEmailPage from './pages/ConfirmEmailPage';
@@ -67,6 +68,7 @@ export default function App() {
             <Route path="/settings/account" element={<UserSettingsPage />} />
             <Route path="/settings/sessions" element={<SessionsPage />} />
             <Route path="/settings/notifications" element={<NotificationPreferencesPage />} />
+            <Route path="/workspace/users" element={<WorkspaceUsersPage />} />
             <Route path="/translations" element={<TranslationsPage />} />
           </Route>
         </Route>

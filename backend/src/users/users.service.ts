@@ -20,6 +20,7 @@ import { StorageService } from '../storage/storage.service';
 import type { JwtPayload } from '../auth/jwt.strategy';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { createDefaultBilling } from './billing-helpers';
 
 // Fields included in every safe user response (never exposes passwordHash or internal IDs).
 // Note: `avatarKey` é seleccionado mas NUNCA exposto — o helper `attachAvatarUrl`
@@ -39,10 +40,13 @@ const USER_SELECT = {
   profile: { select: { publicId: true, code: true, label: true } },
   userType: { select: { publicId: true, code: true, label: true } },
   level: { select: { publicId: true, code: true, label: true, order: true } },
-  userPlans: {
-    where: { isActive: true },
-    take: 1,
-    select: { plan: { select: { publicId: true, code: true, name: true } } },
+  // Phase 7: subscription substitui userPlans como fonte de plano para o
+  // payload do utilizador. UserPlan será removido na migration deste phase.
+  subscription: {
+    select: {
+      status: true,
+      plan: { select: { publicId: true, code: true, name: true } },
+    },
   },
   createdAt: true,
   updatedAt: true,
@@ -530,6 +534,60 @@ export class UsersService {
     return this.attachAvatarUrl(updated);
   }
 
+  /**
+   * **Hard delete recursivo — apenas PLATFORM_ADMIN.**
+   *
+   * Apaga permanentemente o utilizador e tudo que lhe está associado:
+   * - Personal data (sessions, notifications, prefs, subscription, invoices,
+   *   timesheets próprias, comentários onde é mencionado/reagiu, etc.) →
+   *   Cascade automático via FK `onDelete: Cascade`.
+   * - Audit fields (createdBy, invitedBy, grantedBy, comment.author,
+   *   approvedBy, rejectedBy, actor) → SetNull, preserva histórico.
+   * - Owned entities (Project, Team, Holiday) → SetNull no `ownerId`,
+   *   sysadmin pode reassignar. Workspace memberships do user são apagadas.
+   * - Avatar S3 → eliminado após o DB delete confirmar.
+   *
+   * Para garantir que dados de novas funcionalidades futuras são considerados,
+   * o schema impõe `onDelete` explícito em todas as FKs para User. Ver
+   * docs/claude/db.md secção "User cascade rule".
+   */
+  async removeHard(publicId: string, requestingUser: JwtPayload) {
+    if (requestingUser.profileCode !== 'PLATFORM_ADMIN') {
+      throw new AppException('FORBIDDEN', HttpStatus.FORBIDDEN);
+    }
+
+    const user = await this.resolveUser(publicId);
+
+    // PLATFORM_ADMIN não se pode auto-apagar (deixaria a plataforma sem admin).
+    if (user.id === requestingUser.sub) {
+      throw new AppException('CANNOT_DELETE_SELF', HttpStatus.BAD_REQUEST);
+    }
+
+    // Resolver o avatar key ANTES do delete (depois deixa de existir).
+    const avatarRow = await this.prisma.user.findUnique({
+      where: { id: user.id },
+      select: { avatarKey: true },
+    });
+    const avatarKey = avatarRow?.avatarKey ?? null;
+
+    // O cascade do Prisma trata de tudo o que tem FK para User. Se algum
+    // novo modelo for adicionado sem onDelete explícito → este delete falha
+    // com FK violation, alertando o developer (defesa contra "lixo desconhecido").
+    await this.prisma.user.delete({ where: { id: user.id } });
+
+    // S3 cleanup só depois do DB delete (best-effort; logar mas não falhar).
+    if (avatarKey && this.storage.isReady()) {
+      this.storage.deletePublicObject(avatarKey).catch((err) => {
+        Logger.warn(
+          `Avatar S3 delete falhou para utilizador ${user.publicId}: ${err}`,
+          'UsersService',
+        );
+      });
+    }
+
+    return { deleted: publicId };
+  }
+
   // ── Auth helpers ─────────────────────────────────────────────────────────
 
   async findByEmail(email: string) {
@@ -540,16 +598,10 @@ export class UsersService {
     return this.attachAvatarUrl(user);
   }
 
-  /** Assign the default plan to a newly created user */
+  /** Assign the default plan to a newly created user (dual-write UserPlan + Subscription).
+   *  Phase 3 dual-write: ver `billing-helpers.ts`. */
   private async assignDefaultPlan(userId: number) {
-    const defaultPlan = await this.prisma.plan.findFirst({
-      where: { isDefault: true, planStatus: 'ACTIVE' },
-    });
-    if (!defaultPlan) return;
-
-    await this.prisma.userPlan.create({
-      data: { userId, planId: defaultPlan.id, isActive: true },
-    });
+    await createDefaultBilling(this.prisma, userId);
   }
 
   /** Returns user with passwordHash + selfRegistered for credential validation and registration flow.

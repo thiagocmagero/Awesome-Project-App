@@ -79,6 +79,25 @@ Detalhes completos, hierarquia de roles, padrão UI espelho (`canDo()`),
 intercepts em widgets DHTMLX e anti-padrões em @docs/claude/permissions.md
 e @docs/claude/tools/permissions/overview.md.
 
+## Regra obrigatória — User cascade rule
+
+QUALQUER novo modelo Prisma com FK para `User` **deve** declarar `onDelete`
+explícito (`Cascade` ou `SetNull`). Sem essa declaração, Prisma assume
+`Restrict` e o hard delete recursivo (`UsersService.removeHard`, PLATFORM_ADMIN
+only via `DELETE /api/users/:id?hard=true`) **falha silenciosamente**, deixando
+"lixo desconhecido" no schema.
+
+Política:
+- **Cascade**: dados pessoais (sessions, notifications, subscriptions,
+  invoices, memberships, mentions, reactions, ...).
+- **SetNull**: campos de auditoria/autoria (createdById, invitedById, authorId,
+  actorId, approvedById, ...) — campo tem que ser `Int?`.
+- **SetNull**: ownership de entidades que sobrevivem (Project.owner,
+  Team.owner, Holiday.owner, ...).
+
+Tabela completa por modelo + checklist em @docs/claude/db.md secção
+"User cascade rule".
+
 ## Regra obrigatória — Actualização do CLAUDE.md
 
 SEMPRE que uma regra for criada ou alterada, reflectir obrigatoriamente neste `CLAUDE.md` e no ficheiro modular relevante em `docs/claude/`. O `CLAUDE.md` é a fonte de verdade das instruções do projecto.

@@ -468,11 +468,13 @@ export class ProjectsService {
     });
     const inviteUrl = `${this.emailService.appUrl}/create-account?token=${inviteToken}`;
 
+    // Fallback "Sistema" para o inviter caso tenha sido removido (FK SetNull).
+    const inviterName = member.invitedBy?.name ?? 'Sistema';
     if (existingUser) {
       // Existing user: in-app notification + email (via notification fan-out)
       this.notificationsService.createInvitationReceivedNotification(
         existingUser.id,
-        member.invitedBy.name,
+        inviterName,
         member.project.name,
         member.project.publicId,
         member.publicId,
@@ -483,7 +485,7 @@ export class ProjectsService {
       this.emailService.sendInvitationReceivedEmail({
         recipientEmail: email,
         recipientName: dto.name ?? email,
-        inviterName: member.invitedBy.name,
+        inviterName,
         projectName: member.project.name,
         inviteUrl,
         locale: null,

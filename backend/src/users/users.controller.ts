@@ -160,12 +160,22 @@ export class UsersController {
     return this.usersService.update(publicId, dto, currentUser);
   }
 
-  /** Soft delete — validação de ownership no service */
+  /**
+   * Remove utilizador.
+   * - Default (sem `?hard=true`): soft delete (status=INACTIVE), validação de ownership.
+   * - `?hard=true`: hard delete recursivo. Apenas PLATFORM_ADMIN. Apaga tudo
+   *   o que está associado ao utilizador (cascade do schema) e avatar S3.
+   *   Acção irreversível.
+   */
   @Delete(':id')
   remove(
     @Param('id', ParseUUIDPipe) publicId: string,
     @CurrentUser() currentUser: JwtPayload,
+    @Query('hard') hard?: string,
   ) {
+    if (hard === 'true' || hard === '1') {
+      return this.usersService.removeHard(publicId, currentUser);
+    }
     return this.usersService.remove(publicId, currentUser);
   }
 }

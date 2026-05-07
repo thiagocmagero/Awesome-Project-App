@@ -9,6 +9,8 @@ import { UpdatePlanDto } from './dto/update-plan.dto';
 import { UpsertPlanLimitDto } from './dto/upsert-plan-limit.dto';
 import { UpsertPlanPricingDto } from './dto/upsert-plan-pricing.dto';
 import { AssignPlanDto } from './dto/assign-plan.dto';
+import { SubscriptionsService } from './subscriptions.service';
+import { createDefaultBilling } from '../users/billing-helpers';
 
 // Selects explícitos — nunca expor `id` numérico nem FKs internos (`planId`,
 // `featureFlagId`). Resposta usa só `publicId` em todas as relações. Frontend
@@ -48,7 +50,14 @@ const PLAN_SELECT = {
       featureFlag: { select: { publicId: true, key: true, label: true } },
     },
   },
-  _count: { select: { userPlans: { where: { isActive: true } } } },
+  // Phase 7: count active subscriptions (replaces userPlans count).
+  _count: {
+    select: {
+      subscriptions: {
+        where: { status: { in: ['ACTIVE', 'TRIALING', 'PAST_DUE'] as ('ACTIVE' | 'TRIALING' | 'PAST_DUE')[] } },
+      },
+    },
+  },
 } as const;
 
 const PLAN_LIMIT_SELECT = {
@@ -75,7 +84,10 @@ const PLAN_FEATURE_FLAG_SELECT = {
 
 @Injectable()
 export class PlansService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly subscriptions: SubscriptionsService,
+  ) {}
 
   // ── Resolve helpers ─────────────────────────────────────────────────────
 
@@ -309,69 +321,68 @@ export class PlansService {
     }
 
     return this.prisma.$transaction(async (tx) => {
-      // Deactivate all current plans
-      await tx.userPlan.updateMany({
-        where: { userId, isActive: true },
-        data: { isActive: false },
+      // Phase 7: única fonte de verdade — Subscription. UserPlan removido.
+      const updated = await this.subscriptions.setSubscription(tx, {
+        userId,
+        planId,
+        status: 'ACTIVE',
+        currentPeriodEnd: dto.expiresAt ? new Date(dto.expiresAt) : null,
       });
 
-      // Create new active assignment
-      return tx.userPlan.create({
-        data: {
-          userId,
-          planId,
-          expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null,
-          isActive: true,
-          assignedById,
-          notes: dto.notes,
-        },
-        select: {
-          publicId: true,
-          isActive: true,
-          assignedAt: true,
-          expiresAt: true,
-          notes: true,
-          plan: { select: { publicId: true, code: true, name: true } },
-        },
+      // Devolve forma compatível com a anterior (frontend PlansPage espera estes campos).
+      const planRef = await tx.plan.findUniqueOrThrow({
+        where: { id: planId },
+        select: { publicId: true, code: true, name: true },
       });
+      return {
+        publicId: updated.publicId,
+        isActive: true,
+        assignedAt: updated.currentPeriodStart,
+        expiresAt: updated.currentPeriodEnd,
+        notes: dto.notes ?? null,
+        plan: planRef,
+      };
     });
   }
 
+  /**
+   * Phase 7: histórico de planos foi removido. Subscription é mutada em vez
+   * de criar nova linha por mudança. Devolve apenas a subscrição actual como
+   * uma lista de 1 elemento para preservar shape compatível com frontend.
+   */
   async getUserPlanHistory(userPublicId: string) {
     const userId = await this.resolveUserId(userPublicId);
-
-    return this.prisma.userPlan.findMany({
+    const sub = await this.prisma.subscription.findUnique({
       where: { userId },
-      orderBy: { assignedAt: 'desc' },
-      select: {
-        publicId: true,
-        isActive: true,
-        assignedAt: true,
-        expiresAt: true,
-        notes: true,
-        plan:       { select: { publicId: true, code: true, name: true } },
-        assignedBy: { select: { publicId: true, name: true, email: true } },
-      },
+      include: { plan: { select: { publicId: true, code: true, name: true } } },
     });
+    if (!sub) return [];
+    return [
+      {
+        publicId: sub.publicId,
+        isActive: ['ACTIVE', 'TRIALING', 'PAST_DUE'].includes(sub.status),
+        assignedAt: sub.currentPeriodStart,
+        expiresAt: sub.currentPeriodEnd,
+        notes: null,
+        plan: sub.plan,
+        assignedBy: null,
+      },
+    ];
   }
 
   // ── Helper: get active plan for a user ──────────────────────────────────
 
+  /** Phase 7: delegado a SubscriptionsService.getResolvedPlanForOwner. */
   async getActivePlan(userId: number) {
-    const userPlan = await this.prisma.userPlan.findFirst({
-      where: { userId, isActive: true },
-      include: { plan: { include: { limits: true, featureFlags: { include: { featureFlag: true } } } } },
-    });
-    return userPlan?.plan ?? null;
+    return this.subscriptions.getResolvedPlanForOwner(userId);
   }
 
-  /** Assign default plan to a user (used on registration) */
+  /** Assign default plan to a user (used on registration). */
   async assignDefaultPlan(userId: number) {
-    const defaultPlan = await this.prisma.plan.findFirst({ where: { isDefault: true, planStatus: 'ACTIVE' } });
-    if (!defaultPlan) return null;
-
-    return this.prisma.userPlan.create({
-      data: { userId, planId: defaultPlan.id, isActive: true },
+    await createDefaultBilling(this.prisma, userId);
+    return this.prisma.subscription.findUnique({
+      where: { userId },
+      include: { plan: true },
     });
   }
 }

@@ -18,9 +18,10 @@ const PLANS = [
       { limitKey: 'max_storage_mb', limitValue: 500, description: 'Storage em MB' },
       { limitKey: 'max_api_calls',  limitValue: -1,  description: 'Chamadas API (ilimitado)' },
       { limitKey: 'max_holidays',   limitValue: 3,   description: 'Número máximo de listas de feriados' },
+      { limitKey: 'max_licensed_seats', limitValue: 0, description: 'Seats LICENSED incluídos no plano (BASIC = 0)' },
     ],
     pricing: [
-      { billingCycle: 'MONTHLY', basePrice: 0, trialDays: 0 },
+      { billingCycle: 'MONTHLY', basePrice: 0, trialDays: 0, pricePerExtraSeat: null, currency: 'EUR' },
     ],
   },
 ];
@@ -113,21 +114,31 @@ async function seed(prisma) {
     return;
   }
 
-  const usersWithoutPlan = await prisma.user.findMany({
-    where:  { userPlans: { none: { isActive: true } } },
+  const usersWithoutSub = await prisma.user.findMany({
+    where:  { subscription: null },
     select: { id: true },
   });
 
-  for (const user of usersWithoutPlan) {
-    await prisma.userPlan.create({
-      data: { userId: user.id, planId: defaultPlan.id, isActive: true },
+  const now = new Date();
+  const farFuture = new Date(now.getTime() + 100 * 365 * 24 * 60 * 60 * 1000);
+  for (const user of usersWithoutSub) {
+    await prisma.subscription.create({
+      data: {
+        userId: user.id,
+        planId: defaultPlan.id,
+        status: 'ACTIVE',
+        billingCycle: 'MONTHLY',
+        currentPeriodStart: now,
+        currentPeriodEnd: farFuture,
+        extraSeats: 0,
+      },
     });
   }
 
-  if (usersWithoutPlan.length > 0) {
-    console.log(`✔ Plano default atribuído a ${usersWithoutPlan.length} utilizador(es) existente(s)`);
+  if (usersWithoutSub.length > 0) {
+    console.log(`✔ Subscription default criada para ${usersWithoutSub.length} utilizador(es) existente(s)`);
   } else {
-    console.log('✔ Todos os utilizadores já têm plano atribuído');
+    console.log('✔ Todos os utilizadores têm subscription');
   }
 }
 

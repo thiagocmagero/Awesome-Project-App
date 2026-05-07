@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { getApiBase, apiFetch } from '../lib/api';
 import { useToast } from '../contexts/ToastContext';
@@ -15,7 +16,7 @@ interface UserItem {
   updatedAt: string;
   profile: { publicId: string; code: string; label: string };
   userType: { publicId: string; code: string; label: string } | null;
-  userPlans?: Array<{ plan: { publicId: string; code: string; name: string } }>;
+  subscription?: { status: string; plan: { publicId: string; code: string; name: string } } | null;
 }
 
 interface DropdownOption { publicId: string; code: string; label: string; }
@@ -44,6 +45,12 @@ export default function UsersPage() {
   const isBasicUser = authUser?.profileCode === 'BASIC_USER';
   const { showToast } = useToast();
 
+  // Página de gestão de plataforma — apenas PLATFORM_ADMIN.
+  // Outros utilizadores são redireccionados para a vista do seu workspace.
+  if (authUser && authUser.profileCode !== 'PLATFORM_ADMIN') {
+    return <Navigate to="/workspace/users" replace />;
+  }
+
   const [users, setUsers] = useState<UserItem[]>([]);
   const [profiles, setProfiles] = useState<DropdownOption[]>([]);
   const [userTypes, setUserTypes] = useState<DropdownOption[]>([]);
@@ -56,9 +63,23 @@ export default function UsersPage() {
   const [formError, setFormError] = useState('');
   const [formLoading, setFormLoading] = useState(false);
 
+  // Soft delete (Deactivate) — sets status=INACTIVE, reversible
+  const [showDeactivateModal, setShowDeactivateModal] = useState(false);
+  const [deactivatingUser, setDeactivatingUser] = useState<UserItem | null>(null);
+  const [deactivateLoading, setDeactivateLoading] = useState(false);
+
+  // Hard delete (Remove) — recursive, irreversible. PLATFORM_ADMIN only.
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deletingUser, setDeletingUser] = useState<UserItem | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+
+  // Subscription tab (only for PLATFORM_ADMIN editing existing user)
+  const isPlatformAdmin = authUser?.profileCode === 'PLATFORM_ADMIN';
+  const [modalTab, setModalTab] = useState<'account' | 'subscription'>('account');
+  const [availablePlans, setAvailablePlans] = useState<Array<{ publicId: string; code: string; name: string; planStatus: string }>>([]);
+  const [selectedPlanId, setSelectedPlanId] = useState('');
+  const [planNotes, setPlanNotes] = useState('');
+  const [assigningPlan, setAssigningPlan] = useState(false);
 
   // Choices.js refs
   const choicesProfileRef = useRef<HTMLSelectElement>(null);
@@ -89,9 +110,9 @@ export default function UsersPage() {
   useEffect(() => { loadData(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    document.body.style.overflow = (showModal || showDeleteModal) ? 'hidden' : '';
+    document.body.style.overflow = (showModal || showDeleteModal || showDeactivateModal) ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
-  }, [showModal, showDeleteModal]);
+  }, [showModal, showDeleteModal, showDeactivateModal]);
 
   function openCreate() {
     setEditingUser(null);
@@ -111,12 +132,57 @@ export default function UsersPage() {
       status: u.status,
     });
     setFormError('');
+    setModalTab('account');
+    setSelectedPlanId(u.subscription?.plan.publicId ?? '');
+    setPlanNotes('');
     setShowModal(true);
+    // Lazy-load plans only when admin opens the modal
+    if (isPlatformAdmin && availablePlans.length === 0) {
+      apiFetch(`${api}/plans`, { headers: authHeaders() })
+        .then((r) => (r.ok ? r.json() : []))
+        .then((data) => setAvailablePlans(Array.isArray(data) ? data : []))
+        .catch(() => {});
+    }
   }
 
   function closeModal() {
     setShowModal(false);
     setEditingUser(null);
+    setModalTab('account');
+  }
+
+  async function handleAssignPlan() {
+    if (!editingUser || !selectedPlanId) return;
+    if (selectedPlanId === editingUser.subscription?.plan.publicId && !planNotes) {
+      // No-op
+      return;
+    }
+    setAssigningPlan(true);
+    try {
+      const res = await apiFetch(`${api}/plans/assign`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({
+          userId: editingUser.publicId,
+          planId: selectedPlanId,
+          notes: planNotes || undefined,
+        }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        showToast('danger', Array.isArray(d.message) ? d.message.join(' · ') : (d.message ?? tc('messages.network_error')));
+        return;
+      }
+      // Re-fetch user list so the table reflects the new plan
+      const refreshed = await apiFetch(`${api}/users`, { headers: authHeaders() }).then((r) => (r.ok ? r.json() : null));
+      if (Array.isArray(refreshed)) setUsers(refreshed);
+      showToast('success', tc('messages.success_updated'));
+      setPlanNotes('');
+    } catch {
+      showToast('danger', tc('messages.network_error'));
+    } finally {
+      setAssigningPlan(false);
+    }
   }
 
   async function handleFormSubmit(e: FormEvent) {
@@ -170,25 +236,78 @@ export default function UsersPage() {
     }
   }
 
+  // ── Soft delete (Deactivate) — comportamento legado, reversível ────────
+  function openDeactivate(u: UserItem) {
+    setDeactivatingUser(u);
+    setShowDeactivateModal(true);
+  }
+
+  async function handleDeactivate() {
+    if (!deactivatingUser) return;
+    setDeactivateLoading(true);
+    try {
+      const res = await apiFetch(`${api}/users/${deactivatingUser.publicId}`, {
+        method: 'DELETE',
+        headers: authHeaders(),
+      });
+      if (res.ok) {
+        const data = await res.json() as UserItem;
+        setUsers(prev => prev.map(u => u.publicId === data.publicId ? data : u));
+        setShowDeactivateModal(false);
+        setDeactivatingUser(null);
+        showToast('success', tc('messages.success_updated'));
+      } else {
+        const d = await res.json().catch(() => ({}));
+        showToast('danger', (d as { message?: string }).message ?? tc('messages.network_error'));
+      }
+    } catch {
+      showToast('danger', tc('messages.network_error'));
+    } finally {
+      setDeactivateLoading(false);
+    }
+  }
+
+  // ── Hard delete (Remove) — recursivo, irreversível. Confirmação por email. ──
+  const [deleteEmailConfirm, setDeleteEmailConfirm] = useState('');
+
   function openDelete(u: UserItem) {
     setDeletingUser(u);
+    setDeleteEmailConfirm('');
     setShowDeleteModal(true);
   }
 
   async function handleDelete() {
     if (!deletingUser) return;
+    if (deleteEmailConfirm.trim().toLowerCase() !== deletingUser.email.toLowerCase()) {
+      showToast('warning', t('delete.email_mismatch'));
+      return;
+    }
     setDeleteLoading(true);
     try {
-      const res = await apiFetch(`${api}/users/${deletingUser.publicId}`, { method: 'DELETE', headers: authHeaders() });
+      const res = await apiFetch(`${api}/users/${deletingUser.publicId}?hard=true`, {
+        method: 'DELETE',
+        headers: authHeaders(),
+      });
       if (res.ok) {
-        const data = await res.json() as UserItem;
-        setUsers(prev => prev.map(u => u.publicId === data.publicId ? data : u));
+        // Hard delete: remove da lista (não há linha para actualizar — foi apagado).
+        setUsers(prev => prev.filter(u => u.publicId !== deletingUser.publicId));
         setShowDeleteModal(false);
         setDeletingUser(null);
+        setDeleteEmailConfirm('');
         showToast('success', tc('messages.success_deleted'));
+      } else {
+        const d = await res.json().catch(() => ({}));
+        const code = (d as { error_code?: string }).error_code;
+        if (code === 'CANNOT_DELETE_SELF') {
+          showToast('danger', t('delete.error_self'));
+        } else if (code === 'FORBIDDEN') {
+          showToast('danger', tc('errors.forbidden'));
+        } else {
+          showToast('danger', (d as { message?: string }).message ?? tc('messages.network_error'));
+        }
       }
     } catch {
-      // ignore
+      showToast('danger', tc('messages.network_error'));
     } finally {
       setDeleteLoading(false);
     }
@@ -338,8 +457,8 @@ export default function UsersPage() {
                           : <span className="text-muted fs-13">—</span>}
                       </td>
                       <td>
-                        {u.userPlans?.[0]?.plan
-                          ? <span className="badge bg-secondary-transparent text-secondary">{u.userPlans[0].plan.name}</span>
+                        {u.subscription?.plan
+                          ? <span className="badge bg-secondary-transparent text-secondary">{u.subscription.plan.name}</span>
                           : <span className="text-muted fs-13">—</span>}
                       </td>
                       <td><StatusBadge status={u.status} /></td>
@@ -352,14 +471,26 @@ export default function UsersPage() {
                           >
                             <i className="ri-pencil-line"></i>
                           </button>
+                          {/* Desactivar — soft (status=INACTIVE), reversível */}
                           <button
-                            className="btn btn-sm btn-danger-light"
+                            className="btn btn-sm btn-warning-light"
                             title={tc('actions.deactivate')}
-                            onClick={() => openDelete(u)}
+                            onClick={() => openDeactivate(u)}
                             disabled={u.status === 'INACTIVE'}
                           >
                             <i className="ri-user-forbid-line"></i>
                           </button>
+                          {/* Remover — hard delete recursivo, irreversível (PLATFORM_ADMIN only) */}
+                          {authUser?.profileCode === 'PLATFORM_ADMIN' && (
+                            <button
+                              className="btn btn-sm btn-danger-light"
+                              title={t('delete.title')}
+                              onClick={() => openDelete(u)}
+                              disabled={u.publicId === authUser?.publicId}
+                            >
+                              <i className="ri-delete-bin-line"></i>
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -395,6 +526,31 @@ export default function UsersPage() {
                         <span>{formError}</span>
                       </div>
                     )}
+                    {/* Tabs — só PLATFORM_ADMIN vê a tab Subscrição (e só ao editar) */}
+                    {isPlatformAdmin && editingUser && (
+                      <ul className="nav nav-tabs mb-3" role="tablist">
+                        <li className="nav-item">
+                          <button
+                            type="button"
+                            className={`nav-link ${modalTab === 'account' ? 'active' : ''}`}
+                            onClick={() => setModalTab('account')}
+                          >
+                            {t('modal.tab_account')}
+                          </button>
+                        </li>
+                        <li className="nav-item">
+                          <button
+                            type="button"
+                            className={`nav-link ${modalTab === 'subscription' ? 'active' : ''}`}
+                            onClick={() => setModalTab('subscription')}
+                          >
+                            <i className="ri-shield-star-line me-1"></i>
+                            {t('modal.tab_subscription')}
+                          </button>
+                        </li>
+                      </ul>
+                    )}
+                    {modalTab === 'account' && (
                     <div className="row g-3">
 
                       <div className="col-md-6">
@@ -503,17 +659,78 @@ export default function UsersPage() {
                       )}
 
                     </div>
+                    )}
+
+                    {/* Subscription tab — PLATFORM_ADMIN editing existing user */}
+                    {isPlatformAdmin && editingUser && modalTab === 'subscription' && (
+                      <div className="row g-3">
+                        <div className="col-12">
+                          <div className="alert alert-primary-transparent py-2 px-3 fs-13">
+                            <i className="ri-information-line me-1"></i>
+                            {t('modal.subscription_hint')}
+                          </div>
+                        </div>
+                        <div className="col-12">
+                          <label className="form-label fw-medium">{t('modal.current_plan')}</label>
+                          <div className="form-control bg-light">
+                            {editingUser.subscription?.plan
+                              ? <><span className="badge bg-secondary-transparent text-secondary me-2">{editingUser.subscription.plan.code}</span>{editingUser.subscription.plan.name}</>
+                              : <span className="text-muted">{tc('form.none')}</span>}
+                          </div>
+                        </div>
+                        <div className="col-md-12">
+                          <label className="form-label fw-medium">{t('modal.assign_plan')}</label>
+                          <select
+                            className="form-select"
+                            value={selectedPlanId}
+                            onChange={(e) => setSelectedPlanId(e.target.value)}
+                          >
+                            {availablePlans
+                              .filter((p) => p.planStatus === 'ACTIVE')
+                              .map((p) => (
+                                <option key={p.publicId} value={p.publicId}>
+                                  {p.code} — {p.name}
+                                </option>
+                              ))}
+                          </select>
+                        </div>
+                        <div className="col-12">
+                          <label className="form-label fw-medium">{t('modal.notes_optional')}</label>
+                          <input
+                            type="text"
+                            className="form-control"
+                            value={planNotes}
+                            onChange={(e) => setPlanNotes(e.target.value)}
+                            placeholder={t('modal.notes_placeholder')}
+                          />
+                        </div>
+                        <div className="col-12 d-flex justify-content-end">
+                          <button
+                            type="button"
+                            className="btn btn-primary"
+                            onClick={handleAssignPlan}
+                            disabled={assigningPlan || !selectedPlanId || selectedPlanId === editingUser.subscription?.plan.publicId}
+                          >
+                            {assigningPlan
+                              ? <><span className="spinner-border spinner-border-sm me-2"></span>{tc('messages.saving')}</>
+                              : <><i className="ri-shield-star-line me-2"></i>{t('btn.assign_plan')}</>}
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                   <div className="modal-footer">
                     <button type="button" className="btn btn-light" onClick={closeModal}>
-                      {tc('actions.cancel')}
+                      {tc('actions.close')}
                     </button>
-                    <button type="submit" className="btn btn-primary" disabled={formLoading}>
-                      {formLoading
-                        ? <><span className="spinner-border spinner-border-sm me-2" role="status"></span>{tc('messages.saving')}</>
-                        : <><i className="ri-save-line me-2"></i>{tc('actions.save')}</>
-                      }
-                    </button>
+                    {modalTab === 'account' && (
+                      <button type="submit" className="btn btn-primary" disabled={formLoading}>
+                        {formLoading
+                          ? <><span className="spinner-border spinner-border-sm me-2" role="status"></span>{tc('messages.saving')}</>
+                          : <><i className="ri-save-line me-2"></i>{tc('actions.save')}</>
+                        }
+                      </button>
+                    )}
                   </div>
                 </form>
               </div>
@@ -522,8 +739,8 @@ export default function UsersPage() {
         </>
       )}
 
-      {/* ── Deactivate Confirmation Modal ─────────────────────────────────── */}
-      {showDeleteModal && (
+      {/* ── Deactivate Confirmation Modal (soft, reversível) ──────────────── */}
+      {showDeactivateModal && (
         <>
           <div className="modal-backdrop fade show"></div>
           <div className="modal fade show d-block" tabIndex={-1} role="dialog" aria-modal="true">
@@ -537,18 +754,90 @@ export default function UsersPage() {
                   <button
                     type="button"
                     className="btn-close"
-                    onClick={() => setShowDeleteModal(false)}
+                    onClick={() => setShowDeactivateModal(false)}
                     aria-label={tc('actions.close')}
                   ></button>
                 </div>
                 <div className="modal-body">
                   <p className="mb-1">
                     {t('deactivate.text')}{' '}
-                    <strong>{deletingUser?.name}</strong>?
+                    <strong>{deactivatingUser?.name}</strong>?
                   </p>
                   <p className="text-muted mb-0 fs-13">
                     {t('deactivate.info')}
                   </p>
+                </div>
+                <div className="modal-footer">
+                  <button type="button" className="btn btn-light" onClick={() => setShowDeactivateModal(false)}>
+                    {tc('actions.cancel')}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-warning"
+                    onClick={handleDeactivate}
+                    disabled={deactivateLoading}
+                  >
+                    {deactivateLoading
+                      ? <><span className="spinner-border spinner-border-sm me-2" role="status"></span>{tc('messages.processing')}</>
+                      : <><i className="ri-user-forbid-line me-2"></i>{tc('actions.deactivate')}</>
+                    }
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ── Hard Delete Confirmation Modal ────────────────────────────────── */}
+      {showDeleteModal && (
+        <>
+          <div className="modal-backdrop fade show"></div>
+          <div className="modal fade show d-block" tabIndex={-1} role="dialog" aria-modal="true">
+            <div className="modal-dialog modal-dialog-centered">
+              <div className="modal-content">
+                <div className="modal-header bg-danger-transparent">
+                  <h5 className="modal-title fw-semibold text-danger">
+                    <i className="ri-delete-bin-line me-2"></i>
+                    {t('delete.title')}
+                  </h5>
+                  <button
+                    type="button"
+                    className="btn-close"
+                    onClick={() => setShowDeleteModal(false)}
+                    aria-label={tc('actions.close')}
+                  ></button>
+                </div>
+                <div className="modal-body">
+                  <div className="alert alert-danger d-flex align-items-start gap-2 mb-3">
+                    <i className="ri-error-warning-line fs-18 mt-1 flex-shrink-0"></i>
+                    <div>
+                      <strong className="d-block mb-1">{t('delete.disclaimer_title')}</strong>
+                      <span className="fs-13">{t('delete.disclaimer_text')}</span>
+                    </div>
+                  </div>
+                  <p className="mb-2">
+                    {t('delete.text')}{' '}
+                    <strong>{deletingUser?.name}</strong> (<code>{deletingUser?.email}</code>)?
+                  </p>
+                  <ul className="text-muted fs-13 mb-3">
+                    <li>{t('delete.list.subscription')}</li>
+                    <li>{t('delete.list.workspace')}</li>
+                    <li>{t('delete.list.memberships')}</li>
+                    <li>{t('delete.list.avatar')}</li>
+                    <li>{t('delete.list.notifications')}</li>
+                  </ul>
+                  <label className="form-label fw-medium fs-13">
+                    {t('delete.confirm_label')} <code>{deletingUser?.email}</code>
+                  </label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    value={deleteEmailConfirm}
+                    onChange={(e) => setDeleteEmailConfirm(e.target.value)}
+                    placeholder={deletingUser?.email}
+                    autoComplete="off"
+                  />
                 </div>
                 <div className="modal-footer">
                   <button type="button" className="btn btn-light" onClick={() => setShowDeleteModal(false)}>
@@ -556,13 +845,13 @@ export default function UsersPage() {
                   </button>
                   <button
                     type="button"
-                    className="btn btn-warning"
+                    className="btn btn-danger"
                     onClick={handleDelete}
-                    disabled={deleteLoading}
+                    disabled={deleteLoading || deleteEmailConfirm.trim().toLowerCase() !== (deletingUser?.email.toLowerCase() ?? '')}
                   >
                     {deleteLoading
                       ? <><span className="spinner-border spinner-border-sm me-2" role="status"></span>{tc('messages.processing')}</>
-                      : <><i className="ri-user-forbid-line me-2"></i>{tc('actions.deactivate')}</>
+                      : <><i className="ri-delete-bin-line me-2"></i>{t('delete.btn_confirm')}</>
                     }
                   </button>
                 </div>

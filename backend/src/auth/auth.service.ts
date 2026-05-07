@@ -12,6 +12,7 @@ import { EmailTokenService } from './email-token.service';
 import { EmailService } from '../emails/email.service';
 import { setAuthCookies, clearAuthCookies, parseExpiresInToMs } from './cookies.util';
 import { generateCsrfNonce } from '../common/csrf/csrf.util';
+import { createDefaultBilling, upsertWorkspaceMemberFromProjectAccept } from '../users/billing-helpers';
 
 const CONFIRMATION_TOKEN_MS = 24 * 60 * 60_000;   // 24h
 const PASSWORD_RESET_TOKEN_MS = 15 * 60_000;       // 15 min
@@ -120,8 +121,8 @@ export class AuthService {
       return {
         user: {
           ...safeUser,
-          planCode: (safeUser as any).userPlans?.[0]?.plan?.code ?? null,
-          planName: (safeUser as any).userPlans?.[0]?.plan?.name ?? null,
+          planCode: (safeUser as any).subscription?.plan?.code ?? null,
+          planName: (safeUser as any).subscription?.plan?.name ?? null,
         },
       };
     }
@@ -147,15 +148,8 @@ export class AuthService {
       select: { id: true, email: true, name: true, locale: true },
     });
 
-    // Assign default plan
-    const defaultPlan = await this.prisma.plan.findFirst({
-      where: { isDefault: true, planStatus: 'ACTIVE' },
-    });
-    if (defaultPlan) {
-      await this.prisma.userPlan.create({
-        data: { userId: pendingUser.id, planId: defaultPlan.id, isActive: true },
-      });
-    }
+    // Phase 3 dual-write: UserPlan + Subscription
+    await createDefaultBilling(this.prisma, pendingUser.id);
 
     const token = await this.emailTokens.createToken(TokenType.EMAIL_CONFIRMATION, {
       userId: pendingUser.id,
@@ -396,21 +390,46 @@ export class AuthService {
       select: { id: true, email: true, name: true, locale: true },
     });
 
-    // Assign default plan
-    const defaultPlan = await this.prisma.plan.findFirst({
-      where: { isDefault: true, planStatus: 'ACTIVE' },
-    });
-    if (defaultPlan) {
-      await this.prisma.userPlan.create({
-        data: { userId: newUser.id, planId: defaultPlan.id, isActive: true },
-      });
-    }
+    // Phase 3 dual-write: UserPlan + Subscription
+    await createDefaultBilling(this.prisma, newUser.id);
 
     // Link pending ProjectMember records with this email
     await this.prisma.projectMember.updateMany({
       where: { email: record.email, userId: null },
       data: { userId: newUser.id },
     });
+
+    // Phase 6: also accept any direct WorkspaceMember invites with this email
+    // (workspace-level invites that don't go through ProjectMember).
+    await this.prisma.workspaceMember.updateMany({
+      where: { email: record.email, status: 'INVITED' },
+      data: { userId: newUser.id, status: 'ACCEPTED', acceptedAt: new Date() },
+    });
+
+    // Phase 3 dual-write: also create WorkspaceMember(BASIC, ACCEPTED) for each
+    // accepted project membership belonging to this newly-created user.
+    // NB: at this point the project invite token may not yet be ACCEPTED — the
+    // user accesses the project via /invitations/:id/accept later. But if the
+    // invite was bypassed (status='ACCEPTED' set elsewhere), we cover that here.
+    const linkedAccepted = await this.prisma.projectMember.findMany({
+      where: { userId: newUser.id, status: 'ACCEPTED' },
+      select: {
+        email: true,
+        name: true,
+        invitedById: true,
+        project: { select: { ownerId: true } },
+      },
+    });
+    for (const pm of linkedAccepted) {
+      if (pm.project.ownerId == null) continue;
+      await upsertWorkspaceMemberFromProjectAccept(this.prisma, {
+        ownerId: pm.project.ownerId,
+        userId: newUser.id,
+        email: pm.email,
+        name: pm.name,
+        invitedById: pm.invitedById,
+      });
+    }
 
     await this.emailTokens.consumeToken(record.id);
 
@@ -419,7 +438,7 @@ export class AuthService {
       where: { id: newUser.id },
       include: {
         profile: true,
-        userPlans: { where: { isActive: true }, take: 1, include: { plan: true } },
+        subscription: { include: { plan: true } },
       },
     });
 
@@ -431,8 +450,8 @@ export class AuthService {
     return {
       user: {
         ...safeUser,
-        planCode: safeUser.userPlans?.[0]?.plan?.code ?? null,
-        planName: safeUser.userPlans?.[0]?.plan?.name ?? null,
+        planCode: safeUser.subscription?.plan?.code ?? null,
+        planName: safeUser.subscription?.plan?.name ?? null,
       },
     };
   }

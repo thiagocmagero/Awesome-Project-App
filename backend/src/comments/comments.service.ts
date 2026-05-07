@@ -336,8 +336,9 @@ export class CommentsService {
         data: { commentId: comment.id, userId: ctx.userId, emoji },
       });
 
-      // Notificar o autor (fire-and-forget, não notificar auto-reação)
-      if (comment.authorId !== ctx.userId) {
+      // Notificar o autor (fire-and-forget, não notificar auto-reação).
+      // authorId é nullable após Phase 7 — se o autor foi removido, não há quem notificar.
+      if (comment.authorId !== null && comment.authorId !== ctx.userId) {
         this.notificationsService
           .createCommentReactionNotification(
             comment.authorId,

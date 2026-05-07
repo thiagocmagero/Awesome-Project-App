@@ -30,6 +30,7 @@ i18n
       'timesheet',
       'account',
       'platform_config',
+      'workspace_members',
     ],
     backend: {
       loadPath: '/api/i18n/{{lng}}/{{ns}}',

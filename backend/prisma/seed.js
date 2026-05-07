@@ -50,9 +50,10 @@ const PLANS = [
       { limitKey: 'max_storage_mb', limitValue: 500, description: 'Storage em MB' },
       { limitKey: 'max_api_calls',  limitValue: -1,  description: 'Chamadas API (ilimitado)' },
       { limitKey: 'max_holidays',   limitValue: 3,   description: 'Número máximo de listas de feriados' },
+      { limitKey: 'max_licensed_seats', limitValue: 0, description: 'Seats LICENSED incluídos no plano (BASIC = 0)' },
     ],
     pricing: [
-      { billingCycle: 'MONTHLY', basePrice: 0, trialDays: 0 },
+      { billingCycle: 'MONTHLY', basePrice: 0, trialDays: 0, pricePerExtraSeat: null, currency: 'EUR' },
     ],
   },
 ];
@@ -156,24 +157,32 @@ async function assignDefaultPlanToExistingUsers() {
     return;
   }
 
-  // Find users without any active plan
-  const usersWithoutPlan = await prisma.user.findMany({
-    where: {
-      userPlans: { none: { isActive: true } },
-    },
+  // Phase 7: usar Subscription em vez de UserPlan (removido).
+  const usersWithoutSub = await prisma.user.findMany({
+    where: { subscription: null },
     select: { id: true },
   });
 
-  for (const user of usersWithoutPlan) {
-    await prisma.userPlan.create({
-      data: { userId: user.id, planId: defaultPlan.id, isActive: true },
+  const now = new Date();
+  const farFuture = new Date(now.getTime() + 100 * 365 * 24 * 60 * 60 * 1000);
+  for (const user of usersWithoutSub) {
+    await prisma.subscription.create({
+      data: {
+        userId: user.id,
+        planId: defaultPlan.id,
+        status: 'ACTIVE',
+        billingCycle: 'MONTHLY',
+        currentPeriodStart: now,
+        currentPeriodEnd: farFuture,
+        extraSeats: 0,
+      },
     });
   }
 
-  if (usersWithoutPlan.length > 0) {
-    console.log(`✔ Plano default atribuído a ${usersWithoutPlan.length} utilizador(es) existente(s)`);
+  if (usersWithoutSub.length > 0) {
+    console.log(`✔ Subscription default criada para ${usersWithoutSub.length} utilizador(es) existente(s)`);
   } else {
-    console.log('✔ Todos os utilizadores já têm plano atribuído');
+    console.log('✔ Todos os utilizadores têm subscription');
   }
 }
 
@@ -838,7 +847,7 @@ async function seedTranslationsExtra() {
       'usage.keys.max_projects': 'Projectos', 'usage.keys.max_teams': 'Equipas',
       'usage.keys.max_members': 'Membros', 'usage.keys.max_tasks': 'Tarefas',
       'usage.keys.max_holidays': 'Feriados', 'usage.keys.max_storage_mb': 'Armazenamento (MB)',
-      'usage.keys.max_api_calls': 'Chamadas API',
+      'usage.keys.max_api_calls': 'Chamadas API', 'usage.keys.max_licensed_seats': 'Seats Licenciados',
     },
     'pt-BR': {
       'welcome.greeting': 'Bem-vindo, {{name}}!', 'welcome.subtitle': 'Aqui está um resumo da sua plataforma.',
@@ -853,7 +862,7 @@ async function seedTranslationsExtra() {
       'usage.keys.max_projects': 'Projetos', 'usage.keys.max_teams': 'Equipes',
       'usage.keys.max_members': 'Membros', 'usage.keys.max_tasks': 'Tarefas',
       'usage.keys.max_holidays': 'Feriados', 'usage.keys.max_storage_mb': 'Armazenamento (MB)',
-      'usage.keys.max_api_calls': 'Chamadas API',
+      'usage.keys.max_api_calls': 'Chamadas API', 'usage.keys.max_licensed_seats': 'Seats Licenciados',
     },
     'en': {
       'welcome.greeting': 'Welcome, {{name}}!', 'welcome.subtitle': 'Here is a summary of your platform.',
@@ -868,7 +877,7 @@ async function seedTranslationsExtra() {
       'usage.keys.max_projects': 'Projects', 'usage.keys.max_teams': 'Teams',
       'usage.keys.max_members': 'Members', 'usage.keys.max_tasks': 'Tasks',
       'usage.keys.max_holidays': 'Holidays', 'usage.keys.max_storage_mb': 'Storage (MB)',
-      'usage.keys.max_api_calls': 'API Calls',
+      'usage.keys.max_api_calls': 'API Calls', 'usage.keys.max_licensed_seats': 'Licensed Seats',
     },
     'es': {
       'welcome.greeting': '¡Bienvenido, {{name}}!', 'welcome.subtitle': 'Aquí tienes un resumen de tu plataforma.',
@@ -883,7 +892,7 @@ async function seedTranslationsExtra() {
       'usage.keys.max_projects': 'Proyectos', 'usage.keys.max_teams': 'Equipos',
       'usage.keys.max_members': 'Miembros', 'usage.keys.max_tasks': 'Tareas',
       'usage.keys.max_holidays': 'Festivos', 'usage.keys.max_storage_mb': 'Almacenamiento (MB)',
-      'usage.keys.max_api_calls': 'Llamadas API',
+      'usage.keys.max_api_calls': 'Llamadas API', 'usage.keys.max_licensed_seats': 'Seats Licenciados',
     },
   };
   for (const [locale, entries] of Object.entries(dashboardExtra)) await upsertNs(locale, 'dashboard', entries);

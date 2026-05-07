@@ -5,6 +5,7 @@ import {
   Patch,
   Delete,
   Param,
+  Query,
   Body,
   ParseUUIDPipe,
   UseGuards,
@@ -78,8 +79,14 @@ export class FeatureFlagsController {
   }
 
   @Get('check/:key')
-  async checkFlag(@Param('key') key: string, @CurrentUser() user: JwtPayload) {
-    const enabled = await this.featureFlagsService.isEnabled(user.sub, key);
+  async checkFlag(
+    @Param('key') key: string,
+    @CurrentUser() user: JwtPayload,
+    @Query('projectId') projectPublicId?: string,
+  ) {
+    const enabled = await this.featureFlagsService.isEnabled(user.sub, key, {
+      projectPublicId: projectPublicId ?? null,
+    });
     return { key, enabled };
   }
 }

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { SubscriptionsService } from '../plans/subscriptions.service';
 
 export interface LimitCheckResult {
   allowed: boolean;
@@ -18,7 +19,10 @@ export interface UsageSummaryItem {
 
 @Injectable()
 export class UsageService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly subscriptions: SubscriptionsService,
+  ) {}
 
   /** Atomically increment a usage counter */
   async increment(userId: number, usageKey: string): Promise<void> {
@@ -42,24 +46,34 @@ export class UsageService {
     });
   }
 
-  /** Check if a user can still create a resource (within plan limit) */
-  async checkLimit(userId: number, usageKey: string): Promise<LimitCheckResult> {
-    // Count real resources from database
-    const current = await this.countReal(userId, usageKey);
+  /**
+   * Check if a user can still create a resource (within plan limit).
+   *
+   * Phase 5: aceita `ctx.projectPublicId` — quando presente E o requesting
+   * user é LICENSED no workspace do owner do projecto, conta contra os
+   * limites do owner em vez dos próprios. Sem contexto, comportamento legado.
+   */
+  async checkLimit(
+    userId: number,
+    usageKey: string,
+    ctx?: { projectPublicId?: string | null },
+  ): Promise<LimitCheckResult> {
+    // Resolve effective owner para contagem + limite
+    const effectiveOwnerId = await this.subscriptions.resolveEffectiveOwnerId(userId, ctx);
 
-    // Get plan limit
-    const activePlan = await this.prisma.userPlan.findFirst({
-      where: { userId, isActive: true },
-      select: { planId: true },
-    });
+    // Count real resources from database (against effective owner)
+    const current = await this.countReal(effectiveOwnerId, usageKey);
 
-    if (!activePlan) {
-      // No plan = no limits (shouldn't happen, but be safe)
+    // Get plan limit via Subscription (context-aware, com fallback)
+    const planId = await this.subscriptions.resolvePlanIdForContext(userId, ctx);
+
+    if (!planId) {
+      // Sem plano resolvível = sem limites (shouldn't happen com default plan)
       return { allowed: true, current, limit: -1, percentage: 0 };
     }
 
     const planLimit = await this.prisma.planLimit.findUnique({
-      where: { planId_limitKey: { planId: activePlan.planId, limitKey: usageKey } },
+      where: { planId_limitKey: { planId, limitKey: usageKey } },
     });
 
     if (!planLimit) {
@@ -76,21 +90,29 @@ export class UsageService {
     return { allowed: current < limit, current, limit, percentage };
   }
 
-  /** Count real resources from database for a user */
-  private async countReal(userId: number, usageKey: string): Promise<number> {
+  /** Count real resources from database for an owner (effective). */
+  private async countReal(ownerId: number, usageKey: string): Promise<number> {
     switch (usageKey) {
       case 'max_projects':
-        return this.prisma.project.count({ where: { ownerId: userId, status: 'ACTIVE' } });
+        return this.prisma.project.count({ where: { ownerId, status: 'ACTIVE' } });
       case 'max_teams':
-        return this.prisma.team.count({ where: { ownerId: userId, status: 'ACTIVE' } });
+        return this.prisma.team.count({ where: { ownerId, status: 'ACTIVE' } });
       case 'max_members': {
-        // Users created by this user (their workspace)
-        return this.prisma.user.count({ where: { createdById: userId, status: 'ACTIVE' } });
+        // LICENSED workspace members consomem seats — Phase 5 conta isto.
+        return this.prisma.workspaceMember.count({
+          where: { ownerId, memberType: 'LICENSED', status: 'ACCEPTED' },
+        });
+      }
+      case 'max_licensed_seats': {
+        // Idem ao max_members — chave nova canónica para o painel /settings/users.
+        return this.prisma.workspaceMember.count({
+          where: { ownerId, memberType: 'LICENSED', status: 'ACCEPTED' },
+        });
       }
       case 'max_tasks': {
-        // Tasks in projects owned by this user
+        // Tasks in projects owned by this owner
         const projects = await this.prisma.project.findMany({
-          where: { ownerId: userId, status: 'ACTIVE' },
+          where: { ownerId, status: 'ACTIVE' },
           select: { id: true },
         });
         if (projects.length === 0) return 0;
@@ -99,24 +121,23 @@ export class UsageService {
         });
       }
       default:
-        // For storage, API calls etc. — use the stored counter
+        // For storage, API calls etc. — use the stored counter (per-owner)
         const record = await this.prisma.usageRecord.findUnique({
-          where: { userId_usageKey: { userId, usageKey } },
+          where: { userId_usageKey: { userId: ownerId, usageKey } },
         });
         return record?.currentValue ?? 0;
     }
   }
 
-  /** Get full usage summary for a user with all plan limits (real-time counts) */
+  /** Get full usage summary for a user with all plan limits (real-time counts).
+   *  Phase 5: usa Subscription do próprio user (sem contexto) — para a página
+   *  "Meu plano" / dashboard. Para vista do workspace owner, ver alternativa
+   *  no SubscriptionsService. */
   async getUsageSummary(userId: number): Promise<UsageSummaryItem[]> {
-    const activePlan = await this.prisma.userPlan.findFirst({
-      where: { userId, isActive: true },
-      include: { plan: { include: { limits: true } } },
-    });
+    const planId = await this.subscriptions.resolvePlanIdForContext(userId);
+    if (!planId) return [];
 
-    if (!activePlan) return [];
-
-    const limits = activePlan.plan.limits;
+    const limits = await this.prisma.planLimit.findMany({ where: { planId } });
     const results: UsageSummaryItem[] = [];
 
     for (const limit of limits) {

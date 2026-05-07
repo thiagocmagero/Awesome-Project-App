@@ -32,6 +32,8 @@ import { CommentsModule } from './comments/comments.module';
 import { EmailsModule } from './emails/emails.module';
 import { StorageModule } from './storage/storage.module';
 import { I18nModule } from './i18n/i18n.module';
+import { WorkspaceMembersModule } from './workspace-members/workspace-members.module';
+import { BillingModule } from './billing/billing.module';
 
 @Module({
   imports: [
@@ -67,6 +69,8 @@ import { I18nModule } from './i18n/i18n.module';
     EmailsModule,
     StorageModule,
     I18nModule,
+    WorkspaceMembersModule,
+    BillingModule,
   ],
   controllers: [AppController],
   providers: [

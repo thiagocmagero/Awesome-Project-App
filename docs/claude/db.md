@@ -7,6 +7,9 @@
 - API nunca expõe `id` numérico — apenas `publicId` (excepção: GanttTask/GanttLink por compatibilidade DHTMLX).
 - DTOs aceitam UUID strings para relações (`profileId`, `userId`, etc.) — service resolve para id interno.
 - **Soft delete obrigatório**: `remove()` define `status: INACTIVE`. Nunca `prisma.model.delete()`.
+  - **Excepção**: hard delete recursivo de utilizador (`UsersService.removeHard`,
+    PLATFORM_ADMIN only). Usa `prisma.user.delete()` confiando no cascade do schema —
+    ver "User cascade rule" abaixo.
 - `Status.ARCHIVED` = estado final/irreversível; `INACTIVE` = desactivação reversível.
 - Relações opcionais suportam `null` explícito no update para limpar a relação.
 - Padrão `'key' in dto` para distinguir "omitido" de `null` explícito em updates.
@@ -99,6 +102,47 @@ Ver @docs/claude/tools/gantt/data-model.md para:
 - `Holiday`, `HolidayDate`, `ProjectHoliday`
 - `GanttConfig`, `ProjectMemberHours`
 
+## Regra obrigatória — User cascade rule (hard delete recursivo)
+
+PLATFORM_ADMIN pode remover permanentemente um utilizador via
+`DELETE /api/users/:id?hard=true` ([UsersService.removeHard](backend/src/users/users.service.ts)).
+A acção apaga o User e dispara cascade no schema. Para garantir que **nada**
+fica como lixo (mesmo quando novas funcionalidades adicionarem FKs), todas
+as FKs que apontam para `User` **devem** ter `onDelete` explícito.
+
+### Política de `onDelete` por categoria
+
+| Categoria | Exemplos | onDelete |
+|---|---|---|
+| **Personal data** (vive com o user) | Session, Notification, NotificationPreference, UsageRecord, UserFeatureFlag, Subscription, Invoice, BoardCardAssignee, BoardConfig, CalendarConfig, ProjectMemberHours, TimesheetWeek/Day/Entry, EmailToken, CommentMention, CommentReaction, TeamMember | **Cascade** |
+| **Workspace ownership** (workspace é o user) | WorkspaceMember.ownerId | **Cascade** |
+| **Memberships do próprio user** | ProjectMember.userId, WorkspaceMember.userId | **Cascade** |
+| **Audit / authorship** (preserva história) | User.createdById, ProjectMember.invitedById, ProjectPermissionGrant.grantedById, WorkspaceMember.invitedById, Comment.authorId, TimesheetApprovalLog.actorId, TimesheetDay.approvedById/rejectedById, CalendarEvent.createdById | **SetNull** (campo nullable) |
+| **Owned entities** (sobrevivem ao user) | Project.ownerId/managerId, Team.ownerId, Holiday.ownerId, GanttResource.userId, GanttResourceNode.userId, UserType.ownerId | **SetNull** (campo já nullable) |
+
+### Como adicionar nova FK para User
+
+Quando criares um modelo novo com referência a `User`:
+
+1. Decide a categoria conforme tabela acima.
+2. Declara explicitamente `onDelete: Cascade` ou `SetNull` no `@relation`.
+3. Para **SetNull**: o campo FK tem que ser nullable (`Int?`).
+4. **Sem `onDelete` explícito** → Prisma usa `Restrict` (default), e
+   `prisma.user.delete()` **falha** com FK violation. O hard delete fica
+   partido. **Sempre** declara explicitamente.
+
+### Defesa em profundidade
+
+- **Schema FK constraints**: garantia ao nível da BD. Se um modelo novo tiver
+  FK para User sem onDelete, o `removeHard` falha imediatamente — alertando
+  o developer (defesa contra "lixo desconhecido").
+- **S3 avatar**: `removeHard` resolve `avatarKey` antes do delete, e chama
+  `StorageService.deletePublicObject()` depois. Falha do S3 não reverte o
+  DB delete (best-effort + log).
+- **Auto-delete prevenido**: PLATFORM_ADMIN não se pode auto-apagar.
+- **UX defensiva**: frontend exige typing exacto do email do user antes de
+  habilitar o botão "Remover permanentemente".
+
 ## Modelos de Timesheet
 
 Ver @docs/claude/tools/timesheet/data-model.md para:
@@ -110,9 +154,12 @@ Ver @docs/claude/tools/timesheet/data-model.md para:
 
 ## Anti-padrões
 
-- ❌ `prisma.model.delete()` (usar soft delete: `status: INACTIVE`)
+- ❌ `prisma.model.delete()` (usar soft delete: `status: INACTIVE`) — excepção:
+  `UsersService.removeHard` (hard delete recursivo, PLATFORM_ADMIN only)
 - ❌ `prisma migrate dev` em produção
 - ❌ Expor `id` numérico em respostas da API
 - ❌ Usar `delete` em migração sem garantir que coluna está vazia
+- ❌ Adicionar FK para User sem `onDelete` explícito — quebra `removeHard`
+  silenciosamente (Prisma default = Restrict). Ver "User cascade rule" acima.
 
 # Relacionados: @docs/claude/backend.md @docs/claude/auth.md @docs/claude/tools/gantt/data-model.md @docs/claude/tools/timesheet/data-model.md

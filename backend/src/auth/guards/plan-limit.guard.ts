@@ -1,7 +1,28 @@
 import { CanActivate, ExecutionContext, ForbiddenException, Inject, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { PLAN_LIMIT_KEY } from '../decorators/check-plan-limit.decorator';
+import { PLAN_LIMIT_KEY, CheckPlanLimitMetadata } from '../decorators/check-plan-limit.decorator';
+import { ProjectIdSource } from '../decorators/require-feature.decorator';
 import { UsageService } from '../../usage/usage.service';
+
+function extractProjectPublicId(
+  req: { params?: Record<string, unknown>; body?: Record<string, unknown> },
+  source?: ProjectIdSource,
+): string | null {
+  const params = req.params ?? {};
+  const body = req.body ?? {};
+
+  if (source === 'none') return null;
+  if (source === 'params.projectId') return (params.projectId as string) ?? null;
+  if (source === 'params.id') return (params.id as string) ?? null;
+  if (source === 'body.projectPublicId') return (body.projectPublicId as string) ?? null;
+
+  return (
+    (params.projectId as string) ??
+    (params.id as string) ??
+    (body.projectPublicId as string) ??
+    null
+  );
+}
 
 @Injectable()
 export class PlanLimitGuard implements CanActivate {
@@ -11,21 +32,30 @@ export class PlanLimitGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const limitKey = this.reflector.getAllAndOverride<string>(PLAN_LIMIT_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
+    const meta = this.reflector.getAllAndOverride<CheckPlanLimitMetadata | string | undefined>(
+      PLAN_LIMIT_KEY,
+      [context.getHandler(), context.getClass()],
+    );
 
     // No limit check required
-    if (!limitKey) return true;
+    if (!meta) return true;
 
-    const { user } = context.switchToHttp().getRequest<{ user?: { sub?: number; profileCode?: string } }>();
+    const limitKey = typeof meta === 'string' ? meta : meta.key;
+    const projectIdFrom = typeof meta === 'string' ? undefined : meta.projectIdFrom;
+
+    const req = context.switchToHttp().getRequest<{
+      user?: { sub?: number; profileCode?: string };
+      params?: Record<string, unknown>;
+      body?: Record<string, unknown>;
+    }>();
+    const user = req.user;
     if (!user?.sub) return true;
 
     // PLATFORM_ADMIN bypasses plan limits
     if (user.profileCode === 'PLATFORM_ADMIN') return true;
 
-    const check = await this.usageService.checkLimit(user.sub, limitKey);
+    const projectPublicId = extractProjectPublicId(req, projectIdFrom);
+    const check = await this.usageService.checkLimit(user.sub, limitKey, { projectPublicId });
 
     if (!check.allowed) {
       throw new ForbiddenException({

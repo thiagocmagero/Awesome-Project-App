@@ -1,7 +1,33 @@
 import { CanActivate, ExecutionContext, ForbiddenException, Inject, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { FEATURE_FLAG_KEY } from '../decorators/require-feature.decorator';
+import { FEATURE_FLAG_KEY, RequireFeatureMetadata, ProjectIdSource } from '../decorators/require-feature.decorator';
 import { FeatureFlagsService } from '../../feature-flags/feature-flags.service';
+
+/**
+ * Phase 5 — extracts `projectPublicId` from the request based on the decorator's
+ * `projectIdFrom` option and passes it to the service for context-aware
+ * resolution. Default fallback chain: params.projectId → params.id → body.
+ */
+function extractProjectPublicId(
+  req: { params?: Record<string, unknown>; body?: Record<string, unknown> },
+  source?: ProjectIdSource,
+): string | null {
+  const params = req.params ?? {};
+  const body = req.body ?? {};
+
+  if (source === 'none') return null;
+  if (source === 'params.projectId') return (params.projectId as string) ?? null;
+  if (source === 'params.id') return (params.id as string) ?? null;
+  if (source === 'body.projectPublicId') return (body.projectPublicId as string) ?? null;
+
+  // Default fallback chain
+  return (
+    (params.projectId as string) ??
+    (params.id as string) ??
+    (body.projectPublicId as string) ??
+    null
+  );
+}
 
 @Injectable()
 export class FeatureFlagGuard implements CanActivate {
@@ -11,21 +37,33 @@ export class FeatureFlagGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const featureKey = this.reflector.getAllAndOverride<string>(FEATURE_FLAG_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
+    const meta = this.reflector.getAllAndOverride<RequireFeatureMetadata | string | undefined>(
+      FEATURE_FLAG_KEY,
+      [context.getHandler(), context.getClass()],
+    );
 
     // No feature requirement
-    if (!featureKey) return true;
+    if (!meta) return true;
 
-    const { user } = context.switchToHttp().getRequest<{ user?: { sub?: number; profileCode?: string } }>();
+    // Backwards compat: a few legacy decorators may have stored a plain string.
+    const featureKey = typeof meta === 'string' ? meta : meta.key;
+    const projectIdFrom = typeof meta === 'string' ? undefined : meta.projectIdFrom;
+
+    const req = context.switchToHttp().getRequest<{
+      user?: { sub?: number; profileCode?: string };
+      params?: Record<string, unknown>;
+      body?: Record<string, unknown>;
+    }>();
+    const user = req.user;
     if (!user?.sub) return true;
 
     // PLATFORM_ADMIN bypasses feature flags
     if (user.profileCode === 'PLATFORM_ADMIN') return true;
 
-    const enabled = await this.featureFlagsService.isEnabled(user.sub, featureKey);
+    const projectPublicId = extractProjectPublicId(req, projectIdFrom);
+    const enabled = await this.featureFlagsService.isEnabled(user.sub, featureKey, {
+      projectPublicId,
+    });
 
     if (!enabled) {
       throw new ForbiddenException({

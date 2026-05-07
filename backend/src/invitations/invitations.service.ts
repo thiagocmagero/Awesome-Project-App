@@ -7,6 +7,7 @@ import { InviteStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import type { JwtPayload } from '../auth/jwt.strategy';
 import { NotificationsService } from '../notifications/notifications.service';
+import { upsertWorkspaceMemberFromProjectAccept } from '../users/billing-helpers';
 
 const IS_ADMIN = (u: JwtPayload) => u.profileCode === 'PLATFORM_ADMIN';
 
@@ -29,18 +30,11 @@ type InviteWithIncludes = {
   createdAt: Date;
   updatedAt: Date;
   project:   { publicId: string; name: string };
-  invitedBy: { publicId: string; name: string; email: string };
+  /** invitedBy nullable após Phase 7: o inviter pode ter sido removido (FK SetNull). */
+  invitedBy: { publicId: string; name: string; email: string } | null;
   user:      { publicId: string; name: string; email: string } | null;
-  // Campos internos não devolvidos:
-  // id, userId, projectId, invitedById, teamId, project.id, project.ownerId,
-  // invitedBy.id, user.id
 };
 
-/**
- * Serializa um convite para a API — retira todos os `id` numéricos. O
- * service mantém os IDs internos (via INVITE_INCLUDE) para fazer queries e
- * disparar notificações; só os endpoints públicos passam por aqui.
- */
 function serializeInvite(invite: {
   publicId: string;
   email: string | null;
@@ -49,7 +43,7 @@ function serializeInvite(invite: {
   createdAt: Date;
   updatedAt: Date;
   project:   { publicId: string; name: string };
-  invitedBy: { publicId: string; name: string; email: string };
+  invitedBy: { publicId: string; name: string; email: string } | null;
   user:      { publicId: string; name: string; email: string } | null;
 }): InviteWithIncludes {
   return {
@@ -63,11 +57,11 @@ function serializeInvite(invite: {
       publicId: invite.project.publicId,
       name:     invite.project.name,
     },
-    invitedBy: {
+    invitedBy: invite.invitedBy ? {
       publicId: invite.invitedBy.publicId,
       name:     invite.invitedBy.name,
       email:    invite.invitedBy.email,
-    },
+    } : null,
     user: invite.user ? {
       publicId: invite.user.publicId,
       name:     invite.user.name,
@@ -141,14 +135,29 @@ export class InvitationsService {
       });
     }
 
-    // Notify the inviter (fire-and-forget, non-blocking)
+    // Phase 3 dual-write: ensure a WorkspaceMember mirrors this acceptance.
+    // Skips self-ownership and projects without an owner.
+    if (invite.project.ownerId != null) {
+      await upsertWorkspaceMemberFromProjectAccept(this.prisma, {
+        ownerId: invite.project.ownerId,
+        userId: requestingUser.sub,
+        email: invite.email,
+        name: invite.name,
+        invitedById: invite.invitedById,
+      });
+    }
+
+    // Notify the inviter (fire-and-forget, non-blocking).
+    // invitedBy pode ser null se o inviter foi removido entretanto — skip notify.
     const inviteeName = invite.user?.name ?? invite.email ?? 'Utilizador';
-    this.notificationsService.createInvitationAcceptedNotification(
-      invite.invitedBy.id,
-      inviteeName,
-      invite.project.name,
-      invite.project.publicId,
-    ).catch(() => { /* notification failure must not break accept */ });
+    if (invite.invitedBy) {
+      this.notificationsService.createInvitationAcceptedNotification(
+        invite.invitedBy.id,
+        inviteeName,
+        invite.project.name,
+        invite.project.publicId,
+      ).catch(() => { /* notification failure must not break accept */ });
+    }
 
     return serializeInvite(updated);
   }
@@ -168,14 +177,16 @@ export class InvitationsService {
       include: INVITE_INCLUDE,
     });
 
-    // Notify the inviter (fire-and-forget, non-blocking)
+    // Notify the inviter (fire-and-forget). Skip if inviter foi removido.
     const inviteeName = invite.user?.name ?? invite.email ?? 'Utilizador';
-    this.notificationsService.createInvitationDeclinedNotification(
-      invite.invitedBy.id,
-      inviteeName,
-      invite.project.name,
-      invite.project.publicId,
-    ).catch(() => { /* notification failure must not break decline */ });
+    if (invite.invitedBy) {
+      this.notificationsService.createInvitationDeclinedNotification(
+        invite.invitedBy.id,
+        inviteeName,
+        invite.project.name,
+        invite.project.publicId,
+      ).catch(() => { /* notification failure must not break decline */ });
+    }
 
     return serializeInvite(updated);
   }

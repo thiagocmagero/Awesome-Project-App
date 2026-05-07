@@ -91,8 +91,8 @@ export class AuthController {
 
     return {
       ...user,
-      planCode: (user as any).userPlans?.[0]?.plan?.code ?? null,
-      planName: (user as any).userPlans?.[0]?.plan?.name ?? null,
+      planCode: (user as any).subscription?.plan?.code ?? null,
+      planName: (user as any).subscription?.plan?.name ?? null,
       currentSessionPublicId: request.user.sid,
     };
   }
