@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth, toAuthUser } from '../contexts/AuthContext';
 import type { ApiAuthUser } from '../contexts/AuthContext';
 import { getApiBase, apiFetch } from '../lib/api';
+import { useParticles } from '../hooks/useParticles';
 
 type InviteCheckResult = { requiresAccount: boolean };
 
@@ -47,45 +48,7 @@ export default function CreatePasswordPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    if (checking) return;
-
-    const loadScript = (src: string): Promise<void> =>
-      new Promise((resolve) => {
-        if (document.querySelector(`script[src="${src}"]`)) { resolve(); return; }
-        const s = document.createElement('script');
-        s.src = src;
-        s.onload = () => resolve();
-        s.onerror = () => resolve();
-        document.body.appendChild(s);
-      });
-
-    loadScript('/assets/libs/particles.js/particles.js').then(() => {
-      if (typeof window.particlesJS !== 'undefined') {
-        window.particlesJS('particles-js-ca', {
-          particles: {
-            number: { value: 80, density: { enable: true, value_area: 800 } },
-            color: { value: '#6366f1' },
-            shape: { type: 'circle' },
-            opacity: { value: 0.2, random: true },
-            size: { value: 3, random: true },
-            line_linked: { enable: true, distance: 150, color: '#6366f1', opacity: 0.1, width: 1 },
-            move: { enable: true, speed: 1.5, random: false, out_mode: 'out' },
-          },
-          interactivity: {
-            detect_on: 'canvas',
-            events: { onhover: { enable: false }, onclick: { enable: false } },
-          },
-          retina_detect: true,
-        });
-      }
-    });
-
-    return () => {
-      const canvas = document.querySelector('#particles-js-ca canvas');
-      canvas?.remove();
-    };
-  }, [checking]);
+  useParticles('particles-js-ca', !checking);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -137,7 +100,7 @@ export default function CreatePasswordPage() {
     return (
       <div
         className="authentication-background authenticationcover-background position-relative"
-        style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
       >
         <span className="spinner-border text-primary" role="status" style={{ width: 48, height: 48 }}></span>
       </div>
@@ -148,9 +111,9 @@ export default function CreatePasswordPage() {
     <div
       className="authentication-background authenticationcover-background position-relative"
       id="particles-js-ca"
-      style={{ minHeight: '100vh' }}
+      style={{ height: '100vh' }}
     >
-      <div className="container">
+      <div className="container" style={{ position: 'relative', zIndex: 1 }}>
         <div className="row justify-content-center authentication authentication-basic align-items-center h-100">
           <div className="col-xxl-4 col-xl-5 col-lg-5 col-md-6 col-sm-8 col-12">
 

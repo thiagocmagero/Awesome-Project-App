@@ -2,12 +2,15 @@ import { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { getApiBase, apiFetch } from '../lib/api';
+import { useParticles } from '../hooks/useParticles';
 
 export default function ConfirmEmailPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { t } = useTranslation('auth');
   const [status, setStatus] = useState<'verifying' | 'done' | 'error'>('verifying');
+
+  useParticles('particles-js-confirm');
 
   useEffect(() => {
     const token = searchParams.get('token');
@@ -41,9 +44,10 @@ export default function ConfirmEmailPage() {
   return (
     <div
       className="authentication-background authenticationcover-background position-relative"
-      style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      id="particles-js-confirm"
+      style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
     >
-      <div className="text-center">
+      <div className="text-center" style={{ position: 'relative', zIndex: 1 }}>
         {status === 'verifying' && (
           <>
             <span className="spinner-border text-primary mb-3" role="status" style={{ width: 48, height: 48 }}></span>

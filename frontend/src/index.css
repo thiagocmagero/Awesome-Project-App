@@ -10,3 +10,42 @@
   transform: translateY(-50%);
   line-height: 1;
 }
+
+/* ============================================================
+   Particles.js background — pages de autenticação externa
+   ------------------------------------------------------------
+   O styles.css do template Zynix assume que `id="particles-js"`
+   vive no <body>. Em React vive numa <div> interna, então estas
+   regras forçam o canvas a ocupar 100% do container pai e ficar
+   no z-index 0 (atrás do .container que tem z-index 1 inline).
+   Cobre TODOS os IDs únicos da app (particles-js, particles-js-fp,
+   -rp, -ca, -confirm, -error) via selector [id^="particles-js"].
+   ============================================================ */
+[id^="particles-js"].authentication-background {
+  overflow: hidden;
+  min-height: 100vh;
+}
+[id^="particles-js"].authentication-background .particles-js-canvas-el {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100% !important;
+  height: 100% !important;
+  z-index: 0;
+}
+
+/* Particles.js regista listeners no canvas (pJS.canvas.el em particles.js).
+   Como o canvas está em z-index 0 atrás do .container (z-index 1), eventos
+   hover/click sobre o container são bloqueados antes de chegarem ao canvas.
+   Solução: pointer-events: none no caminho até ao card+logo (deixa eventos
+   atravessar para o canvas em áreas vazias), e pointer-events: auto no card
+   e logo (para continuarem interactivos para o user). */
+[id^="particles-js"].authentication-background > .container {
+  pointer-events: none;
+}
+[id^="particles-js"].authentication-background .card,
+[id^="particles-js"].authentication-background .auth-logo {
+  pointer-events: auto;
+}
