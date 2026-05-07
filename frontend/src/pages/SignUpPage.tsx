@@ -20,6 +20,9 @@ interface ApiRegisterUser {
   planName: string | null;
   timezone: string | null;
   locale: string | null;
+  phone: string | null;
+  website: string | null;
+  address: string | null;
 }
 
 export default function SignUpPage() {
@@ -112,6 +115,9 @@ export default function SignUpPage() {
         planName: data.user.planName ?? null,
         timezone: data.user.timezone ?? null,
         locale: data.user.locale ?? null,
+        phone: data.user.phone ?? null,
+        website: data.user.website ?? null,
+        address: data.user.address ?? null,
       };
 
       login(authUser);

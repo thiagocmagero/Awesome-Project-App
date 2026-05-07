@@ -18,6 +18,9 @@ export interface AuthUser {
   timezone: string | null;
   /** Locale preferido (ex.: 'pt-PT', 'en'). null antes do sync com o i18next. */
   locale: string | null;
+  phone: string | null;
+  website: string | null;
+  address: string | null;
   currentSessionPublicId?: string;
 }
 
@@ -60,6 +63,9 @@ export interface ApiAuthUser {
   planName: string | null;
   timezone: string | null;
   locale: string | null;
+  phone: string | null;
+  website: string | null;
+  address: string | null;
   currentSessionPublicId?: string;
 }
 
@@ -79,6 +85,9 @@ export function toAuthUser(raw: ApiAuthUser): AuthUser {
     planName: raw.planName ?? null,
     timezone: raw.timezone ?? null,
     locale: raw.locale ?? null,
+    phone: raw.phone ?? null,
+    website: raw.website ?? null,
+    address: raw.address ?? null,
     currentSessionPublicId: raw.currentSessionPublicId,
   };
 }

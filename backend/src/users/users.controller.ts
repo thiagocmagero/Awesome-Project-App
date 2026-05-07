@@ -19,6 +19,8 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateMyTimezoneDto } from './dto/update-my-timezone.dto';
 import { UpdateMyLocaleDto } from './dto/update-my-locale.dto';
+import { UpdateMyProfileDto } from './dto/update-my-profile.dto';
+import { UpdateMyPasswordDto } from './dto/update-my-password.dto';
 
 @Controller('users')
 @UseGuards(JwtAuthGuard)
@@ -80,6 +82,31 @@ export class UsersController {
     @CurrentUser() currentUser: JwtPayload,
   ) {
     return this.usersService.updateMyLocale(currentUser.sub, dto.locale ?? null);
+  }
+
+  /**
+   * Actualiza o perfil do próprio user (name, phone, website, address).
+   * Sem checks de ownership — o user edita os seus próprios dados.
+   * Tem que estar declarado ANTES de @Patch(':id').
+   */
+  @Patch('me/profile')
+  updateMyProfile(
+    @Body() dto: UpdateMyProfileDto,
+    @CurrentUser() currentUser: JwtPayload,
+  ) {
+    return this.usersService.updateMyProfile(currentUser.sub, dto);
+  }
+
+  /**
+   * Altera a password do próprio user. Valida a password actual antes de actualizar.
+   * Tem que estar declarado ANTES de @Patch(':id').
+   */
+  @Patch('me/password')
+  updateMyPassword(
+    @Body() dto: UpdateMyPasswordDto,
+    @CurrentUser() currentUser: JwtPayload,
+  ) {
+    return this.usersService.updateMyPassword(currentUser.sub, dto);
   }
 
   /** Atualiza utilizador — validação de ownership no service */

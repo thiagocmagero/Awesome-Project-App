@@ -19,6 +19,9 @@ const USER_SELECT = {
   status: true,
   timezone: true,
   locale: true,
+  phone: true,
+  website: true,
+  address: true,
   profile: { select: { publicId: true, code: true, label: true } },
   userType: { select: { publicId: true, code: true, label: true } },
   level: { select: { publicId: true, code: true, label: true, order: true } },
@@ -258,6 +261,10 @@ export class UsersService {
       data.timezone = dto.timezone ?? null;
     }
 
+    if ('phone'   in dto) data.phone   = (dto as any).phone   ?? null;
+    if ('website' in dto) data.website = (dto as any).website ?? null;
+    if ('address' in dto) data.address = (dto as any).address ?? null;
+
     return this.prisma.user.update({
       where: { id: user.id },
       data,
@@ -277,6 +284,46 @@ export class UsersService {
     return this.prisma.user.update({
       where: { id: userId },
       data: { timezone },
+      select: USER_SELECT,
+    });
+  }
+
+  /**
+   * Endpoint dedicado para o próprio user actualizar o perfil (name, phone,
+   * website, address) sem passar pelos checks de ownership do PATCH :id.
+   */
+  async updateMyProfile(userId: number, dto: import('./dto/update-my-profile.dto').UpdateMyProfileDto) {
+    const data: Record<string, unknown> = {};
+    if (dto.name !== undefined) data.name = dto.name;
+    if ('phone'   in dto) data.phone   = dto.phone   ?? null;
+    if ('website' in dto) data.website = dto.website ?? null;
+    if ('address' in dto) data.address = dto.address ?? null;
+
+    return this.prisma.user.update({
+      where: { id: userId },
+      data,
+      select: USER_SELECT,
+    });
+  }
+
+  /**
+   * Endpoint dedicado para o próprio user alterar a sua password.
+   * Valida a password actual via bcrypt.compare antes de actualizar.
+   */
+  async updateMyPassword(userId: number, dto: import('./dto/update-my-password.dto').UpdateMyPasswordDto) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { passwordHash: true },
+    });
+    if (!user) throw new AppException('USER_NOT_FOUND', HttpStatus.NOT_FOUND);
+
+    const valid = await bcrypt.compare(dto.currentPassword, user.passwordHash);
+    if (!valid) throw new AppException('INVALID_CURRENT_PASSWORD', HttpStatus.BAD_REQUEST);
+
+    const passwordHash = await bcrypt.hash(dto.newPassword, 10);
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash },
       select: USER_SELECT,
     });
   }

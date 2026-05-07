@@ -397,14 +397,6 @@ function AppLayoutInner() {
                   <div className="d-flex align-items-center justify-content-between">
                     <div className="d-flex align-items-center gap-2">
                       <p className="mb-0 fs-16 fw-semibold">{t('notifications.title')}</p>
-                      <NavLink
-                        to="/settings/notifications"
-                        className="text-muted"
-                        title={t('nav.notification_preferences')}
-                        style={{ lineHeight: 1 }}
-                      >
-                        <i className="ri-settings-3-line fs-15" />
-                      </NavLink>
                     </div>
                     {unreadCount > 0 && (
                       <button

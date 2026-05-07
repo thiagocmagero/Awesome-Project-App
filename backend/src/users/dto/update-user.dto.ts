@@ -42,4 +42,16 @@ export class UpdateUserDto {
   @IsString()
   @Validate(IsValidTimezone)
   timezone?: string | null;
+
+  @IsOptional()
+  @IsString()
+  phone?: string | null;
+
+  @IsOptional()
+  @IsString()
+  website?: string | null;
+
+  @IsOptional()
+  @IsString()
+  address?: string | null;
 }

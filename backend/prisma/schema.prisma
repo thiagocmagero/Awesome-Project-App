@@ -334,6 +334,15 @@ model User {
   /// Usado pelo backend para escolher o idioma dos emails transacionais.
   locale String?
 
+  /// Número de telefone do utilizador (opcional).
+  phone   String?
+
+  /// Website pessoal ou profissional do utilizador (opcional).
+  website String?
+
+  /// Morada do utilizador (opcional).
+  address String?
+
   /// Email confirmado (true = confirmado por link de email ou por convite aceite).
   /// Utilizadores PENDING têm emailVerified=false. Após activação fica true.
   /// Utilizadores existentes antes desta feature ficam com true via migração.
