@@ -13,6 +13,7 @@ import { PlatformConfigService } from './platform-config.service';
 import { UpdateEmailConfigDto } from './dto/update-email-config.dto';
 import { UpdatePlatformLimitsDto } from './dto/update-platform-limits.dto';
 import { EmailService } from '../emails/email.service';
+import { StorageService } from '../storage/storage.service';
 
 /** Garante que apenas PLATFORM_ADMIN acede a estes endpoints */
 function assertAdmin(user: JwtPayload) {
@@ -27,6 +28,7 @@ export class PlatformConfigController {
   constructor(
     private readonly service: PlatformConfigService,
     private readonly emailService: EmailService,
+    private readonly storageService: StorageService,
   ) {}
 
   // ── Email ───────────────────────────────────────────────────────────────────
@@ -93,5 +95,21 @@ export class PlatformConfigController {
   ) {
     assertAdmin(user);
     return this.service.upsertLimits(dto);
+  }
+
+  // ── Storage (AWS S3) ────────────────────────────────────────────────────────
+
+  /**
+   * Disponibilidade pública do canal storage — qualquer user JWT pode ler.
+   * Usado pela `UserSettingsPage` para gating do botão "Alterar Imagem"
+   * quando as env vars AWS_* não estão configuradas no container backend.
+   *
+   * Devolve apenas o booleano agregado. NÃO expõe `region`, `bucket` nem
+   * env vars em falta — princípio: utilizador final nunca vê motivos
+   * técnicos. Detalhes ficariam num endpoint admin separado se necessário.
+   */
+  @Get('storage/availability')
+  getStorageAvailability() {
+    return { available: this.storageService.isReady() };
   }
 }

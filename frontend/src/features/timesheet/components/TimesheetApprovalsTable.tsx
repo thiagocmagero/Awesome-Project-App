@@ -44,10 +44,19 @@ export function TimesheetApprovalsTable({ rows, loading, onApprove, onReject }: 
               <tr key={r.weekPublicId}>
                 <td>
                   <span className="user-cell">
-                    <span
-                      className="ts-avatar"
-                      style={{ background: avatarColorFor(r.user.publicId) }}
-                    >{r.user.initials}</span>
+                    {r.user.avatarUrl ? (
+                      <img
+                        className="ts-avatar"
+                        src={r.user.avatarUrl}
+                        alt={r.user.name}
+                        style={{ objectFit: 'cover' }}
+                      />
+                    ) : (
+                      <span
+                        className="ts-avatar"
+                        style={{ background: avatarColorFor(r.user.publicId) }}
+                      >{r.user.initials}</span>
+                    )}
                     <span className="nm">{r.user.name}</span>
                   </span>
                 </td>

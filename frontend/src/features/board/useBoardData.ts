@@ -145,6 +145,9 @@ export function useBoardData({
         id: n.id,
         label: n.text,
         color: colorFor(n.id),
+        // `avatar` só está presente para nodes com `userId` (User com avatarUrl).
+        // Externos sem userId mantêm-se com iniciais coloridas.
+        avatar: n.avatarUrl ?? undefined,
       }));
 
     return {

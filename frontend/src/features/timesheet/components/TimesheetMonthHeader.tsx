@@ -40,10 +40,19 @@ export function TimesheetMonthHeader({ selectedRow, monthData, weekStart }: Prop
   if (selectedRow) {
     return (
       <div className="ts-person-summary">
-        <span
-          className="ts-avatar"
-          style={{ background: avatarColorFor(selectedRow.user.publicId) }}
-        >{selectedRow.user.initials}</span>
+        {selectedRow.user.avatarUrl ? (
+          <img
+            className="ts-avatar"
+            src={selectedRow.user.avatarUrl}
+            alt={selectedRow.user.name}
+            style={{ objectFit: 'cover' }}
+          />
+        ) : (
+          <span
+            className="ts-avatar"
+            style={{ background: avatarColorFor(selectedRow.user.publicId) }}
+          >{selectedRow.user.initials}</span>
+        )}
         <div className="info">
           <div className="nm">{selectedRow.user.name}</div>
           <div className="sub">

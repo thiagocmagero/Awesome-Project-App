@@ -21,6 +21,10 @@ export interface AuthUser {
   phone: string | null;
   website: string | null;
   address: string | null;
+  /** URL pública (S3) do avatar do utilizador. null ⇒ UI mostra iniciais. */
+  avatarUrl: string | null;
+  /** Timestamp da última actualização do avatar — usado para cache busting na URL. */
+  avatarUpdatedAt: string | null;
   currentSessionPublicId?: string;
 }
 
@@ -66,6 +70,8 @@ export interface ApiAuthUser {
   phone: string | null;
   website: string | null;
   address: string | null;
+  avatarUrl: string | null;
+  avatarUpdatedAt: string | null;
   currentSessionPublicId?: string;
 }
 
@@ -88,6 +94,8 @@ export function toAuthUser(raw: ApiAuthUser): AuthUser {
     phone: raw.phone ?? null,
     website: raw.website ?? null,
     address: raw.address ?? null,
+    avatarUrl: raw.avatarUrl ?? null,
+    avatarUpdatedAt: raw.avatarUpdatedAt ?? null,
     currentSessionPublicId: raw.currentSessionPublicId,
   };
 }

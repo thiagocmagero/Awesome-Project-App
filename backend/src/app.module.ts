@@ -30,6 +30,7 @@ import { TimesheetModule } from './timesheet/timesheet.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { CommentsModule } from './comments/comments.module';
 import { EmailsModule } from './emails/emails.module';
+import { StorageModule } from './storage/storage.module';
 import { I18nModule } from './i18n/i18n.module';
 
 @Module({
@@ -64,6 +65,7 @@ import { I18nModule } from './i18n/i18n.module';
     NotificationsModule,
     CommentsModule,
     EmailsModule,
+    StorageModule,
     I18nModule,
   ],
   controllers: [AppController],

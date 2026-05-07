@@ -11,6 +11,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ProjectPermissionsService } from '../projects/project-permissions.service';
 import { ProjectAction } from '../projects/project-permissions';
+import { StorageService } from '../storage/storage.service';
 import type { JwtPayload } from '../auth/jwt.strategy';
 import { UpsertEntryDto } from './dto/upsert-entry.dto';
 import { UpdateEntryDto } from './dto/update-entry.dto';
@@ -45,7 +46,18 @@ export class TimesheetService {
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
     private readonly perms: ProjectPermissionsService,
+    private readonly storage: StorageService,
   ) {}
+
+  /**
+   * Helper local — converte `avatarKey`/`avatarUpdatedAt` em `avatarUrl` na
+   * resposta de team/calendar. Espelha o `attachAvatarUrl` do `UsersService`,
+   * mas inline para evitar dependência cruzada entre módulos.
+   */
+  private resolveAvatarUrl(key: string | null | undefined): string | null {
+    if (!key || !this.storage.isReady()) return null;
+    return this.storage.buildPublicUrl(key);
+  }
 
   // ─────────────────────────────────────────────────────────────────────────────
   // Helpers
@@ -846,7 +858,12 @@ export class TimesheetService {
         const totalCount = members.length;
         const missingUsers = members
           .filter((m) => !filledSet.has(m.id))
-          .map((m) => ({ publicId: m.publicId, name: m.name, initials: this.initialsOf(m.name) }));
+          .map((m) => ({
+            publicId: m.publicId,
+            name: m.name,
+            initials: this.initialsOf(m.name),
+            avatarUrl: this.resolveAvatarUrl(m.avatarKey),
+          }));
         days.push({
           date: iso,
           inMonth,
@@ -912,7 +929,12 @@ export class TimesheetService {
       month: monthIso,
       visibleStart: this.toIsoDate(visibleStart),
       mode: targetUserId !== null ? 'individual' : 'aggregate',
-      members: members.map((m) => ({ publicId: m.publicId, name: m.name, initials: this.initialsOf(m.name) })),
+      members: members.map((m) => ({
+        publicId: m.publicId,
+        name: m.name,
+        initials: this.initialsOf(m.name),
+        avatarUrl: this.resolveAvatarUrl(m.avatarKey),
+      })),
       days,
       weeks,
       totalHours,
@@ -947,20 +969,20 @@ export class TimesheetService {
   /** Lista membros do projecto (owner + ProjectMembers ACCEPTED + team members). */
   private async collectProjectMembers(
     projectId: number,
-  ): Promise<Array<{ id: number; publicId: string; name: string }>> {
+  ): Promise<Array<{ id: number; publicId: string; name: string; avatarKey: string | null }>> {
     const projectFull = await this.prisma.project.findUnique({
       where: { id: projectId },
       select: {
-        owner: { select: { id: true, publicId: true, name: true } },
+        owner: { select: { id: true, publicId: true, name: true, avatarKey: true } },
         members: {
           where: { status: 'ACCEPTED' },
-          select: { user: { select: { id: true, publicId: true, name: true } } },
+          select: { user: { select: { id: true, publicId: true, name: true, avatarKey: true } } },
         },
         teams: {
           select: {
             team: {
               select: {
-                members: { select: { user: { select: { id: true, publicId: true, name: true } } } },
+                members: { select: { user: { select: { id: true, publicId: true, name: true, avatarKey: true } } } },
               },
             },
           },
@@ -969,7 +991,8 @@ export class TimesheetService {
     });
     if (!projectFull) return [];
 
-    const map = new Map<number, { id: number; publicId: string; name: string }>();
+    type Member = { id: number; publicId: string; name: string; avatarKey: string | null };
+    const map = new Map<number, Member>();
     if (projectFull.owner) map.set(projectFull.owner.id, projectFull.owner);
     for (const m of projectFull.members) if (m.user) map.set(m.user.id, m.user);
     for (const pt of projectFull.teams) {
@@ -988,19 +1011,20 @@ export class TimesheetService {
     this.assertWeekStart(weekStart);
 
     // Membros: owner + ProjectMember(ACCEPTED) + Team members.
+    // Inclui `avatarKey` para construir `avatarUrl` no response.
     const projectFull = await this.prisma.project.findUnique({
       where: { id: project.id },
       select: {
-        owner: { select: { id: true, publicId: true, name: true } },
+        owner: { select: { id: true, publicId: true, name: true, avatarKey: true } },
         members: {
           where: { status: 'ACCEPTED' },
-          select: { user: { select: { id: true, publicId: true, name: true } } },
+          select: { user: { select: { id: true, publicId: true, name: true, avatarKey: true } } },
         },
         teams: {
           select: {
             team: {
               select: {
-                members: { select: { user: { select: { id: true, publicId: true, name: true } } } },
+                members: { select: { user: { select: { id: true, publicId: true, name: true, avatarKey: true } } } },
               },
             },
           },
@@ -1009,7 +1033,8 @@ export class TimesheetService {
     });
     if (!projectFull) throw new AppException('PROJECT_NOT_FOUND', HttpStatus.NOT_FOUND);
 
-    const userMap = new Map<number, { id: number; publicId: string; name: string }>();
+    type TeamUser = { id: number; publicId: string; name: string; avatarKey: string | null };
+    const userMap = new Map<number, TeamUser>();
     if (projectFull.owner) userMap.set(projectFull.owner.id, projectFull.owner);
     for (const m of projectFull.members) if (m.user) userMap.set(m.user.id, m.user);
     for (const pt of projectFull.teams) for (const tm of pt.team.members) if (tm.user) userMap.set(tm.user.id, tm.user);
@@ -1034,7 +1059,12 @@ export class TimesheetService {
       const u = userMap.get(uid)!;
       const w = weekByUser.get(uid);
       return {
-        user:        { publicId: u.publicId, name: u.name, initials: this.initialsOf(u.name) },
+        user: {
+          publicId: u.publicId,
+          name: u.name,
+          initials: this.initialsOf(u.name),
+          avatarUrl: this.resolveAvatarUrl(u.avatarKey),
+        },
         weekStart:   weekStart.toISOString().slice(0, 10),
         status:      (w?.status ?? TimesheetWeekStatus.DRAFT) as TimesheetWeekStatus,
         totalHours:  totalMap.get(uid) ?? 0,
@@ -1481,7 +1511,7 @@ export class TimesheetService {
       select: {
         publicId: true, status: true, weekStart: true,
         project: { select: { publicId: true, name: true } },
-        user:    { select: { publicId: true, name: true } },
+        user:    { select: { publicId: true, name: true, avatarKey: true } },
         entries: { select: { hours: true } },
       },
       orderBy: [{ weekStart: 'desc' }, { id: 'asc' }],
@@ -1491,7 +1521,12 @@ export class TimesheetService {
     return weeks.map((w) => ({
       weekPublicId: w.publicId,
       project:      w.project,
-      user:         { publicId: w.user.publicId, name: w.user.name, initials: this.initialsOf(w.user.name) },
+      user: {
+        publicId: w.user.publicId,
+        name: w.user.name,
+        initials: this.initialsOf(w.user.name),
+        avatarUrl: this.resolveAvatarUrl(w.user.avatarKey),
+      },
       weekStart:    w.weekStart.toISOString().slice(0, 10),
       status:       w.status,
       totalHours:   w.entries.reduce((s, e) => s + (e.hours.toNumber ? e.hours.toNumber() : Number(e.hours)), 0),

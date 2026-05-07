@@ -58,9 +58,11 @@ export interface ITimesheetBundle {
 
 export interface ITimesheetTeamRow {
   user: {
-    publicId: string;
-    name:     string;
-    initials: string;
+    publicId:  string;
+    name:      string;
+    initials:  string;
+    /** URL pública (S3) do avatar do utilizador. null ⇒ UI mostra iniciais. */
+    avatarUrl: string | null;
   };
   weekStart:    string;
   status:       TimesheetWeekStatus;
@@ -92,7 +94,7 @@ export interface ITimesheetMyRow {
 export interface ITimesheetApprovalRow {
   weekPublicId: string;
   project:      { publicId: string; name: string };
-  user:         { publicId: string; name: string; initials: string };
+  user:         { publicId: string; name: string; initials: string; avatarUrl: string | null };
   weekStart:    string;
   status:       TimesheetWeekStatus;
   totalHours:   number;
@@ -122,7 +124,7 @@ export interface ITimesheetMonthDayAggregate {
   outOfRange:    boolean;
   filledCount:   number;
   totalCount:    number;
-  missingUsers:  Array<{ publicId: string; name: string; initials: string }>;
+  missingUsers:  Array<{ publicId: string; name: string; initials: string; avatarUrl: string | null }>;
 }
 
 export interface ITimesheetMonthDayIndividual {
@@ -152,7 +154,7 @@ export interface ITimesheetMonthBundle {
   month:        string;       // 'YYYY-MM'
   visibleStart: string;       // 'YYYY-MM-DD' — segunda-feira da 1ª linha
   mode:         TimesheetMonthMode;
-  members:      Array<{ publicId: string; name: string; initials: string }>;
+  members:      Array<{ publicId: string; name: string; initials: string; avatarUrl: string | null }>;
   days:         ITimesheetMonthDay[];        // 42 dias (6 semanas)
   weeks:        ITimesheetMonthWeek[];       // 6 semanas
   /**

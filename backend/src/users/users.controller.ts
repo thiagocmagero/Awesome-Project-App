@@ -3,17 +3,23 @@ import {
   Controller,
   Delete,
   Get,
+  HttpStatus,
   Param,
   ParseUUIDPipe,
   Patch,
   Post,
   Query,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
 import { Status } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { JwtPayload } from '../auth/jwt.strategy';
+import { AppException } from '../common/exceptions/app.exception';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -107,6 +113,41 @@ export class UsersController {
     @CurrentUser() currentUser: JwtPayload,
   ) {
     return this.usersService.updateMyPassword(currentUser.sub, dto);
+  }
+
+  /**
+   * Upload de avatar do próprio user — multipart/form-data, campo `file`.
+   *
+   * Pipeline: Multer memory storage (5 MB hard limit) → file-type magic bytes
+   * validation → sharp re-encode (256×256 cover, WebP q=85, strip metadata)
+   * → S3 PutObject no bucket público (`avatars/{publicId}.webp`).
+   *
+   * Tem que estar declarado ANTES de @Patch(':id').
+   */
+  @Post('me/avatar')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: 5 * 1024 * 1024 },
+    }),
+  )
+  async updateMyAvatar(
+    @UploadedFile() file: Express.Multer.File | undefined,
+    @CurrentUser() currentUser: JwtPayload,
+  ) {
+    if (!file) {
+      throw new AppException('AVATAR_FILE_MISSING', HttpStatus.BAD_REQUEST);
+    }
+    return this.usersService.updateMyAvatar(currentUser.sub, file.buffer);
+  }
+
+  /**
+   * Remove o avatar do próprio user (S3 + BD). Volta a render iniciais na UI.
+   * Tem que estar declarado ANTES de @Delete(':id').
+   */
+  @Delete('me/avatar')
+  deleteMyAvatar(@CurrentUser() currentUser: JwtPayload) {
+    return this.usersService.deleteMyAvatar(currentUser.sub);
   }
 
   /** Atualiza utilizador — validação de ownership no service */

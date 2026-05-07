@@ -286,6 +286,9 @@
   font-weight: 600;
   flex-shrink: 0;
 }
+/* Quando .ts-avatar é uma <img> (avatar custom do utilizador), garante crop e
+   ausência de fundo herdado das variantes de cor por publicId. */
+img.ts-avatar { object-fit: cover; background: transparent; }
 .ts-person__main { flex: 1; min-width: 0; }
 .ts-person__nm {
   font-size: 13px;

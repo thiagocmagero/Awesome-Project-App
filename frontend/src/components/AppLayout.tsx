@@ -557,9 +557,18 @@ function AppLayoutInner() {
                 aria-expanded="false"
               >
                 <div className="d-flex align-items-center">
-                  <div className="avatar avatar-sm avatar-rounded bg-primary text-white d-flex align-items-center justify-content-center fw-semibold" style={{ fontSize: '13px' }}>
-                    {userInitials}
-                  </div>
+                  {user?.avatarUrl ? (
+                    <img
+                      src={`${user.avatarUrl}${user.avatarUpdatedAt ? `?v=${encodeURIComponent(user.avatarUpdatedAt)}` : ''}`}
+                      alt={user.name}
+                      className="avatar avatar-sm avatar-rounded"
+                      style={{ objectFit: 'cover' }}
+                    />
+                  ) : (
+                    <div className="avatar avatar-sm avatar-rounded bg-primary text-white d-flex align-items-center justify-content-center fw-semibold" style={{ fontSize: '13px' }}>
+                      {userInitials}
+                    </div>
+                  )}
                   <div className="d-xl-block d-none lh-1 ms-2">
                     <span className="fw-medium lh-1">{user?.name}</span>
                     <span className="d-block fs-11 text-muted mt-1">
@@ -572,9 +581,18 @@ function AppLayoutInner() {
               <ul className="main-header-dropdown dropdown-menu pt-0 overflow-hidden header-profile-dropdown dropdown-menu-end">
                 <li className="pt-3 pb-2 px-3 border-bottom">
                   <div className="d-flex align-items-center gap-2">
-                    <div className="avatar avatar-md avatar-rounded bg-primary text-white d-flex align-items-center justify-content-center fw-bold">
-                      {userInitials}
-                    </div>
+                    {user?.avatarUrl ? (
+                      <img
+                        src={`${user.avatarUrl}${user.avatarUpdatedAt ? `?v=${encodeURIComponent(user.avatarUpdatedAt)}` : ''}`}
+                        alt={user.name}
+                        className="avatar avatar-md avatar-rounded"
+                        style={{ objectFit: 'cover' }}
+                      />
+                    ) : (
+                      <div className="avatar avatar-md avatar-rounded bg-primary text-white d-flex align-items-center justify-content-center fw-bold">
+                        {userInitials}
+                      </div>
+                    )}
                     <div>
                       <p className="fw-semibold mb-0">{user?.name}</p>
                       <p className="text-muted mb-0 fs-12">{user?.email}</p>

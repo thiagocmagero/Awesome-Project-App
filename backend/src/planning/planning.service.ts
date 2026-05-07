@@ -23,6 +23,7 @@ import {
 } from './business-hours.util';
 import { assertTaskDurationWithinLimit } from './limits.util';
 import { PlatformConfigService } from '../platform-config/platform-config.service';
+import { StorageService } from '../storage/storage.service';
 
 /**
  * Helper interno — devolve workHours válido a partir do JSON do projecto, ou
@@ -70,7 +71,14 @@ export class PlanningService {
     private readonly notificationsService: NotificationsService,
     private readonly statesService: StatesService,
     private readonly platformConfig: PlatformConfigService,
+    private readonly storage: StorageService,
   ) {}
+
+  /** Helper local — converte `avatarKey` em `avatarUrl` para o response. */
+  private resolveAvatarUrl(key: string | null | undefined): string | null {
+    if (!key || !this.storage.isReady()) return null;
+    return this.storage.buildPublicUrl(key);
+  }
 
   // ── Helpers: resolve publicId → internal numeric id ─────────────────────────
 
@@ -351,12 +359,29 @@ export class PlanningService {
     // segurança: GanttResourceNode.id e User.id deixam de vazar para a API.
     const idToPublicId = new Map<number, string>();
     for (const n of finalNodes) idToPublicId.set(n.id, n.publicId);
+
+    // Buscar avatarKey dos users associados aos nodes (folhas com `userId`).
+    const userIds = finalNodes
+      .map((n) => n.userId)
+      .filter((id): id is number => id !== null);
+    const avatarByUserId = new Map<number, string | null>();
+    if (userIds.length > 0) {
+      const users = await this.prisma.user.findMany({
+        where: { id: { in: userIds } },
+        select: { id: true, avatarKey: true },
+      });
+      for (const u of users) avatarByUserId.set(u.id, u.avatarKey);
+    }
+
     return finalNodes.map((n) => ({
       id: n.publicId,
       text: n.text,
       parent: n.parentId !== null ? (idToPublicId.get(n.parentId) ?? null) : null,
       hoursPerDay: n.hoursPerDay,
       isGroup: n.isGroup,
+      avatarUrl: n.userId
+        ? this.resolveAvatarUrl(avatarByUserId.get(n.userId) ?? null)
+        : null,
     }));
   }
 

@@ -115,6 +115,9 @@ export interface ResourceNode {
   parent: string | null;
   hoursPerDay: number;
   isGroup: boolean;
+  /** URL pública (S3) do avatar do utilizador associado (se for folha com userId).
+   *  null para grupos, recursos externos sem userId, ou utilizadores sem avatar. */
+  avatarUrl: string | null;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────

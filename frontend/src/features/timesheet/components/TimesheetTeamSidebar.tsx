@@ -65,10 +65,19 @@ export function TimesheetTeamSidebar({
             className={`ts-person${selectedUserPublicId === r.user.publicId ? ' is-active' : ''}`}
             onClick={() => onSelect(r.user.publicId)}
           >
-            <span
-              className="ts-avatar"
-              style={{ background: avatarColorFor(r.user.publicId) }}
-            >{r.user.initials}</span>
+            {r.user.avatarUrl ? (
+              <img
+                className="ts-avatar"
+                src={r.user.avatarUrl}
+                alt={r.user.name}
+                style={{ objectFit: 'cover' }}
+              />
+            ) : (
+              <span
+                className="ts-avatar"
+                style={{ background: avatarColorFor(r.user.publicId) }}
+              >{r.user.initials}</span>
+            )}
             <div className="ts-person__main">
               <div className="ts-person__nm">{r.user.name}</div>
               <div className="ts-person__sub">

@@ -256,7 +256,9 @@ export class AuthService {
 
     await this.issueSessionAndCookies(user.id, user.email, user.profile.code, req, res);
 
-    const { passwordHash: _ph, id: _id, selfRegistered: _sr, ...safeUser } = user;
+    const { passwordHash: _ph, id: _id, selfRegistered: _sr, ...rest } = user;
+    // Converte `avatarKey` interno em `avatarUrl` público antes de devolver.
+    const safeUser = this.usersService.toPublicResponse(rest as Record<string, unknown>) as any;
 
     return {
       user: {
@@ -423,7 +425,9 @@ export class AuthService {
 
     await this.issueSessionAndCookies(newUser.id, newUser.email, fullUser.profile.code, req, res);
 
-    const { passwordHash: _ph, id: _id, ...safeUser } = fullUser as any;
+    const { passwordHash: _ph, id: _id, ...rest } = fullUser as any;
+    // Converte `avatarKey` interno em `avatarUrl` público.
+    const safeUser = this.usersService.toPublicResponse(rest as Record<string, unknown>) as any;
     return {
       user: {
         ...safeUser,

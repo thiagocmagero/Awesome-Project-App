@@ -91,10 +91,19 @@ export function TimesheetTeamPersonHeader({
   return (
     <>
       <div className="ts-person-summary">
-        <span
-          className="ts-avatar"
-          style={{ background: avatarColorFor(row.user.publicId) }}
-        >{row.user.initials}</span>
+        {row.user.avatarUrl ? (
+          <img
+            className="ts-avatar"
+            src={row.user.avatarUrl}
+            alt={row.user.name}
+            style={{ objectFit: 'cover' }}
+          />
+        ) : (
+          <span
+            className="ts-avatar"
+            style={{ background: avatarColorFor(row.user.publicId) }}
+          >{row.user.initials}</span>
+        )}
         <div className="info">
           <div className="nm">{row.user.name}</div>
           <div className="sub">

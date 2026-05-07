@@ -1,17 +1,29 @@
 import {
   HttpStatus,
   Injectable,
+  Logger,
 } from '@nestjs/common';
 import { AppException } from '../common/exceptions/app.exception';
 import { randomUUID } from 'crypto';
 import * as bcrypt from 'bcrypt';
+// `sharp` exporta uma função directamente em CJS (`module.exports = sharp`).
+// Sem `esModuleInterop: true` no tsconfig, `import sharp from 'sharp'` compila
+// para `sharp_1.default(...)` e falha em runtime ("is not a function"). A
+// sintaxe `import = require()` do TS mapeia 1:1 para `const sharp = require()`.
+import sharp = require('sharp');
+// `file-type@16.x` mantém CommonJS exports — versões 17+ são ESM-only e não
+// resolvem com `moduleResolution: "node"` do tsconfig actual.
+import { fromBuffer as fileTypeFromBuffer } from 'file-type';
 import { Status } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { StorageService } from '../storage/storage.service';
 import type { JwtPayload } from '../auth/jwt.strategy';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 
-// Fields included in every safe user response (never exposes passwordHash or internal IDs)
+// Fields included in every safe user response (never exposes passwordHash or internal IDs).
+// Note: `avatarKey` é seleccionado mas NUNCA exposto — o helper `attachAvatarUrl`
+// remove-o do response e injecta `avatarUrl` resolvido (URL pública completa).
 const USER_SELECT = {
   publicId: true,
   email: true,
@@ -22,6 +34,8 @@ const USER_SELECT = {
   phone: true,
   website: true,
   address: true,
+  avatarKey: true,
+  avatarUpdatedAt: true,
   profile: { select: { publicId: true, code: true, label: true } },
   userType: { select: { publicId: true, code: true, label: true } },
   level: { select: { publicId: true, code: true, label: true, order: true } },
@@ -46,9 +60,50 @@ const IS_ADMIN = (u: JwtPayload) => u.profileCode === 'PLATFORM_ADMIN';
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(UsersService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly storage: StorageService,
+  ) {}
 
   // ── Internal helpers ─────────────────────────────────────────────────────
+
+  /**
+   * Converte `avatarKey` (path relativo no S3) em `avatarUrl` (URL pública
+   * completa) e remove o campo interno `avatarKey` do response. **Sempre**
+   * chamado antes de devolver um user pelo service — o frontend nunca recebe
+   * `avatarKey`. Quando o storage está desactivado (env vars em falta) ou o
+   * user não tem avatar, devolve `avatarUrl: null` (UI mostra iniciais).
+   *
+   * Generic preserva o tipo de input para que callers que dependem de campos
+   * fortemente tipados (ex.: AuthService a aceder a `user.profile.code` após
+   * `activateInvitedUser`) não percam type narrowing.
+   */
+  private attachAvatarUrl<T extends { avatarKey?: string | null }>(
+    user: T,
+  ): Omit<T, 'avatarKey'> & { avatarUrl: string | null };
+  private attachAvatarUrl<T extends { avatarKey?: string | null }>(
+    user: T | null,
+  ): (Omit<T, 'avatarKey'> & { avatarUrl: string | null }) | null;
+  private attachAvatarUrl<T extends { avatarKey?: string | null }>(
+    user: T | null,
+  ) {
+    if (!user) return null;
+    const { avatarKey, ...rest } = user;
+    const avatarUrl =
+      avatarKey && this.storage.isReady()
+        ? this.storage.buildPublicUrl(avatarKey)
+        : null;
+    return { ...rest, avatarUrl };
+  }
+
+  /** Variante para arrays (findAll). */
+  private attachAvatarUrlArray<T extends { avatarKey?: string | null }>(
+    users: T[],
+  ) {
+    return users.map((u) => this.attachAvatarUrl(u));
+  }
 
   private async ensureEmailUnique(email: string, excludeId?: number) {
     const existing = await this.prisma.user.findUnique({ where: { email } });
@@ -158,7 +213,11 @@ export class UsersService {
     await this.assignDefaultPlan(user.id);
 
     // Re-fetch to include the plan
-    return this.prisma.user.findUniqueOrThrow({ where: { id: user.id }, select: USER_SELECT });
+    const created = await this.prisma.user.findUniqueOrThrow({
+      where: { id: user.id },
+      select: USER_SELECT,
+    });
+    return this.attachAvatarUrl(created);
   }
 
   /** Used by AuthService.register — assigns BASIC_USER profile by default.
@@ -188,11 +247,13 @@ export class UsersService {
     // Assign default plan
     await this.assignDefaultPlan(user.id);
 
-    // Re-fetch to include the plan — also include internal id for AuthService
-    return this.prisma.user.findUniqueOrThrow({
+    // Re-fetch to include the plan — also include internal id for AuthService.
+    // O caller (AuthService) precisa do `id` interno; faz o pick necessário.
+    const created = await this.prisma.user.findUniqueOrThrow({
       where: { id: user.id },
       select: { ...USER_SELECT, id: true },
     });
+    return { ...this.attachAvatarUrl(created), id: created.id };
   }
 
   async findAll(requestingUser: JwtPayload, filters?: { status?: Status }) {
@@ -203,17 +264,18 @@ export class UsersService {
 
     const statusFilter = filters?.status ? { status: filters.status } : {};
 
-    return this.prisma.user.findMany({
+    const users = await this.prisma.user.findMany({
       where: { ...ownershipFilter, ...statusFilter },
       orderBy: { id: 'asc' },
       select: USER_SELECT,
     });
+    return this.attachAvatarUrlArray(users);
   }
 
   async findOne(publicId: string, requestingUser: JwtPayload) {
     const user = await this.resolveUser(publicId);
     this.assertOwnership(user.id, user.createdById, requestingUser);
-    return this.stripInternal(user);
+    return this.attachAvatarUrl(this.stripInternal(user));
   }
 
   async update(publicId: string, dto: UpdateUserDto, requestingUser: JwtPayload) {
@@ -265,11 +327,12 @@ export class UsersService {
     if ('website' in dto) data.website = (dto as any).website ?? null;
     if ('address' in dto) data.address = (dto as any).address ?? null;
 
-    return this.prisma.user.update({
+    const updated = await this.prisma.user.update({
       where: { id: user.id },
       data,
       select: USER_SELECT,
     });
+    return this.attachAvatarUrl(updated);
   }
 
   /**
@@ -281,11 +344,12 @@ export class UsersService {
    * - Aba "Região e Idioma" da UserSettingsPage.
    */
   async updateMyTimezone(userId: number, timezone: string | null) {
-    return this.prisma.user.update({
+    const updated = await this.prisma.user.update({
       where: { id: userId },
       data: { timezone },
       select: USER_SELECT,
     });
+    return this.attachAvatarUrl(updated);
   }
 
   /**
@@ -299,11 +363,12 @@ export class UsersService {
     if ('website' in dto) data.website = dto.website ?? null;
     if ('address' in dto) data.address = dto.address ?? null;
 
-    return this.prisma.user.update({
+    const updated = await this.prisma.user.update({
       where: { id: userId },
       data,
       select: USER_SELECT,
     });
+    return this.attachAvatarUrl(updated);
   }
 
   /**
@@ -321,11 +386,12 @@ export class UsersService {
     if (!valid) throw new AppException('INVALID_CURRENT_PASSWORD', HttpStatus.BAD_REQUEST);
 
     const passwordHash = await bcrypt.hash(dto.newPassword, 10);
-    return this.prisma.user.update({
+    const updated = await this.prisma.user.update({
       where: { id: userId },
       data: { passwordHash },
       select: USER_SELECT,
     });
+    return this.attachAvatarUrl(updated);
   }
 
   /**
@@ -353,11 +419,102 @@ export class UsersService {
       }
       resolved = found.code;
     }
-    return this.prisma.user.update({
+    const updated = await this.prisma.user.update({
       where: { id: userId },
       data: { locale: resolved },
       select: USER_SELECT,
     });
+    return this.attachAvatarUrl(updated);
+  }
+
+  // ── Avatar (próprio user) ───────────────────────────────────────────────
+
+  /**
+   * Upload de avatar do próprio user. Pipeline:
+   *   1. Validação de tamanho (já filtrado pelo Multer; defesa extra aqui).
+   *   2. Detecção MIME real via magic bytes (`file-type`) — nunca confiar
+   *      no Content-Type declarado pelo cliente. SVG é rejeitado por XSS.
+   *   3. Reprocessamento via `sharp` — strip metadata + resize cover 256×256
+   *      + WebP quality 85. O re-encode anula qualquer payload malicioso
+   *      embebido (EXIF, comentários, polyglots).
+   *   4. PUT no bucket público `avatars/{user.publicId}.webp`.
+   *   5. Update `User.avatarKey` + `avatarUpdatedAt`.
+   *
+   * Errors:
+   *   - 400 `AVATAR_TOO_LARGE` — file > 5 MB
+   *   - 400 `AVATAR_INVALID_TYPE` — MIME real não está em allowed list
+   *   - 400 `AVATAR_PROCESSING_FAILED` — sharp falhou (imagem corrompida)
+   *   - 503 `STORAGE_NOT_READY` — env vars AWS_* em falta
+   */
+  async updateMyAvatar(userId: number, fileBuffer: Buffer) {
+    if (fileBuffer.length > StorageService.maxAvatarBytes) {
+      throw new AppException('AVATAR_TOO_LARGE', HttpStatus.BAD_REQUEST);
+    }
+
+    const detected = await fileTypeFromBuffer(fileBuffer);
+    if (
+      !detected ||
+      !StorageService.allowedAvatarMime.includes(detected.mime)
+    ) {
+      throw new AppException('AVATAR_INVALID_TYPE', HttpStatus.BAD_REQUEST);
+    }
+
+    let processed: Buffer;
+    try {
+      processed = await sharp(fileBuffer)
+        .rotate() // honra orientação EXIF antes de strip metadata
+        .resize(256, 256, { fit: 'cover', position: 'centre' })
+        .webp({ quality: 85 })
+        .toBuffer();
+    } catch (err) {
+      this.logger.warn(`Sharp processing failed: ${(err as Error).message}`);
+      throw new AppException(
+        'AVATAR_PROCESSING_FAILED',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { publicId: true },
+    });
+    if (!user) {
+      throw new AppException('USER_NOT_FOUND', HttpStatus.NOT_FOUND);
+    }
+
+    const key = await this.storage.putAvatar(user.publicId, processed);
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: { avatarKey: key, avatarUpdatedAt: new Date() },
+      select: USER_SELECT,
+    });
+    return this.attachAvatarUrl(updated);
+  }
+
+  /**
+   * Remove o avatar do próprio user. Apaga o objecto no S3 (silencioso em
+   * caso de falha — não bloqueia a operação principal: o user fica logo
+   * sem avatar na BD, e a falha vai para o log para diagnóstico). Limpa
+   * `avatarKey` + `avatarUpdatedAt` no User.
+   */
+  async deleteMyAvatar(userId: number) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { avatarKey: true },
+    });
+    if (user?.avatarKey) {
+      await this.storage.deletePublicObject(user.avatarKey).catch((e) =>
+        this.logger.warn(
+          `Avatar S3 delete failed (ignored): ${(e as Error).message}`,
+        ),
+      );
+    }
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: { avatarKey: null, avatarUpdatedAt: null },
+      select: USER_SELECT,
+    });
+    return this.attachAvatarUrl(updated);
   }
 
   /** Soft delete — sets status to INACTIVE */
@@ -365,20 +522,22 @@ export class UsersService {
     const user = await this.resolveUser(publicId);
     this.assertOwnership(user.id, user.createdById, requestingUser);
 
-    return this.prisma.user.update({
+    const updated = await this.prisma.user.update({
       where: { id: user.id },
       data: { status: Status.INACTIVE },
       select: USER_SELECT,
     });
+    return this.attachAvatarUrl(updated);
   }
 
   // ── Auth helpers ─────────────────────────────────────────────────────────
 
   async findByEmail(email: string) {
-    return this.prisma.user.findUnique({
+    const user = await this.prisma.user.findUnique({
       where: { email },
       select: USER_SELECT,
     });
+    return this.attachAvatarUrl(user);
   }
 
   /** Assign the default plan to a newly created user */
@@ -393,7 +552,9 @@ export class UsersService {
     });
   }
 
-  /** Returns user with passwordHash + selfRegistered for credential validation and registration flow */
+  /** Returns user with passwordHash + selfRegistered for credential validation and registration flow.
+   *  Caller (AuthService) consome `id`/`passwordHash`/`selfRegistered` directamente; ao devolver ao
+   *  cliente, usa `attachAvatarUrl` no campo público. Aqui não transformamos para preservar `id`. */
   async findByEmailWithPassword(email: string) {
     return this.prisma.user.findUnique({
       where: { email },
@@ -406,10 +567,19 @@ export class UsersService {
     });
   }
 
+  /** Helper exposto para AuthService: aplica `attachAvatarUrl` num user
+   *  vindo de `findByEmailWithPassword`/`activateInvitedUser`/`createWithDefaultProfile`
+   *  antes de o devolver na resposta de login/register. Mantém `id` intacto
+   *  para que o caller possa usá-lo internamente; o caller pode dropá-lo
+   *  ao construir o response. */
+  toPublicResponse<T extends { avatarKey?: string | null }>(user: T) {
+    return this.attachAvatarUrl(user);
+  }
+
   /** Activate an invited (non-selfRegistered) user when they complete self-registration.
    *  Updates name, passwordHash and marks selfRegistered = true. Returns USER_SELECT + id. */
   async activateInvitedUser(userId: number, data: { name: string; passwordHash: string }) {
-    return this.prisma.user.update({
+    const updated = await this.prisma.user.update({
       where: { id: userId },
       data: {
         name: data.name,
@@ -419,5 +589,6 @@ export class UsersService {
       },
       select: { ...USER_SELECT, id: true },
     });
+    return { ...this.attachAvatarUrl(updated), id: updated.id };
   }
 }

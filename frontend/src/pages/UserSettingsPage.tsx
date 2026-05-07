@@ -193,6 +193,81 @@ export default function UserSettingsPage() {
     }
   }
 
+  // ── Avatar (upload + remove) ───────────────────────────────────────────
+  // Os botões só ficam activos se o backend confirmar que o storage S3 está
+  // disponível (env vars AWS_* presentes). Quando indisponível mostramos
+  // hint genérico — o utilizador final nunca vê motivos técnicos.
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  /** Preview optimista (data URL) enquanto o upload está em curso. */
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [storageAvailable, setStorageAvailable] = useState(true);
+
+  useEffect(() => {
+    apiFetch(`${api}/platform-config/storage/availability`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { available: boolean } | null) => {
+        if (d) setStorageAvailable(d.available);
+      })
+      .catch(() => {});
+  }, [api]);
+
+  async function handleAvatarFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validação client-side (UX) — backend revalida via file-type magic bytes.
+    if (file.size > 5 * 1024 * 1024) {
+      showToast('danger', t('avatar.size_error'));
+      e.target.value = '';
+      return;
+    }
+    if (!['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(file.type)) {
+      showToast('danger', t('avatar.type_error'));
+      e.target.value = '';
+      return;
+    }
+
+    // Preview optimista — mostra a imagem enquanto o upload está em curso.
+    const reader = new FileReader();
+    reader.onload = () => setAvatarPreview(reader.result as string);
+    reader.readAsDataURL(file);
+
+    setUploadingAvatar(true);
+    const fd = new FormData();
+    fd.append('file', file);
+    try {
+      const res = await apiFetch(`${api}/users/me/avatar`, {
+        method: 'POST',
+        body: fd,
+        // Sem `Content-Type` header — o browser injecta o boundary correcto.
+      });
+      if (!res.ok) throw new Error();
+      await refreshUser();
+      showToast('success', t('success.avatar_uploaded'));
+    } catch {
+      showToast('danger', t('avatar.upload_error'));
+    } finally {
+      setAvatarPreview(null);
+      setUploadingAvatar(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }
+
+  async function handleRemoveAvatar() {
+    setUploadingAvatar(true);
+    try {
+      const res = await apiFetch(`${api}/users/me/avatar`, { method: 'DELETE' });
+      if (!res.ok) throw new Error();
+      await refreshUser();
+      showToast('success', t('avatar.removed'));
+    } catch {
+      showToast('danger', t('avatar.upload_error'));
+    } finally {
+      setUploadingAvatar(false);
+    }
+  }
+
   // ── Notifications ─────────────────────────────────────────────────────────
   const [prefs, setPrefs] = useState<NotificationPreference[]>([]);
   const [loadingPrefs, setLoadingPrefs] = useState(true);
@@ -435,32 +510,77 @@ export default function UserSettingsPage() {
                 <div className="card-body">
                   {/* Avatar section */}
                   <div className="d-flex align-items-center gap-4 mb-4 pb-3 border-bottom">
-                    <div
-                      className="rounded-circle d-flex align-items-center justify-content-center fw-semibold text-white fs-20 flex-shrink-0"
-                      style={{ width: 80, height: 80, background: '#845adf' }}
-                    >
-                      {initialsOf(user?.name ?? '')}
-                    </div>
+                    {avatarPreview || user?.avatarUrl ? (
+                      <img
+                        src={
+                          avatarPreview ??
+                          `${user!.avatarUrl}${
+                            user!.avatarUpdatedAt
+                              ? `?v=${encodeURIComponent(user!.avatarUpdatedAt)}`
+                              : ''
+                          }`
+                        }
+                        alt={user?.name ?? ''}
+                        className="rounded-circle flex-shrink-0"
+                        style={{
+                          width: 80,
+                          height: 80,
+                          objectFit: 'cover',
+                        }}
+                      />
+                    ) : (
+                      <div
+                        className="rounded-circle d-flex align-items-center justify-content-center fw-semibold text-white fs-20 flex-shrink-0"
+                        style={{ width: 80, height: 80, background: '#845adf' }}
+                      >
+                        {initialsOf(user?.name ?? '')}
+                      </div>
+                    )}
                     <div>
                       <div className="fw-semibold fs-15 mb-1">{user?.name}</div>
                       <div className="text-muted fs-13 mb-2">{user?.email}</div>
-                      <div className="d-flex gap-2">
+                      <div className="d-flex gap-2 align-items-center">
+                        {/* Input file hidden — disparado pelo botão "Alterar Imagem". */}
+                        <input
+                          type="file"
+                          ref={fileInputRef}
+                          accept="image/jpeg,image/png,image/gif,image/webp"
+                          style={{ display: 'none' }}
+                          onChange={handleAvatarFileSelected}
+                        />
                         <button
                           type="button"
                           className="btn btn-sm btn-light"
-                          onClick={() => showToast('info', t('avatar.coming_soon'))}
+                          disabled={!storageAvailable || uploadingAvatar}
+                          onClick={() => fileInputRef.current?.click()}
                         >
-                          <i className="ri-camera-line me-1" />
-                          {t('avatar.change')}
+                          {uploadingAvatar ? (
+                            <span
+                              className="spinner-border spinner-border-sm me-1"
+                              role="status"
+                              aria-hidden="true"
+                            />
+                          ) : (
+                            <i className="ri-camera-line me-1" />
+                          )}
+                          {uploadingAvatar ? t('avatar.uploading') : t('avatar.change')}
                         </button>
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-light text-danger"
-                          onClick={() => showToast('info', t('avatar.coming_soon'))}
-                        >
-                          {t('avatar.remove')}
-                        </button>
+                        {user?.avatarUrl && (
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-light text-danger"
+                            disabled={uploadingAvatar}
+                            onClick={handleRemoveAvatar}
+                          >
+                            {t('avatar.remove')}
+                          </button>
+                        )}
                       </div>
+                      {!storageAvailable && (
+                        <div className="text-muted fs-12 mt-2">
+                          {t('avatar.unavailable')}
+                        </div>
+                      )}
                     </div>
                   </div>
 

@@ -132,9 +132,11 @@ export function TaskTable({
                       .map((oid: string) => {
                         // owner_id agora é publicId (UUID) do GanttResourceNode.
                         const node = nodeMap.get(oid);
-                        return node ? { name: node.text, publicId: node.id } : null;
+                        return node
+                          ? { name: node.text, publicId: node.id, avatarUrl: node.avatarUrl }
+                          : null;
                       })
-                      .filter(Boolean) as Array<{ name: string; publicId: string }>;
+                      .filter(Boolean) as Array<{ name: string; publicId: string; avatarUrl: string | null }>;
                     const visibleOwners = owners.slice(0, 3);
                     const overflow = owners.length - visibleOwners.length;
                     return (
@@ -193,14 +195,25 @@ export function TaskTable({
                           ) : (
                             <div className="avatar-list-stacked">
                               {visibleOwners.map((m) => (
-                                <span
-                                  key={m.publicId}
-                                  className="avatar avatar-sm avatar-rounded text-white fw-semibold"
-                                  style={{ backgroundColor: avatarColorFor(m.publicId) }}
-                                  title={m.name}
-                                >
-                                  {initials(m.name)}
-                                </span>
+                                m.avatarUrl ? (
+                                  <img
+                                    key={m.publicId}
+                                    className="avatar avatar-sm avatar-rounded"
+                                    src={m.avatarUrl}
+                                    alt={m.name}
+                                    title={m.name}
+                                    style={{ objectFit: 'cover' }}
+                                  />
+                                ) : (
+                                  <span
+                                    key={m.publicId}
+                                    className="avatar avatar-sm avatar-rounded text-white fw-semibold"
+                                    style={{ backgroundColor: avatarColorFor(m.publicId) }}
+                                    title={m.name}
+                                  >
+                                    {initials(m.name)}
+                                  </span>
+                                )
                               ))}
                               {overflow > 0 && (
                                 <span className="avatar avatar-sm avatar-rounded bg-dark text-white fs-11">

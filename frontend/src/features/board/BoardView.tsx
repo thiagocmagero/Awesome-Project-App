@@ -295,7 +295,12 @@ export function BoardView({
     priority: { show: config.behavior?.showPriority !== false, values: priorityValues },
     users: {
       show: config.behavior?.showAssignees !== false,
-      values: bundle.users.map((u) => ({ id: u.id, label: u.label, color: u.color })),
+      values: bundle.users.map((u) => ({
+        id: u.id,
+        label: u.label,
+        color: u.color,
+        avatar: u.avatar,
+      })),
       maxCount: 3,
     },
     comments: { show: config.behavior?.showComments !== false },

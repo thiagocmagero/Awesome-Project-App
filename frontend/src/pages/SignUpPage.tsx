@@ -23,6 +23,8 @@ interface ApiRegisterUser {
   phone: string | null;
   website: string | null;
   address: string | null;
+  avatarUrl: string | null;
+  avatarUpdatedAt: string | null;
 }
 
 export default function SignUpPage() {
@@ -118,6 +120,8 @@ export default function SignUpPage() {
         phone: data.user.phone ?? null,
         website: data.user.website ?? null,
         address: data.user.address ?? null,
+        avatarUrl: data.user.avatarUrl ?? null,
+        avatarUpdatedAt: data.user.avatarUpdatedAt ?? null,
       };
 
       login(authUser);

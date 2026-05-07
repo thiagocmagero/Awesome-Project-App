@@ -83,6 +83,9 @@ export interface BoardUserOption {
   id: string;        // publicId
   label: string;
   color?: string;
+  /** URL pública (S3) do avatar do utilizador. Quando presente, o KanbanCard
+   *  renderiza a imagem (`<img src={user.avatar}>`) em vez das iniciais. */
+  avatar?: string;
 }
 
 // ─── Bundle do Board que `useBoardData` devolve ─────────────────────────────
