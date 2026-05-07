@@ -225,13 +225,7 @@ export class ProjectsService {
   }
 
   async create(dto: CreateProjectDto, requestingUser: JwtPayload) {
-    // Resolve publicId → numeric id for owner
-    let ownerNumericId: number | null = null;
-    if (IS_ADMIN(requestingUser)) {
-      ownerNumericId = dto.ownerId ? await this.resolveUserId(dto.ownerId) : null;
-    } else {
-      ownerNumericId = requestingUser.sub;
-    }
+    const ownerNumericId = requestingUser.sub;
 
     // Resolve publicId → numeric id for manager
     const managerNumericId = dto.managerId
@@ -278,10 +272,6 @@ export class ProjectsService {
     if (dto.description !== undefined) data.description = dto.description;
     if (dto.status !== undefined)      data.status      = dto.status;
 
-    // Support explicit null to clear the relation — BASIC_USER cannot change ownerId
-    if (IS_ADMIN(requestingUser) && 'ownerId' in dto) {
-      data.ownerId = dto.ownerId ? await this.resolveUserId(dto.ownerId) : null;
-    }
     if ('managerId' in dto) {
       data.managerId = dto.managerId ? await this.resolveUserId(dto.managerId) : null;
     }

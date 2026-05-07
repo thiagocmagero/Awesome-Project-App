@@ -18,17 +18,6 @@ export class UpdateProjectDto {
   status?: Status;
 
   /**
-   * Owner aplicacional — publicId do utilizador.
-   * Enviar null para limpar a associação.
-   * @IsOptional permite null — o serviço usa 'ownerId' in dto para distinguir null de undefined.
-   */
-  @ValidateIf((_o, v) => v !== null)
-  @IsString()
-  @IsUUID()
-  @IsOptional()
-  ownerId?: string | null;
-
-  /**
    * Project Manager — publicId do utilizador.
    * Enviar null para limpar a associação.
    */

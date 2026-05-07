@@ -90,7 +90,6 @@ interface HolidayBrief {
 const EMPTY_PROJECT_FORM = {
   name: '',
   description: '',
-  ownerId: '',
   managerId: '',
   status: 'ACTIVE',
   startDate: '',
@@ -206,7 +205,6 @@ export default function ProjectsPage() {
   const fpEndRef = useRef<HTMLInputElement>(null);
 
   // Choices.js refs
-  const choicesOwnerRef = useRef<HTMLSelectElement>(null);
   const choicesManagerRef = useRef<HTMLSelectElement>(null);
   const choicesStatusRef = useRef<HTMLSelectElement>(null);
   const choicesPriorityRef = useRef<HTMLSelectElement>(null);
@@ -276,7 +274,6 @@ export default function ProjectsPage() {
       const c = new Choices(ref.current, { searchEnabled, itemSelectText: '', shouldSort: false, allowHTML: false });
       instances.push(c);
     };
-    init(choicesOwnerRef, true);
     init(choicesManagerRef, true);
     init(choicesStatusRef);
     init(choicesPriorityRef);
@@ -297,7 +294,6 @@ export default function ProjectsPage() {
     setProjectForm({
       name: p.name,
       description: p.description ?? '',
-      ownerId: p.owner ? p.owner.publicId : '',
       managerId: p.manager ? p.manager.publicId : '',
       status: p.status,
       startDate: p.startDate ?? '',
@@ -319,7 +315,6 @@ export default function ProjectsPage() {
       const body: Record<string, unknown> = {
         name: projectForm.name,
         description: projectForm.description || undefined,
-        ownerId: projectForm.ownerId || undefined,
         managerId: projectForm.managerId || undefined,
         startDate: projectForm.startDate || undefined,
         endDate: projectForm.endDate || undefined,
@@ -342,7 +337,6 @@ export default function ProjectsPage() {
 
       if (editingProject) {
         body.status = projectForm.status;
-        if (!projectForm.ownerId) body.ownerId = null;
         if (!projectForm.managerId) body.managerId = null;
         if (!projectForm.startDate) body.startDate = null;
         if (!projectForm.endDate) body.endDate = null;
@@ -871,7 +865,7 @@ export default function ProjectsPage() {
                         <div
                           className="avatar avatar-xs avatar-rounded bg-success text-white d-flex align-items-center justify-content-center fw-semibold"
                           style={{ fontSize: '9px' }}
-                          title={`Owner: ${p.owner.name}`}
+                          title={`${t('form.owner')}: ${p.owner.name}`}
                         >
                           {p.owner.name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()}
                         </div>
@@ -969,26 +963,22 @@ export default function ProjectsPage() {
                         />
                       </div>
 
-                      {/* Owner */}
-                      <div className="col-md-6">
-                        <label className="form-label fw-medium">
-                          {t('form.owner')}
-                          <span className="text-muted fw-normal fs-12 ms-1">{t('form.owner_hint')}</span>
-                        </label>
-                        <select
-                          ref={choicesOwnerRef}
-                          className="form-select"
-                          value={projectForm.ownerId}
-                          onChange={e => setProjectForm(f => ({ ...f, ownerId: e.target.value }))}
-                        >
-                          <option value="">{tc('form.none')}</option>
-                          {activeUsers.map(u => (
-                            <option key={u.publicId} value={u.publicId}>
-                              {u.name}{u.userType ? ` — ${u.userType.label}` : ''}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                      {/* Owner / Criador (read-only — apenas em edição) */}
+                      {editingProject && (
+                        <div className="col-md-6">
+                          <label className="form-label fw-medium">
+                            {t('form.owner')}
+                            <span className="text-muted fw-normal fs-12 ms-1">{t('form.owner_hint')}</span>
+                          </label>
+                          <input
+                            type="text"
+                            className="form-control bg-light"
+                            value={editingProject.owner ? editingProject.owner.name : tc('form.none')}
+                            disabled
+                            readOnly
+                          />
+                        </div>
+                      )}
 
                       {/* Manager */}
                       <div className="col-md-6">

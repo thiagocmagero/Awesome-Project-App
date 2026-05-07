@@ -11,12 +11,6 @@ export class CreateProjectDto {
   @IsOptional()
   description?: string;
 
-  /** Owner aplicacional — publicId do utilizador responsável pelo produto */
-  @IsString()
-  @IsUUID()
-  @IsOptional()
-  ownerId?: string;
-
   /** Project Manager — publicId do responsável pela gestão */
   @IsString()
   @IsUUID()
