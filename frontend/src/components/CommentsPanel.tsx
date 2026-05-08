@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
@@ -7,7 +7,8 @@ import { useToast } from '../contexts/ToastContext';
 import { avatarColorFor, initialsOf } from '../lib/avatars';
 import { sanitizeCommentHtml } from '../lib/sanitize';
 import { useTimezone } from '../contexts/TimezoneContext';
-import { formatMoment } from '../lib/dateFormatting';
+import { formatMoment, formatDate } from '../lib/dateFormatting';
+import { useResolvedDateFormat } from '../contexts/ProjectDateFormatContext';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -81,6 +82,41 @@ function extractMentionIdsFromMap(content: string, map: Map<string, string>): st
   return matches
     .map((m) => map.get(m[1]))
     .filter((id): id is string => id !== undefined);
+}
+
+/** UTC midnight de uma data (idempotente entre horas locais e tz). */
+function startOfUtcDay(d: Date): Date {
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+}
+
+/** Agrupa comentários por dia em buckets ordenados ("Hoje" → "Ontem" → datas). */
+function groupCommentsByDay(
+  comments: CommentItem[],
+  t: TFn,
+  dateFormat: string,
+): Array<{ key: string; label: string; items: CommentItem[] }> {
+  const today = startOfUtcDay(new Date());
+  const yesterday = new Date(today);
+  yesterday.setUTCDate(today.getUTCDate() - 1);
+
+  const buckets = new Map<string, { label: string; items: CommentItem[]; sortKey: number }>();
+  for (const c of comments) {
+    const d = new Date(c.createdAt);
+    const dayUtc = startOfUtcDay(d);
+    const key = dayUtc.toISOString().slice(0, 10);
+    let label: string;
+    if (dayUtc.getTime() === today.getTime())          label = t('comments.group_today');
+    else if (dayUtc.getTime() === yesterday.getTime()) label = t('comments.group_yesterday');
+    else                                               label = formatDate(dayUtc, dateFormat);
+    if (!buckets.has(key)) {
+      buckets.set(key, { label, items: [], sortKey: dayUtc.getTime() });
+    }
+    buckets.get(key)!.items.push(c);
+  }
+  // Ordem: ascending (mais antigo primeiro), igual ao display flat anterior.
+  return Array.from(buckets.entries())
+    .sort(([, a], [, b]) => a.sortKey - b.sortKey)
+    .map(([key, value]) => ({ key, label: value.label, items: value.items }));
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -292,229 +328,275 @@ export default function CommentsPanel({ projectId, entityType, entityPublicId }:
     m.name.toLowerCase().includes(mentionSearch.toLowerCase()),
   );
 
+  // ── Cmd/Ctrl+Enter shortcut ───────────────────────────────────────────────
+
+  function handleComposerKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+      e.preventDefault();
+      if (content.trim() && !submitting) {
+        // Submit form via handleSubmit; cast to FormEvent (preventDefault inside).
+        handleSubmit(e as unknown as React.FormEvent);
+      }
+    }
+  }
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
-  return (
-    <div className="comments-panel" style={{ fontFamily: 'inherit' }}>
+  // Hook do dateFormat só quando há comentários — hook deve correr sempre,
+  // por isso mantemos a chamada incondicional.
+  const dateFormat = useResolvedDateFormat();
+  const groups = useMemo(
+    () => groupCommentsByDay(comments, t as TFn, dateFormat),
+    [comments, t, dateFormat],
+  );
 
-      {/* Comment list */}
+  return (
+    <div className="comments-panel">
+
+      <div className="comments-section-header">
+        <i className="ri-chat-3-line" aria-hidden="true" />
+        {t('comments.section_label')}
+        {comments.length > 0 && <span className="tab-count">{comments.length}</span>}
+      </div>
+
+      {/* Composer FIXO no topo */}
+      <form onSubmit={handleSubmit} className="comment-composer">
+        <span
+          className="avatar avatar-md"
+          style={{ background: avatarColor(user?.publicId ?? user?.name ?? '') }}
+          aria-hidden="true"
+        >
+          {initials(user?.name ?? 'U')}
+        </span>
+        <div className="composer-body" style={{ position: 'relative' }}>
+          <textarea
+            ref={textareaRef}
+            className="composer-textarea"
+            placeholder={t('comments.placeholder')}
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            onKeyUp={(e) => handleTextareaKeyUp(e, setContent, content)}
+            onKeyDown={handleComposerKeyDown}
+          />
+          {showMentionDropdown && filteredMentionables.length > 0 && (
+            <MentionDropdown
+              items={filteredMentionables}
+              anchor={textareaRef.current}
+              onSelect={(m) => insertMention(m, content, setContent, textareaRef.current, newMentionsMapRef)}
+            />
+          )}
+          <div className="composer-toolbar">
+            <button type="button" className="composer-tool" title="Bold" tabIndex={-1}>
+              <i className="ri-bold" aria-hidden="true" />
+            </button>
+            <button type="button" className="composer-tool" title="Italic" tabIndex={-1}>
+              <i className="ri-italic" aria-hidden="true" />
+            </button>
+            <button type="button" className="composer-tool" title="List" tabIndex={-1}>
+              <i className="ri-list-unordered" aria-hidden="true" />
+            </button>
+            <button type="button" className="composer-tool" title="Attach" tabIndex={-1}>
+              <i className="ri-attachment-2" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              className="composer-tool"
+              title="Mention"
+              tabIndex={-1}
+              onClick={() => {
+                const ta = textareaRef.current;
+                if (!ta) return;
+                const pos = ta.selectionStart ?? content.length;
+                const prefix = pos > 0 && content[pos - 1] !== ' ' && pos !== 0 ? ' @' : '@';
+                setContent(content.slice(0, pos) + prefix + content.slice(pos));
+                setTimeout(() => {
+                  ta.focus();
+                  const newPos = pos + prefix.length;
+                  ta.setSelectionRange(newPos, newPos);
+                }, 0);
+              }}
+            >
+              <i className="ri-at-line" aria-hidden="true" />
+            </button>
+            <button type="button" className="composer-tool" title="Emoji" tabIndex={-1}>
+              <i className="ri-emotion-line" aria-hidden="true" />
+            </button>
+            <span className="composer-spacer" />
+            <span className="kbd-hint">{t('comments.shortcut_send')}</span>
+            <button
+              type="submit"
+              className="btn btn-purple btn-sm"
+              disabled={!content.trim() || submitting}
+            >
+              {submitting ? (
+                <i className="ri-loader-4-line" />
+              ) : (
+                <><i className="ri-send-plane-fill me-1" aria-hidden="true" />{t('comments.btn_submit')}</>
+              )}
+            </button>
+          </div>
+        </div>
+      </form>
+
+      {/* Inline submit error */}
+      {submitError && (
+        <div className="alert alert-danger py-2 mb-2 fs-13">
+          <i className="ri-error-warning-line me-1" aria-hidden="true" />{submitError}
+        </div>
+      )}
+
+      {/* Comment list — agrupada por dia */}
       {loading ? (
         <div className="text-center py-4 text-muted">
           <i className="ri-loader-4-line fs-20" />
         </div>
       ) : comments.length === 0 ? (
-        <div className="text-center py-4 text-muted">
-          <i className="ri-chat-3-line fs-24" />
-          <p className="mt-2 mb-0 fs-13">{t('comments.empty')}</p>
+        <div className="comments-empty-state">
+          <i className="ri-chat-3-line" aria-hidden="true" />
+          <p className="mb-0 fs-13">{t('comments.empty')}</p>
         </div>
       ) : (
-        <ul className="list-unstyled mb-3" style={{ maxHeight: 380, overflowY: 'auto' }}>
-          {comments.map((comment) => (
-            <li key={comment.publicId} className="mb-3">
-              <div className="d-flex align-items-start gap-2">
-                {/* Avatar */}
-                <span
-                  className="avatar avatar-sm avatar-rounded flex-shrink-0"
-                  style={{
-                    background: avatarColor(comment.author.name),
-                    color: '#fff',
-                    width: 32, height: 32,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 12, fontWeight: 600, borderRadius: '50%',
-                  }}
-                >
-                  {initials(comment.author.name)}
-                </span>
-
-                <div className="flex-grow-1">
-                  {/* Header */}
-                  <div className="d-flex align-items-center gap-2 mb-1">
-                    <span className="fw-semibold fs-13">{comment.author.name}</span>
-                    <span className="text-muted fs-11">{relativeTime(comment.createdAt, t as TFn, tz)}</span>
-                    {comment.editedAt && (
-                      <span className="text-muted fs-11">({t('comments.edited')})</span>
-                    )}
-                    {/* Actions */}
-                    {(isAdmin || comment.author.publicId === user?.publicId) && (
-                      <div className="ms-auto d-flex gap-1">
-                        <button
-                          className="btn btn-xs p-0 text-muted"
-                          style={{ background: 'none', border: 'none', lineHeight: 1 }}
-                          title={tc('actions.edit')}
-                          onClick={() => {
-                            setEditingId(comment.publicId);
-                            setEditContent(stripMentionIds(comment.content));
-                            editMentionsMapRef.current = new Map(
-                              comment.mentions.map((m) => [m.name, m.publicId]),
-                            );
-                          }}
-                        >
-                          <i className="ri-pencil-line fs-13" />
-                        </button>
-                        <button
-                          className="btn btn-xs p-0 text-danger"
-                          style={{ background: 'none', border: 'none', lineHeight: 1 }}
-                          title={tc('actions.delete')}
-                          onClick={() => handleDelete(comment.publicId)}
-                        >
-                          <i className="ri-delete-bin-line fs-13" />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Content or Edit Form */}
-                  {editingId === comment.publicId ? (
-                    <div className="position-relative">
-                      <textarea
-                        ref={editTextareaRef}
-                        className="form-control form-control-sm mb-1"
-                        rows={2}
-                        value={editContent}
-                        onChange={(e) => setEditContent(e.target.value)}
-                        onKeyUp={(e) => handleTextareaKeyUp(e, setEditContent, editContent)}
-                      />
-                      {showMentionDropdown && filteredMentionables.length > 0 && (
-                        <MentionDropdown
-                          items={filteredMentionables}
-                          anchor={editTextareaRef.current}
-                          onSelect={(m) => insertMention(m, editContent, setEditContent, editTextareaRef.current, editMentionsMapRef)}
-                        />
+        <>
+          {groups.map((group) => (
+            <div key={group.key}>
+              <div className="comments-day-divider">{group.label}</div>
+              {group.items.map((comment) => (
+                <article key={comment.publicId} className="comment-card">
+                  <span
+                    className="avatar avatar-md"
+                    style={{ background: avatarColor(comment.author.publicId ?? comment.author.name) }}
+                    aria-hidden="true"
+                  >
+                    {initials(comment.author.name)}
+                  </span>
+                  <div className="comment-card-body">
+                    <div className="comment-card-head">
+                      <span className="comment-card-name">{comment.author.name}</span>
+                      <span className="comment-card-time">{relativeTime(comment.createdAt, t as TFn, tz)}</span>
+                      {comment.editedAt && (
+                        <span className="comment-card-time">· {t('comments.edited')}</span>
                       )}
-                      <div className="d-flex gap-1">
-                        <button
-                          className="btn btn-primary btn-xs py-0 px-2 fs-12"
-                          onClick={() => handleEditSubmit(comment.publicId)}
-                        >
-                          {tc('actions.save')}
-                        </button>
-                        <button
-                          className="btn btn-light btn-xs py-0 px-2 fs-12"
-                          onClick={() => setEditingId(null)}
-                        >
-                          {tc('actions.cancel')}
-                        </button>
-                      </div>
+                      {(isAdmin || comment.author.publicId === user?.publicId) && (
+                        <div className="comment-card-actions">
+                          <button
+                            type="button"
+                            className="btn btn-xs p-0 text-muted"
+                            style={{ background: 'none', border: 'none', lineHeight: 1 }}
+                            title={tc('actions.edit')}
+                            onClick={() => {
+                              setEditingId(comment.publicId);
+                              setEditContent(stripMentionIds(comment.content));
+                              editMentionsMapRef.current = new Map(
+                                comment.mentions.map((m) => [m.name, m.publicId]),
+                              );
+                            }}
+                          >
+                            <i className="ri-pencil-line fs-13" />
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-xs p-0 text-danger"
+                            style={{ background: 'none', border: 'none', lineHeight: 1 }}
+                            title={tc('actions.delete')}
+                            onClick={() => handleDelete(comment.publicId)}
+                          >
+                            <i className="ri-delete-bin-line fs-13" />
+                          </button>
+                        </div>
+                      )}
                     </div>
-                  ) : (
-                    <div
-                      className="fs-13 comment-content"
-                      style={{ lineHeight: 1.5, wordBreak: 'break-word' }}
-                      dangerouslySetInnerHTML={{ __html: sanitizeCommentHtml(comment.content) }}
-                    />
-                  )}
 
-                  {/* Reactions */}
-                  <div className="d-flex align-items-center gap-1 mt-1 flex-wrap">
-                    {comment.reactions.map((rg) => {
-                      const userReacted = rg.users.some((u) => u.publicId === (user?.publicId ?? ''));
-                      const tooltipNames = rg.users.map((u) => u.name).join(', ');
-                      return (
-                        <button
-                          key={rg.emoji}
-                          className="btn btn-xs py-0 px-1 fs-12"
-                          style={{
-                            background: userReacted ? '#e8e4ff' : '#f8f9fa',
-                            border: `1px solid ${userReacted ? '#735adb' : '#dee2e6'}`,
-                            color: userReacted ? '#735adb' : '#6c757d',
-                            lineHeight: '1.4',
-                          }}
-                          onClick={() => handleReaction(comment.publicId, rg.emoji)}
-                          title={tooltipNames}
-                        >
-                          {rg.emoji} {rg.users.length}
-                        </button>
-                      );
-                    })}
-                    {/* Add reaction picker */}
-                    <div className="dropdown">
-                      <button
-                        className="btn btn-xs py-0 px-1 fs-12 text-muted"
-                        style={{ background: '#f8f9fa', border: '1px solid #dee2e6' }}
-                        data-bs-toggle="dropdown"
-                        title={t('comments.add_reaction')}
-                      >
-                        <i className="ri-emotion-line" />
-                      </button>
-                      <div className="dropdown-menu p-2" style={{ minWidth: 'auto' }}>
+                    {editingId === comment.publicId ? (
+                      <div className="position-relative">
+                        <textarea
+                          ref={editTextareaRef}
+                          className="form-control form-control-sm mb-1"
+                          rows={2}
+                          value={editContent}
+                          onChange={(e) => setEditContent(e.target.value)}
+                          onKeyUp={(e) => handleTextareaKeyUp(e, setEditContent, editContent)}
+                        />
+                        {showMentionDropdown && filteredMentionables.length > 0 && (
+                          <MentionDropdown
+                            items={filteredMentionables}
+                            anchor={editTextareaRef.current}
+                            onSelect={(m) => insertMention(m, editContent, setEditContent, editTextareaRef.current, editMentionsMapRef)}
+                          />
+                        )}
                         <div className="d-flex gap-1">
-                          {ALLOWED_EMOJIS.map((emoji) => (
-                            <button
-                              key={emoji}
-                              className="btn btn-xs p-1 fs-16"
-                              style={{ background: 'none', border: 'none' }}
-                              onClick={() => handleReaction(comment.publicId, emoji)}
-                            >
-                              {emoji}
-                            </button>
-                          ))}
+                          <button
+                            type="button"
+                            className="btn btn-purple btn-sm py-0 px-2 fs-12"
+                            onClick={() => handleEditSubmit(comment.publicId)}
+                          >
+                            {tc('actions.save')}
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-light btn-sm py-0 px-2 fs-12"
+                            onClick={() => setEditingId(null)}
+                          >
+                            {tc('actions.cancel')}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div
+                        className="comment-card-content"
+                        dangerouslySetInnerHTML={{ __html: sanitizeCommentHtml(comment.content) }}
+                      />
+                    )}
+
+                    {/* Reactions */}
+                    <div className="reactions-row">
+                      {comment.reactions.map((rg) => {
+                        const userReacted = rg.users.some((u) => u.publicId === (user?.publicId ?? ''));
+                        const tooltipNames = rg.users.map((u) => u.name).join(', ');
+                        return (
+                          <button
+                            key={rg.emoji}
+                            type="button"
+                            className={`reaction-chip${userReacted ? ' is-mine' : ''}`}
+                            onClick={() => handleReaction(comment.publicId, rg.emoji)}
+                            title={tooltipNames}
+                          >
+                            {rg.emoji} {rg.users.length}
+                          </button>
+                        );
+                      })}
+                      <div className="dropdown">
+                        <button
+                          type="button"
+                          className="reaction-chip"
+                          data-bs-toggle="dropdown"
+                          title={t('comments.add_reaction')}
+                        >
+                          <i className="ri-emotion-line" aria-hidden="true" />
+                        </button>
+                        <div className="dropdown-menu p-2" style={{ minWidth: 'auto' }}>
+                          <div className="d-flex gap-1">
+                            {ALLOWED_EMOJIS.map((emoji) => (
+                              <button
+                                key={emoji}
+                                type="button"
+                                className="btn btn-xs p-1 fs-16"
+                                style={{ background: 'none', border: 'none' }}
+                                onClick={() => handleReaction(comment.publicId, emoji)}
+                              >
+                                {emoji}
+                              </button>
+                            ))}
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              </div>
-            </li>
+                </article>
+              ))}
+            </div>
           ))}
-        </ul>
+        </>
       )}
-
-      {/* Inline submit error */}
-      {submitError && (
-        <div className="alert alert-danger py-2 mb-2 fs-13">
-          <i className="ri-error-warning-line me-1" />{submitError}
-        </div>
-      )}
-
-      {/* New comment form */}
-      <form onSubmit={handleSubmit} className="position-relative">
-        <div className="d-flex align-items-start gap-2">
-          <span
-            className="avatar avatar-sm avatar-rounded flex-shrink-0 mt-1"
-            style={{
-              background: avatarColor(user?.name ?? ''),
-              color: '#fff',
-              width: 32, height: 32,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 12, fontWeight: 600, borderRadius: '50%',
-            }}
-          >
-            {initials(user?.name ?? 'U')}
-          </span>
-          <div className="flex-grow-1 position-relative">
-            <textarea
-              ref={textareaRef}
-              className="form-control form-control-sm"
-              rows={2}
-              placeholder={t('comments.placeholder')}
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              onKeyUp={(e) => handleTextareaKeyUp(e, setContent, content)}
-              style={{ resize: 'vertical' }}
-            />
-            {showMentionDropdown && filteredMentionables.length > 0 && (
-              <MentionDropdown
-                items={filteredMentionables}
-                anchor={textareaRef.current}
-                onSelect={(m) => insertMention(m, content, setContent, textareaRef.current, newMentionsMapRef)}
-              />
-            )}
-          </div>
-        </div>
-        <div className="d-flex justify-content-end mt-1">
-          <button
-            type="submit"
-            className="btn btn-primary btn-sm"
-            disabled={!content.trim() || submitting}
-          >
-            {submitting ? (
-              <i className="ri-loader-4-line" />
-            ) : (
-              <><i className="ri-send-plane-line me-1" />{t('comments.btn_submit')}</>
-            )}
-          </button>
-        </div>
-      </form>
     </div>
   );
 }

@@ -91,41 +91,72 @@ export class CommentsService {
 
   // ── Mentionables ────────────────────────────────────────────────────────────
 
+  /**
+   * Lista os utilizadores que podem ser mencionados num comentário deste
+   * projecto. Antes (até Mai 2026) o endpoint puxava TODOS os PLATFORM_ADMIN
+   * activos da plataforma — efeito secundário foi expor o roster inteiro de
+   * utilizadores ao autocomplete `@`. Agora restringe-se a:
+   *
+   *   1. Owner do projecto (`Project.owner`)
+   *   2. Manager do projecto (`Project.manager`)
+   *   3. ProjectMembers directos (`ProjectMember.userId`, status ACCEPTED)
+   *   4. Membros das equipas associadas ao projecto (via `ProjectTeam →
+   *      Team.members → User`)
+   *
+   * O resultado é dedupado por `User.publicId` e ordenado por nome. Apenas
+   * utilizadores com `status: 'ACTIVE'` são incluídos (evita listar contas
+   * inactivadas/arquivadas que não receberiam a notificação de menção).
+   *
+   * Recursos externos do Gantt (GanttResource sem userId) **não** entram
+   * porque não há `User` ao qual associar a notificação `MENTION` —
+   * `CommentMention.mentionedUserId` é FK para User. Para flagar recursos
+   * externos numa discussão, o utilizador refere-os pelo nome no texto sem
+   * usar o autocomplete `@`.
+   */
   async getMentionables(projectId: number) {
     const project = await this.prisma.project.findUnique({
       where: { id: projectId },
       select: {
-        ownerId: true,
-        managerId: true,
-        owner: { select: { publicId: true, name: true } },
-        manager: { select: { publicId: true, name: true } },
+        owner:   { select: { publicId: true, name: true, status: true } },
+        manager: { select: { publicId: true, name: true, status: true } },
         members: {
           where: { status: 'ACCEPTED', userId: { not: null } },
-          select: { user: { select: { publicId: true, name: true } } },
+          select: { user: { select: { publicId: true, name: true, status: true } } },
+        },
+        teams: {
+          select: {
+            team: {
+              select: {
+                members: {
+                  select: {
+                    user: { select: { publicId: true, name: true, status: true } },
+                  },
+                },
+              },
+            },
+          },
         },
       },
     });
     if (!project) throw new NotFoundException('Projeto não encontrado.');
 
-    const adminUsers = await this.prisma.user.findMany({
-      where: { profile: { code: 'PLATFORM_ADMIN' }, status: 'ACTIVE' },
-      select: { publicId: true, name: true },
-    });
-
     const seen = new Set<string>();
     const result: { publicId: string; name: string }[] = [];
 
-    const add = (u: { publicId: string; name: string } | null | undefined) => {
+    const add = (u: { publicId: string; name: string; status?: string } | null | undefined) => {
       if (!u) return;
+      if (u.status && u.status !== 'ACTIVE') return;
       if (seen.has(u.publicId)) return;
       seen.add(u.publicId);
-      result.push(u);
+      result.push({ publicId: u.publicId, name: u.name });
     };
 
-    for (const u of adminUsers) add(u);
     add(project.owner);
     add(project.manager);
     for (const m of project.members) add(m.user ?? undefined);
+    for (const pt of project.teams) {
+      for (const tm of pt.team.members) add(tm.user ?? undefined);
+    }
 
     return result.sort((a, b) => a.name.localeCompare(b.name));
   }

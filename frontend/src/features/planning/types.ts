@@ -69,6 +69,11 @@ export interface GanttTask {
   boardPosition: number | null;
   /** Número de comentários nesta tarefa (incluído na resposta do board). */
   commentCount?: number;
+  /** Audit (Prisma): existem sempre no schema. Adicionados ao tipo TS para
+   *  o redesign do TaskModal (topbar "Atualizada há X" + sidebar "Sistema").
+   *  Podem ser undefined em payloads que não os incluam — UI faz fallback. */
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface GanttLink {

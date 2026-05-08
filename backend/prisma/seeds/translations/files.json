@@ -23,7 +23,9 @@
     "scan.tooltip_infected": "Ameaça detetada — ficheiro bloqueado para download.",
 
     "upload.title": "Carregar ficheiro",
-    "upload.dropzone_hint": "Arrasta um ficheiro ou clica para escolher",
+    "upload.dropzone_main": "Arraste ficheiros aqui ou clique em Enviar Ficheiro",
+    "upload.dropzone_hint": "Tamanho máximo: 25 MB · PDF, DOC, XLS, imagens",
+    "upload.btn_send_file": "Enviar Ficheiro",
     "upload.btn_choose": "Escolher ficheiro",
     "upload.btn_submit": "Carregar",
     "upload.note_secured": "Este projeto tem verificação de malware ativa. O ficheiro ficará indisponível até a verificação concluir.",
@@ -71,7 +73,9 @@
     "scan.tooltip_infected": "Ameaça detectada — arquivo bloqueado para download.",
 
     "upload.title": "Enviar arquivo",
-    "upload.dropzone_hint": "Arraste um arquivo ou clique para escolher",
+    "upload.dropzone_main": "Arraste arquivos aqui ou clique em Enviar Arquivo",
+    "upload.dropzone_hint": "Tamanho máximo: 25 MB · PDF, DOC, XLS, imagens",
+    "upload.btn_send_file": "Enviar Arquivo",
     "upload.btn_choose": "Escolher arquivo",
     "upload.btn_submit": "Enviar",
     "upload.note_secured": "Este projeto tem verificação de malware ativa. O arquivo ficará indisponível até a verificação concluir.",
@@ -119,7 +123,9 @@
     "scan.tooltip_infected": "Threat detected — download blocked.",
 
     "upload.title": "Upload file",
-    "upload.dropzone_hint": "Drag a file or click to choose",
+    "upload.dropzone_main": "Drag files here or click Send File",
+    "upload.dropzone_hint": "Maximum size: 25 MB · PDF, DOC, XLS, images",
+    "upload.btn_send_file": "Send File",
     "upload.btn_choose": "Choose file",
     "upload.btn_submit": "Upload",
     "upload.note_secured": "This project has malware scanning enabled. The file will be unavailable until the scan completes.",
@@ -167,7 +173,9 @@
     "scan.tooltip_infected": "Amenaza detectada — descarga bloqueada.",
 
     "upload.title": "Subir archivo",
-    "upload.dropzone_hint": "Arrastra un archivo o pulsa para elegir",
+    "upload.dropzone_main": "Arrastra archivos aquí o pulsa Enviar archivo",
+    "upload.dropzone_hint": "Tamaño máximo: 25 MB · PDF, DOC, XLS, imágenes",
+    "upload.btn_send_file": "Enviar archivo",
     "upload.btn_choose": "Elegir archivo",
     "upload.btn_submit": "Subir",
     "upload.note_secured": "Este proyecto tiene verificación de malware activa. El archivo no estará disponible hasta que la verificación se complete.",

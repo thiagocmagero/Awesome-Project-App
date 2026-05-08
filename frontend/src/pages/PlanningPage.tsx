@@ -252,8 +252,6 @@ export default function PlanningPage() {
   const choicesPriorityRef    = useRef<HTMLSelectElement>(null);
   const choicesConstraintRef  = useRef<HTMLSelectElement>(null);
   const choicesParentRef      = useRef<HTMLSelectElement>(null);
-  const choicesStateRef       = useRef<HTMLSelectElement>(null);
-  const choicesOwnerRef       = useRef<HTMLSelectElement>(null);
 
   // ── Link form hook ────────────────────────────────────────────────────────────
   const {
@@ -800,12 +798,6 @@ export default function PlanningPage() {
         opt.selected = opt.value === parentVal;
       });
     }
-    if (choicesStateRef.current) {
-      const stateVal = taskFormState.boardColumn;
-      Array.from(choicesStateRef.current.options).forEach((opt) => {
-        opt.selected = opt.value === stateVal;
-      });
-    }
 
     const init = (ref: React.RefObject<HTMLSelectElement | null>, searchable = false) => {
       if (!ref.current) return;
@@ -818,27 +810,10 @@ export default function PlanningPage() {
       } as Record<string, unknown>));
     };
     init(choicesTypeRef); init(choicesPriorityRef); init(choicesConstraintRef);
-    init(choicesParentRef, true); init(choicesStateRef);
+    init(choicesParentRef, true);
+    // Estado deixou de ter <select> no TaskModal (clicável directo no QuickFact).
     return () => { instances.forEach((c) => c.destroy()); };
   }, [showTaskModal, tasks, scriptsReady, taskModalKey]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (!showTaskModal || typeof Choices === 'undefined' || !choicesOwnerRef.current) return;
-    Array.from(choicesOwnerRef.current.options).forEach((opt) => {
-      opt.selected = taskOwnerIds.includes(opt.value);
-    });
-    const c = new Choices(choicesOwnerRef.current, {
-      removeItemButton: true, searchEnabled: true,
-      searchPlaceholderValue: t('task.form.owner_search'),
-      itemSelectText: '', shouldSort: false, allowHTML: false,
-    } as Record<string, unknown>);
-    const el = choicesOwnerRef.current;
-    const handleChange = (e: Event) => {
-      setTaskOwnerIds(Array.from((e.target as HTMLSelectElement).selectedOptions).map((o) => o.value));
-    };
-    el.addEventListener('change', handleChange);
-    return () => { el.removeEventListener('change', handleChange); c.destroy(); };
-  }, [showTaskModal, resourceNodes, scriptsReady, taskModalKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Derived state ─────────────────────────────────────────────────────────────
   const teamMembers = useMemo<TeamMember[]>(() => {
@@ -863,9 +838,12 @@ export default function PlanningPage() {
   }, [project]);
 
   const allResourcesByType = useMemo(() => {
-    const groups = new Map<string, { label: string; items: Array<{ id: string; name: string }> }>();
+    const groups = new Map<string, { label: string; items: Array<{ id: string; name: string; avatarUrl: string | null }> }>();
     for (const n of resourceNodes) if (n.isGroup) groups.set(n.id, { label: n.text, items: [] });
-    for (const n of resourceNodes) if (!n.isGroup && n.parent) groups.get(n.parent)?.items.push({ id: n.id, name: n.text });
+    for (const n of resourceNodes)
+      if (!n.isGroup && n.parent) {
+        groups.get(n.parent)?.items.push({ id: n.id, name: n.text, avatarUrl: n.avatarUrl });
+      }
     return groups;
   }, [resourceNodes]);
 
@@ -1742,6 +1720,8 @@ export default function PlanningPage() {
           setTaskForm={setTaskForm}
           taskFormError={taskFormError}
           taskFormLoading={taskFormLoading}
+          taskOwnerIds={taskOwnerIds}
+          setTaskOwnerIds={setTaskOwnerIds}
           tasks={tasks}
           taskLinks={links}
           tasksById={tasksById}
@@ -1749,6 +1729,7 @@ export default function PlanningPage() {
             const target = links.find((l) => l.publicId === linkPublicId);
             if (target) handleDeleteLink(target);
           }}
+          onAddLink={() => setShowLinkModal(true)}
           boardColumns={statesData.states}
           allResourcesByType={allResourcesByType}
           fpStartRef={fpStartRef}
@@ -1757,10 +1738,13 @@ export default function PlanningPage() {
           choicesPriorityRef={choicesPriorityRef}
           choicesConstraintRef={choicesConstraintRef}
           choicesParentRef={choicesParentRef}
-          choicesStateRef={choicesStateRef}
-          choicesOwnerRef={choicesOwnerRef}
           setShowTaskModal={setShowTaskModal}
           handleTaskSubmit={handleTaskSubmit}
+          openCreateSubtask={(parentPublicId) => {
+            const parent = tasks.find((t) => t.publicId === parentPublicId);
+            openCreateTask(parent?.id ?? 0, undefined, parentPublicId);
+          }}
+          openEditTaskFromSubtask={(t) => openEditTask(t)}
         />
       )}
 

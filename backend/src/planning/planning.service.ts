@@ -1093,6 +1093,10 @@ export class PlanningService {
           .map((id) => nodeIdToPublicId.get(parseInt(id, 10)) ?? null)
           .filter((id): id is string => id !== null)
       : t.ownerIds;
+    const tWithAudit = t as typeof t & {
+      createdAt?: Date | null;
+      updatedAt?: Date | null;
+    };
     return {
       id: t.id,
       publicId: t.publicId,
@@ -1118,6 +1122,15 @@ export class PlanningService {
       boardSwimlane: t.boardSwimlane?.publicId ?? null,
       boardPosition: t.boardPosition ?? null,
       commentCount,
+      // Audit — incluídos para o redesign do TaskModal (topbar "Atualizada
+      // há X" + sidebar Sistema "Criada em"). Quando o caller passou o
+      // record completo do Prisma, os campos vêm preenchidos.
+      createdAt: tWithAudit.createdAt
+        ? tWithAudit.createdAt.toISOString()
+        : undefined,
+      updatedAt: tWithAudit.updatedAt
+        ? tWithAudit.updatedAt.toISOString()
+        : undefined,
     };
   }
 

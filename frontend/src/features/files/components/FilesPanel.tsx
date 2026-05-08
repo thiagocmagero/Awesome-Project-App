@@ -124,26 +124,35 @@ export function FilesPanel({
 
   return (
     <div>
-      <div
-        className="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2"
-      >
-        <div>
+      <div className="files-header">
+        <h6>
+          <i className="ri-attachment-2" aria-hidden="true" />
+          {t('page.tab_label')}
           {!loading && files.length > 0 && (
-            <small className="text-muted">{files.length}</small>
+            <span className="tab-count">{files.length}</span>
           )}
-        </div>
+        </h6>
         {canUpload && uploadsAvailable !== false && (
           <FileUploadButton
             onFile={handleUpload}
             disabled={uploadsAvailable === null}
-            className="btn btn-primary btn-sm"
+            className="btn btn-purple btn-sm"
+            label={t('upload.btn_send_file')}
           />
         )}
       </div>
 
-      {isEmpty && (
+      {canUpload && uploadsAvailable !== false && (
+        <div className="dropzone">
+          <i className="ri-upload-cloud-2-line" aria-hidden="true" />
+          <div className="dropzone-main">{t('upload.dropzone_main')}</div>
+          <div className="dropzone-hint">{t('upload.dropzone_hint')}</div>
+        </div>
+      )}
+
+      {isEmpty && !canUpload && (
         <div className="text-muted text-center p-4">
-          {canUpload ? t('list.empty_uploadable') : t('list.empty_readonly')}
+          {t('list.empty_readonly')}
         </div>
       )}
 
