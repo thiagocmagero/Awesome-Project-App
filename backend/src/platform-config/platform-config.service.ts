@@ -3,8 +3,12 @@ import { PrismaService } from '../prisma/prisma.service';
 import { UpdateEmailConfigDto } from './dto/update-email-config.dto';
 import { UpdatePlatformLimitsDto } from './dto/update-platform-limits.dto';
 
-/** Default singleton para PlatformLimits (id=1). Cap default 5 anos. */
+/** Default singleton para PlatformLimits (id=1). */
 const DEFAULT_MAX_TASK_BUSINESS_DAYS = 1300;
+const DEFAULT_MAX_UPLOAD_SIZE_MB = 50;
+/** Allowlist por defeito quando o singleton ainda não foi tocado pelo admin. */
+const DEFAULT_ALLOWED_MIME_TYPES: ReadonlyArray<string> = [];
+const DEFAULT_ALLOWED_FILE_EXTENSIONS: ReadonlyArray<string> = [];
 
 @Injectable()
 export class PlatformConfigService {
@@ -62,10 +66,18 @@ export class PlatformConfigService {
       return {
         id: 1,
         maxTaskBusinessDays: DEFAULT_MAX_TASK_BUSINESS_DAYS,
+        maxUploadSizeMb: DEFAULT_MAX_UPLOAD_SIZE_MB,
+        allowedMimeTypes: [...DEFAULT_ALLOWED_MIME_TYPES],
+        allowedFileExtensions: [...DEFAULT_ALLOWED_FILE_EXTENSIONS],
         updatedAt: new Date(),
       };
     }
-    return config;
+    return {
+      ...config,
+      // Campos JSON em BD — normalizar para array de strings.
+      allowedMimeTypes: this.coerceStringArray(config.allowedMimeTypes),
+      allowedFileExtensions: this.coerceStringArray(config.allowedFileExtensions),
+    };
   }
 
   /**
@@ -80,17 +92,93 @@ export class PlatformConfigService {
     return config?.maxTaskBusinessDays ?? DEFAULT_MAX_TASK_BUSINESS_DAYS;
   }
 
+  /**
+   * Tamanho máximo absoluto para um upload, em bytes. Lido pelo `FilesService`
+   * antes de aceitar o multipart. O cap por plano (`max_upload_size_mb`)
+   * pode ser mais restritivo, nunca mais permissivo.
+   */
+  async getMaxUploadBytes(): Promise<number> {
+    const config = await this.prisma.platformLimits.findUnique({
+      where: { id: 1 },
+      select: { maxUploadSizeMb: true },
+    });
+    const mb = config?.maxUploadSizeMb ?? DEFAULT_MAX_UPLOAD_SIZE_MB;
+    return mb * 1024 * 1024;
+  }
+
+  /**
+   * Allowlist de MIME types aceites. `FilesService` valida o MIME real
+   * detectado por magic bytes contra esta lista (Content-Type declarado pelo
+   * cliente é ignorado). Lista vazia = todos os uploads bloqueados — admin
+   * tem que configurar antes de habilitar a feature na app.
+   */
+  async getAllowedMimeTypes(): Promise<string[]> {
+    const config = await this.prisma.platformLimits.findUnique({
+      where: { id: 1 },
+      select: { allowedMimeTypes: true },
+    });
+    return this.coerceStringArray(config?.allowedMimeTypes);
+  }
+
+  /**
+   * Allowlist de extensões aceites (canónica, sem ponto, lowercase).
+   * `FilesService` valida `detected.ext` (do file-type) contra esta lista.
+   * Lista vazia = bloqueado. Defesa em camadas — extensão tem que estar OK
+   * E o MIME tem que estar OK; ambas as listas são independentes.
+   */
+  async getAllowedFileExtensions(): Promise<string[]> {
+    const config = await this.prisma.platformLimits.findUnique({
+      where: { id: 1 },
+      select: { allowedFileExtensions: true },
+    });
+    return this.coerceStringArray(config?.allowedFileExtensions);
+  }
+
   /** Upsert id=1 — apenas PLATFORM_ADMIN (controller assert). */
   async upsertLimits(dto: UpdatePlatformLimitsDto) {
     const data: Record<string, unknown> = {};
     if (dto.maxTaskBusinessDays !== undefined) {
       data.maxTaskBusinessDays = dto.maxTaskBusinessDays;
     }
-    return this.prisma.platformLimits.upsert({
+    if (dto.maxUploadSizeMb !== undefined) {
+      data.maxUploadSizeMb = dto.maxUploadSizeMb;
+    }
+    if (dto.allowedMimeTypes !== undefined) {
+      // Dedupe + lowercase + trim para normalizar input do admin.
+      const normalized = Array.from(
+        new Set(dto.allowedMimeTypes.map((m) => m.trim().toLowerCase()).filter(Boolean)),
+      );
+      data.allowedMimeTypes = normalized;
+    }
+    if (dto.allowedFileExtensions !== undefined) {
+      // Strip dots, lowercase, trim, dedupe. Aceita "pdf", ".pdf", "PDF",
+      // " pdf ", todos viram "pdf".
+      const normalized = Array.from(
+        new Set(
+          dto.allowedFileExtensions
+            .map((e) => e.trim().toLowerCase().replace(/^\.+/, ''))
+            .filter(Boolean),
+        ),
+      );
+      data.allowedFileExtensions = normalized;
+    }
+    const updated = await this.prisma.platformLimits.upsert({
       where:  { id: 1 },
-      create: { id: 1, maxTaskBusinessDays: DEFAULT_MAX_TASK_BUSINESS_DAYS, ...data },
+      create: {
+        id: 1,
+        maxTaskBusinessDays: DEFAULT_MAX_TASK_BUSINESS_DAYS,
+        maxUploadSizeMb: DEFAULT_MAX_UPLOAD_SIZE_MB,
+        allowedMimeTypes: [...DEFAULT_ALLOWED_MIME_TYPES],
+        allowedFileExtensions: [...DEFAULT_ALLOWED_FILE_EXTENSIONS],
+        ...data,
+      },
       update: data,
     });
+    return {
+      ...updated,
+      allowedMimeTypes: this.coerceStringArray(updated.allowedMimeTypes),
+      allowedFileExtensions: this.coerceStringArray(updated.allowedFileExtensions),
+    };
   }
 
   // ── Private ─────────────────────────────────────────────────────────────────
@@ -108,5 +196,11 @@ export class PlatformConfigService {
       hasPassword: false,
       updatedAt: new Date(),
     };
+  }
+
+  /** Converte um campo JSON Prisma (`JsonValue`) em `string[]`, filtrando não-strings. */
+  private coerceStringArray(value: unknown): string[] {
+    if (!Array.isArray(value)) return [];
+    return value.filter((v): v is string => typeof v === 'string');
   }
 }

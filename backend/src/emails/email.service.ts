@@ -47,6 +47,10 @@ import {
   type TimesheetRejectedEmailProps,
 } from './templates/timesheet-rejected.email';
 import {
+  FileInfectedEmail,
+  type FileInfectedEmailProps,
+} from './templates/file-infected.email';
+import {
   EmailConfirmationEmail,
   type EmailConfirmationEmailProps,
 } from './templates/email-confirmation.email';
@@ -693,6 +697,39 @@ export class EmailService implements OnModuleInit {
       subject,
       element: React.createElement(EmailConfirmationEmail, props),
       kind: 'EMAIL_CONFIRMATION',
+      locale: localeUsed,
+    });
+  }
+
+  // ─── 11.5. FILE_INFECTED ──────────────────────────────────────────────────────
+
+  async sendFileInfectedEmail(input: {
+    recipientEmail: string;
+    recipientName: string;
+    fileName: string;
+    locale: string | null;
+  }): Promise<void> {
+    const bundle = await this.loadEmailBundle(input.locale);
+    const localeUsed = input.locale ?? FALLBACK_LOCALE;
+    const vars = {
+      recipientName: input.recipientName,
+      fileName: input.fileName,
+    };
+    const subject = this.t(bundle, 'file_infected.subject', vars);
+
+    const props: FileInfectedEmailProps = {
+      common: this.buildCommon(bundle, vars),
+      preview: subject,
+      body_p1: this.t(bundle, 'file_infected.body_p1', vars),
+      body_p2: this.t(bundle, 'file_infected.body_p2', vars),
+      fileName: input.fileName,
+      appUrl: this.appUrl,
+    };
+    return this.renderAndSend({
+      to: input.recipientEmail,
+      subject,
+      element: React.createElement(FileInfectedEmail, props),
+      kind: 'FILE_INFECTED',
       locale: localeUsed,
     });
   }

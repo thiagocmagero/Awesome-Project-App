@@ -47,6 +47,48 @@ export class UsageService {
   }
 
   /**
+   * Incrementa um contador por `n` (usado quando o consumo não é unitário,
+   * ex.: `max_storage_mb` que adiciona MB de cada upload). Atómico via
+   * Prisma update operator.
+   */
+  async incrementBy(userId: number, usageKey: string, n: number): Promise<void> {
+    if (n <= 0) return;
+    await this.prisma.usageRecord.upsert({
+      where: { userId_usageKey: { userId, usageKey } },
+      update: { currentValue: { increment: n } },
+      create: { userId, usageKey, currentValue: n },
+    });
+  }
+
+  /**
+   * Decrementa por `n`, clamp a zero. Não cria registo se ainda não existe
+   * (não faz sentido decrementar antes do primeiro uso).
+   */
+  async decrementBy(userId: number, usageKey: string, n: number): Promise<void> {
+    if (n <= 0) return;
+    const record = await this.prisma.usageRecord.findUnique({
+      where: { userId_usageKey: { userId, usageKey } },
+    });
+    if (!record || record.currentValue <= 0) return;
+    const next = Math.max(0, record.currentValue - n);
+    await this.prisma.usageRecord.update({
+      where: { userId_usageKey: { userId, usageKey } },
+      data: { currentValue: next },
+    });
+  }
+
+  /**
+   * Ajusta o contador por `delta` (sinal indica direcção). Wrapper conveniente
+   * para callers que não sabem antecipadamente se o consumo aumenta ou
+   * diminui (ex.: `FilesService.replaceContent` que pode trocar bytes
+   * por mais ou menos do que tinha).
+   */
+  async adjustBy(userId: number, usageKey: string, delta: number): Promise<void> {
+    if (delta > 0) await this.incrementBy(userId, usageKey, delta);
+    else if (delta < 0) await this.decrementBy(userId, usageKey, -delta);
+  }
+
+  /**
    * Check if a user can still create a resource (within plan limit).
    *
    * Phase 5: aceita `ctx.projectPublicId` — quando presente E o requesting
@@ -120,6 +162,22 @@ export class UsageService {
           where: { projectId: { in: projects.map(p => p.id) } },
         });
       }
+      case 'max_uploads_count': {
+        // Active files in projects owned by this owner. Indexed por
+        // (projectId, status) — query rápida mesmo com muitos files.
+        const projects = await this.prisma.project.findMany({
+          where: { ownerId, status: 'ACTIVE' },
+          select: { id: true },
+        });
+        if (projects.length === 0) return 0;
+        return this.prisma.file.count({
+          where: { projectId: { in: projects.map(p => p.id) }, status: 'ACTIVE' },
+        });
+      }
+      // `max_storage_mb` cai no default (counter UsageRecord) — somar
+      // sizeBytes do `File` em cada checkLimit seria O(N) e é caminho
+      // crítico do upload. O counter é mantido em sync por
+      // FilesService.upload/replace/delete via incrementBy/decrementBy.
       default:
         // For storage, API calls etc. — use the stored counter (per-owner)
         const record = await this.prisma.usageRecord.findUnique({

@@ -34,6 +34,7 @@ import { StorageModule } from './storage/storage.module';
 import { I18nModule } from './i18n/i18n.module';
 import { WorkspaceMembersModule } from './workspace-members/workspace-members.module';
 import { BillingModule } from './billing/billing.module';
+import { FilesModule } from './files/files.module';
 
 @Module({
   imports: [
@@ -71,6 +72,7 @@ import { BillingModule } from './billing/billing.module';
     I18nModule,
     WorkspaceMembersModule,
     BillingModule,
+    FilesModule,
   ],
   controllers: [AppController],
   providers: [

@@ -96,6 +96,21 @@ enum NotificationType {
   TIMESHEET_APPROVED
   TIMESHEET_PARTIALLY_APPROVED
   TIMESHEET_REJECTED
+  /// Ficheiro foi marcado como infectado pelo AWS GuardDuty Malware Protection.
+  /// Disparado para o uploader. Bytes removidos do bucket; registo File preservado em INFECTED.
+  FILE_INFECTED
+}
+
+/// Estado do scan de malware (AWS GuardDuty Malware Protection) para uploads
+/// no path `uploads/secured/`. Ver docs/claude/tools/files/overview.md.
+/// null ⇒ ficheiro fora do path secured (sem scan, sem escudo no UI).
+enum FileScanStatus {
+  /// Path secured, scan pendente do GuardDuty
+  PENDING
+  /// Scan concluído sem ameaças (escudo verde)
+  CLEAN
+  /// Ameaça detectada — bytes removidos do bucket, registo preservado para audit
+  INFECTED
 }
 
 enum NotificationChannel {
@@ -363,6 +378,9 @@ model User {
   /// Timesheet — entradas no audit log onde este utilizador é o actor
   timesheetApprovalLogs TimesheetApprovalLog[]
 
+  /// Ficheiros enviados por este utilizador (authorship — sobrevive ao delete).
+  filesUploaded File[] @relation("FileUploadedBy")
+
   /// IANA timezone identifier do utilizador (ex.: 'Europe/Lisbon').
   /// MOMENTO REAL — usado em páginas globais (cross-project) e como default
   /// ao criar projecto novo. null ⇒ frontend detecta browser e patcha via
@@ -558,6 +576,9 @@ model Project {
   /// Timesheets — entries dos membros neste projecto
   timesheetEntries TimesheetEntry[]
 
+  /// Ficheiros enviados neste projecto (project-level e por task)
+  files File[]
+
   createdAt DateTime @default(now()) @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @db.Timestamptz(6)
 }
@@ -678,6 +699,23 @@ model PlatformLimits {
   /// Tasks HOUR convertem-se via Project.workHours (`durationHours / dailyHours`).
   /// Default 1300 (~5 anos calendário).
   maxTaskBusinessDays Int @default(1300)
+
+  /// Cap absoluto da plataforma para o tamanho de um único upload (em MB).
+  /// Qualquer plano só pode oferecer ≤ a este valor. Default 50 MB.
+  /// Ver docs/claude/tools/files/overview.md.
+  maxUploadSizeMb Int @default(50)
+
+  /// Allowlist de MIME types aceites em uploads de ficheiros. JSON array de
+  /// strings. Vazio ⇒ nenhum MIME aceite (uploads bloqueados). Validado em
+  /// runtime contra magic bytes (file-type) — Content-Type declarado é ignorado.
+  allowedMimeTypes Json @default("[]")
+
+  /// Allowlist de extensões aceites (sem ponto, lowercase). JSON array de
+  /// strings (ex.: ["pdf","png","docx"]). Vazio ⇒ nenhuma extensão aceite.
+  /// O ficheiro tem que passar AMBAS as allowlists (MIME + extensão) — defesa
+  /// em camadas. A extensão validada é a derivada de magic bytes pelo
+  /// `file-type` (canónica: 'jpg' para JPEG, não 'jpeg').
+  allowedFileExtensions Json @default("[]")
 
   updatedAt DateTime @updatedAt
 }
@@ -1037,6 +1075,10 @@ model GanttTask {
 
   /// Timesheet — entries que apontam para esta task (Restrict: não pode ser apagada se tiver entries)
   timesheetEntries TimesheetEntry[]
+
+  /// Ficheiros anexos a esta task. SetNull: apagar a task converte os
+  /// ficheiros em project-level (taskId passa a null), preservando-os.
+  files File[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1506,6 +1548,67 @@ model CommentReaction {
   createdAt DateTime @default(now())
 
   @@unique([commentId, userId, emoji])
+}
+
+// ─── Ficheiros / Uploads ─────────────────────────────────────────────────────
+
+/// Ficheiro enviado para o bucket privado, anexado a um projecto e
+/// opcionalmente a uma task. O `bucketKey` é opaco — não exposto pela API
+/// (FileResponseDto resolve `downloadUrl` presigned no momento da chamada).
+/// Path normal: `uploads/projects/{projectPublicId}/(_root|tasks/{taskPublicId})/{uuid}.{ext}`
+/// Path secured: `uploads/secured/projects/{projectPublicId}/(_root|tasks/{taskPublicId})/{uuid}.{ext}`
+/// A escolha normal vs secured é feita no momento do upload com base na
+/// feature flag `upload_secured` do **dono do projecto**. Ficheiros antigos
+/// não migram quando o plano muda. Ver docs/claude/tools/files/overview.md.
+model File {
+  id       Int    @id @default(autoincrement())
+  publicId String @unique @default(uuid(7))
+
+  /// Path imutável no bucket privado. Único — cada upload gera novo UUID.
+  bucketKey String @unique
+
+  /// Espelha presença do prefixo `uploads/secured/` no `bucketKey`. Usado pelo
+  /// frontend para decidir se mostra o escudo (combinado com `scanStatus`).
+  isSecuredPath Boolean @default(false)
+
+  /// Nome original (visível ao user). Pode ser alterado via PATCH.
+  originalName String
+
+  /// MIME type detectado por magic bytes (file-type), não pelo Content-Type.
+  mimeType String
+
+  /// Tamanho em bytes (Int suporta até 2 GB; para suportar mais, usar BigInt).
+  sizeBytes Int
+
+  /// Projecto a que o ficheiro pertence — sempre obrigatório.
+  /// Cascade: apagar projecto remove ficheiros (e o controller deve apagar
+  /// bucket objects associados em best-effort antes do hard delete).
+  projectId Int
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  /// Task associada — opcional (project-level files têm null).
+  /// SetNull: apagar task não apaga o ficheiro; passa a project-level.
+  taskId Int?
+  task   GanttTask? @relation(fields: [taskId], references: [id], onDelete: SetNull)
+
+  /// Quem fez o upload — authorship preservada após delete do user.
+  uploadedById Int?
+  uploadedBy   User? @relation("FileUploadedBy", fields: [uploadedById], references: [id], onDelete: SetNull)
+
+  /// Estado do scan AWS GuardDuty Malware Protection.
+  /// null ⇒ ficheiro fora do path secured (sem scan, sem escudo no UI).
+  scanStatus FileScanStatus?
+
+  /// Soft delete via Status (ACTIVE → INACTIVE). Hard delete só por
+  /// PLATFORM_ADMIN; antes deve apagar bucket object best-effort.
+  status Status @default(ACTIVE)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  @@index([projectId, status])
+  @@index([taskId, status])
+  @@index([uploadedById])
 }
 
 // ─── i18n — Internacionalização ───────────────────────────────────────────────

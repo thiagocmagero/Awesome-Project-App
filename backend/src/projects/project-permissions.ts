@@ -60,6 +60,12 @@ export enum ProjectAction {
   // Timesheet
   TIMESHEET_LOG     = 'TIMESHEET_LOG',
   TIMESHEET_APPROVE = 'TIMESHEET_APPROVE',
+
+  // Files (ficheiros project-scoped, opcionalmente anexos a uma task)
+  FILE_VIEW   = 'FILE_VIEW',
+  FILE_UPLOAD = 'FILE_UPLOAD',
+  FILE_RENAME = 'FILE_RENAME',
+  FILE_DELETE = 'FILE_DELETE',
 }
 
 // ── Default permissions per role ─────────────────────────────────────────────
@@ -88,6 +94,10 @@ export const DEFAULT_PERMISSIONS: Record<'CONTRIBUTOR' | 'READER', ProjectAction
     ProjectAction.BOARD_CONFIG,
     // Timesheet — log próprio (default Reader+/Contributor)
     ProjectAction.TIMESHEET_LOG,
+    // Files — view + upload + rename (delete continua restrito a OWNER por defeito)
+    ProjectAction.FILE_VIEW,
+    ProjectAction.FILE_UPLOAD,
+    ProjectAction.FILE_RENAME,
   ],
   READER: [
     ProjectAction.PROJECT_VIEW,
@@ -99,6 +109,8 @@ export const DEFAULT_PERMISSIONS: Record<'CONTRIBUTOR' | 'READER', ProjectAction
     ProjectAction.BOARD_VIEW,
     // Timesheet — log próprio (Reader também lança as próprias horas, REQ-P03)
     ProjectAction.TIMESHEET_LOG,
+    // Files — read-only por defeito (FILE_UPLOAD delegável)
+    ProjectAction.FILE_VIEW,
   ],
 };
 
@@ -133,6 +145,11 @@ export const DELEGATABLE_ACTIONS: ReadonlySet<ProjectAction> = new Set([
   // Timesheet
   ProjectAction.TIMESHEET_LOG,
   ProjectAction.TIMESHEET_APPROVE,
+  // Files — FILE_VIEW segue padrão de PROJECT_VIEW (sempre concedido, não delegável).
+  // FILE_UPLOAD/RENAME/DELETE são delegáveis (READER pode receber upload sem ter por defeito).
+  ProjectAction.FILE_UPLOAD,
+  ProjectAction.FILE_RENAME,
+  ProjectAction.FILE_DELETE,
 ]);
 
 // ── UI grouping (accordion sections) ────────────────────────────────────────
@@ -204,6 +221,16 @@ export const ACTION_GROUPS: ActionGroup[] = [
     actions: [
       ProjectAction.TIMESHEET_LOG,
       ProjectAction.TIMESHEET_APPROVE,
+    ],
+  },
+  {
+    key: 'files',
+    labelKey: 'group.files',
+    actions: [
+      ProjectAction.FILE_VIEW,
+      ProjectAction.FILE_UPLOAD,
+      ProjectAction.FILE_RENAME,
+      ProjectAction.FILE_DELETE,
     ],
   },
 ];

@@ -541,6 +541,45 @@ export class NotificationsService {
     });
   }
 
+  /**
+   * Notifica o uploader que um ficheiro foi marcado como infectado pelo
+   * AWS GuardDuty Malware Protection. Sem `entityPublicId`/`projectPublicId`
+   * — o file está soft-removível mas o registo persiste para audit; a UI
+   * resolve a navegação a partir de `body` (nome do ficheiro).
+   *
+   * Sem CTA actionable: não há nada que o user possa fazer, o ficheiro
+   * já foi removido. É notificação de segurança, fire-and-forget.
+   */
+  async createFileInfectedNotification(
+    userId: number,
+    args: { filePublicId: string; originalName: string },
+  ): Promise<void> {
+    if (await this.shouldNotify(userId, NotificationType.FILE_INFECTED, NotificationChannel.IN_APP)) {
+      await this.prisma.notification.create({
+        data: {
+          userId,
+          type: NotificationType.FILE_INFECTED,
+          title: 'Ficheiro bloqueado por motivos de segurança',
+          body: args.originalName,
+          entityPublicId: args.filePublicId,
+        },
+      });
+    }
+
+    if (await this.shouldNotify(userId, NotificationType.FILE_INFECTED, NotificationChannel.EMAIL)) {
+      const recipient = await this.resolveRecipient(userId);
+      if (!recipient?.email) return;
+      this.emailService
+        .sendFileInfectedEmail({
+          recipientEmail: recipient.email,
+          recipientName: recipient.name,
+          locale: recipient.locale,
+          fileName: args.originalName,
+        })
+        .catch(() => {});
+    }
+  }
+
   async upsertPreference(
     userId: number,
     type: NotificationType,

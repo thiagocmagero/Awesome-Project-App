@@ -52,6 +52,8 @@ import { CalendarHeader }           from '../features/calendar/components/Calend
 import type { ICalendarEvent, FullCalendarApi, CalendarView } from '../features/calendar/types';
 // Timesheet feature
 import { TimesheetView } from '../features/timesheet/components/TimesheetView';
+// Files feature (Maio 2026 — uploads project-scoped)
+import { FilesPanel } from '../features/files/components/FilesPanel';
 import {
   addDaysISO,
   currentWeekStart as currentTimesheetWeekStart,
@@ -130,8 +132,9 @@ export default function PlanningPage() {
   const [searchParams] = useSearchParams();
   const initialTabFromQuery = searchParams.get('tab');
   const initialWeekFromQuery = searchParams.get('week');
-  const [pageTab, setPageTab]                 = useState<'planning' | 'gantt' | 'board' | 'calendar' | 'timesheet'>(
-    initialTabFromQuery === 'timesheet' ? 'timesheet' : 'planning',
+  const [pageTab, setPageTab]                 = useState<'planning' | 'gantt' | 'board' | 'calendar' | 'timesheet' | 'files'>(
+    initialTabFromQuery === 'timesheet' ? 'timesheet' :
+    initialTabFromQuery === 'files'     ? 'files'     : 'planning',
   );
   const [planSubTab, setPlanSubTab]           = useState<'tasks' | 'resources' | 'links'>('tasks');
   // Granularidade visual do Gantt — inicial vem do GanttConfig (defaults.viewUnit).
@@ -164,6 +167,8 @@ export default function PlanningPage() {
   const showCalendar = calendarEnabled || user?.profileCode === 'PLATFORM_ADMIN';
   const { enabled: timesheetEnabled } = useFeatureFlag('timesheet_view', projectId ?? null);
   const showTimesheet = timesheetEnabled || user?.profileCode === 'PLATFORM_ADMIN';
+  const { enabled: uploadsEnabled } = useFeatureFlag('upload', projectId ?? null);
+  const showFiles = uploadsEnabled || user?.profileCode === 'PLATFORM_ADMIN';
   // Timesheet UI state.
   // Default inicial 'mine' — depois um effect logo abaixo promove para 'team' se
   // o user tem TIMESHEET_APPROVE (gestor). Esta lógica corre uma vez quando as
@@ -1070,6 +1075,7 @@ export default function PlanningPage() {
         showGantt={showGantt}
         showCalendar={showCalendar}
         showTimesheet={showTimesheet}
+        showFiles={showFiles}
         planSubTab={planSubTab}
         setPlanSubTab={setPlanSubTab}
         counts={{
@@ -1550,6 +1556,19 @@ export default function PlanningPage() {
             onTeamCountsChange={setTimesheetTeamCounts}
             onProjectRangeChange={handleTimesheetProjectRangeChange}
           />
+          </div>
+        </div>
+      )}
+
+      {/* ── Tab Ficheiros do Projeto ────────────────────────────────────────── */}
+      {showFiles && projectId && (
+        <div style={viewFrameStyle(pageTab === 'files')}>
+          <div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: 16 }}>
+            <FilesPanel
+              projectPublicId={projectId}
+              taskPublicId={null}
+              enabled={pageTab === 'files'}
+            />
           </div>
         </div>
       )}

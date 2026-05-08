@@ -1,6 +1,12 @@
 import type { RefObject, FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import CommentsPanel from '../../../components/CommentsPanel';
+import { FilesPanel } from '../../files/components/FilesPanel';
+import { useFeatureFlag } from '../../../hooks/useFeatureFlag';
+import {
+  ProjectAction,
+  useProjectPermissions,
+} from '../../../hooks/useProjectPermissions';
 import { TASK_TYPES, PRIORITY_OPTIONS, CONSTRAINT_OPTIONS, CONSTRAINT_NEEDS_DATE } from '../types';
 import type { GanttTask } from '../types';
 import type { ITaskState } from '../states-types';
@@ -8,8 +14,8 @@ import type { ITaskState } from '../states-types';
 export interface TaskModalProps {
   projectId: string | undefined;
   editingTask: GanttTask | null;
-  taskModalTab: 'details' | 'comments' | 'links';
-  setTaskModalTab: (tab: 'details' | 'comments' | 'links') => void;
+  taskModalTab: 'details' | 'comments' | 'links' | 'files';
+  setTaskModalTab: (tab: 'details' | 'comments' | 'links' | 'files') => void;
   /** Links onde a task é source ou target (subset filtrado pelo orchestrator). */
   taskLinks?: Array<{ id: string | number; publicId: string; source: number; target: number; type: string }>;
   /** Lookup auxiliar para mostrar texto da task source/target. */
@@ -54,6 +60,12 @@ export function TaskModal({
 }: TaskModalProps) {
   const { t } = useTranslation('planning');
   const { t: tc } = useTranslation('common');
+  const { t: tf } = useTranslation('files');
+
+  // Tab "Ficheiros" — gated por flag `upload` e permissão FILE_VIEW.
+  const { enabled: uploadFlagEnabled } = useFeatureFlag('upload', projectId ?? null);
+  const { can: canDoProject } = useProjectPermissions(projectId);
+  const showFilesTab = uploadFlagEnabled && canDoProject(ProjectAction.FILE_VIEW);
 
   const resolveColumnLabel = (col: ITaskState): string => {
     if (col.label) return col.label;
@@ -107,7 +119,29 @@ export function TaskModal({
                       {t('task.form.tab_links')}
                     </button>
                   </li>
+                  {showFilesTab && (
+                    <li className="nav-item" role="presentation">
+                      <button
+                        type="button"
+                        className={`nav-link${taskModalTab === 'files' ? ' active' : ''}`}
+                        onClick={() => setTaskModalTab('files')}
+                      >
+                        <i className="ri-attachment-2 me-1 align-middle" />
+                        {tf('page.tab_label')}
+                      </button>
+                    </li>
+                  )}
                 </ul>
+              </div>
+            )}
+            {/* Files tab */}
+            {taskModalTab === 'files' && editingTask && projectId && (
+              <div className="modal-body" style={{ maxHeight: 500, overflowY: 'auto' }}>
+                <FilesPanel
+                  projectPublicId={projectId}
+                  taskPublicId={editingTask.publicId}
+                  enabled
+                />
               </div>
             )}
             {/* Comments tab */}

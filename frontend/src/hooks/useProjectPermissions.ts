@@ -38,6 +38,11 @@ export enum ProjectAction {
   // Timesheet
   TIMESHEET_LOG     = 'TIMESHEET_LOG',
   TIMESHEET_APPROVE = 'TIMESHEET_APPROVE',
+  // Files
+  FILE_VIEW         = 'FILE_VIEW',
+  FILE_UPLOAD       = 'FILE_UPLOAD',
+  FILE_RENAME       = 'FILE_RENAME',
+  FILE_DELETE       = 'FILE_DELETE',
 }
 
 interface PermissionsData {

@@ -10,6 +10,7 @@
     "desc.TIMESHEET_PARTIALLY_APPROVED": "When part of your timesheet is approved",
     "desc.TIMESHEET_REJECTED": "When part of your timesheet is rejected",
     "desc.TIMESHEET_SUBMITTED": "When someone submits a timesheet for your approval",
+    "desc.FILE_INFECTED": "When a file you uploaded is blocked by malware scanning",
     "email_unavailable.message": "Email delivery is currently unavailable. For assistance, please contact support:",
     "error.save": "Failed to save preference.",
     "page.subtitle": "Configure which notifications you want to receive and how",
@@ -31,7 +32,8 @@
     "type.TIMESHEET_APPROVED": "Timesheet approvals",
     "type.TIMESHEET_PARTIALLY_APPROVED": "Timesheet partial approvals",
     "type.TIMESHEET_REJECTED": "Timesheet rejections",
-    "type.TIMESHEET_SUBMITTED": "Timesheet submissions"
+    "type.TIMESHEET_SUBMITTED": "Timesheet submissions",
+    "type.FILE_INFECTED": "File blocked (malware)"
   },
   "es": {
     "desc.COMMENT_REACTION": "Cuando alguien reacciona a tu comentario",
@@ -44,6 +46,7 @@
     "desc.TIMESHEET_PARTIALLY_APPROVED": "Cuando parte de tu hoja de horas es aprobada",
     "desc.TIMESHEET_REJECTED": "Cuando parte de tu hoja de horas es rechazada",
     "desc.TIMESHEET_SUBMITTED": "Cuando alguien envía una hoja de horas para tu aprobación",
+    "desc.FILE_INFECTED": "Cuando un archivo que subiste es bloqueado por la verificación de malware",
     "email_unavailable.message": "El envío de correos no está disponible. Para asistencia, contacta con el soporte:",
     "error.save": "Error al guardar la preferencia.",
     "page.subtitle": "Configura qué notificaciones quieres recibir y cómo",
@@ -65,7 +68,8 @@
     "type.TIMESHEET_APPROVED": "Aprobaciones de hoja de horas",
     "type.TIMESHEET_PARTIALLY_APPROVED": "Aprobaciones parciales de hoja de horas",
     "type.TIMESHEET_REJECTED": "Rechazos de hoja de horas",
-    "type.TIMESHEET_SUBMITTED": "Envíos de hoja de horas"
+    "type.TIMESHEET_SUBMITTED": "Envíos de hoja de horas",
+    "type.FILE_INFECTED": "Archivo bloqueado (malware)"
   },
   "pt-BR": {
     "desc.COMMENT_REACTION": "Quando alguém reage ao seu comentário",
@@ -78,6 +82,7 @@
     "desc.TIMESHEET_PARTIALLY_APPROVED": "Quando parte da sua timesheet é aprovada",
     "desc.TIMESHEET_REJECTED": "Quando parte da sua timesheet é rejeitada",
     "desc.TIMESHEET_SUBMITTED": "Quando alguém envia uma timesheet para sua aprovação",
+    "desc.FILE_INFECTED": "Quando um arquivo enviado por você é bloqueado pela verificação de malware",
     "email_unavailable.message": "Envio de e-mails desativado. Em caso de dúvidas, entre em contato com o suporte:",
     "error.save": "Erro ao salvar preferência.",
     "page.subtitle": "Configure quais notificações você quer receber e como",
@@ -99,7 +104,8 @@
     "type.TIMESHEET_APPROVED": "Aprovações de timesheet",
     "type.TIMESHEET_PARTIALLY_APPROVED": "Aprovações parciais de timesheet",
     "type.TIMESHEET_REJECTED": "Rejeições de timesheet",
-    "type.TIMESHEET_SUBMITTED": "Envios de timesheet"
+    "type.TIMESHEET_SUBMITTED": "Envios de timesheet",
+    "type.FILE_INFECTED": "Arquivo bloqueado (malware)"
   },
   "pt-PT": {
     "desc.COMMENT_REACTION": "Quando alguém reage ao teu comentário",
@@ -112,6 +118,7 @@
     "desc.TIMESHEET_PARTIALLY_APPROVED": "Quando parte da tua timesheet é aprovada",
     "desc.TIMESHEET_REJECTED": "Quando parte da tua timesheet é rejeitada",
     "desc.TIMESHEET_SUBMITTED": "Quando alguém submete uma timesheet para a tua aprovação",
+    "desc.FILE_INFECTED": "Quando um ficheiro carregado por ti é bloqueado pela verificação de malware",
     "email_unavailable.message": "Envio de e-mails desactivado. Em caso de dúvidas, contacte o suporte:",
     "error.save": "Erro ao guardar preferência.",
     "page.subtitle": "Configura que notificações queres receber e de que forma",
@@ -133,6 +140,7 @@
     "type.TIMESHEET_APPROVED": "Aprovações de timesheet",
     "type.TIMESHEET_PARTIALLY_APPROVED": "Aprovações parciais de timesheet",
     "type.TIMESHEET_REJECTED": "Rejeições de timesheet",
-    "type.TIMESHEET_SUBMITTED": "Submissões de timesheet"
+    "type.TIMESHEET_SUBMITTED": "Submissões de timesheet",
+    "type.FILE_INFECTED": "Ficheiro bloqueado (malware)"
   }
 }

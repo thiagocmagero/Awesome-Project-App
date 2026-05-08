@@ -31,6 +31,7 @@ i18n
       'account',
       'platform_config',
       'workspace_members',
+      'files',
     ],
     backend: {
       loadPath: '/api/i18n/{{lng}}/{{ns}}',

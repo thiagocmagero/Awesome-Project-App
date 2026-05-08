@@ -436,6 +436,35 @@ O campo legado `GanttTask.status` foi renomeado para `legacyStatus` e será remo
 - Hook frontend: `usePlanningStates(projectId)` (`features/planning/usePlanningStates.ts`).
 - Tipos partilhados: `ITaskState`, `ITaskSwimlane` em `features/planning/states-types.ts`.
 
+## Regra obrigatória — Upload de ficheiros
+
+Funcionalidade de upload e gestão de ficheiros project-scoped, gated por
+feature flag `upload`. Sub-flag `upload_secured` activa scan AWS GuardDuty
+Malware Protection — escolhida no momento do upload com base no plano do
+**dono do projecto**. Ficheiros antigos não migram quando o plano muda.
+
+**Premissas máximas e irrevogáveis**:
+- API **nunca** expõe `bucketKey` nem ownership no path. Apenas `publicId`
+  UUID v7 e UUID v4 random no key do bucket.
+- `FILE_VIEW`/`FILE_UPLOAD`/`FILE_RENAME`/`FILE_DELETE` são `ProjectAction`
+  com guards e UI espelho obrigatórios (ver @docs/claude/permissions.md).
+- Quota cobrada **sempre no plano do owner do projecto**, não do uploader
+  — coerente com seats LICENSED.
+- Validação em camadas: file-type magic bytes → MIME allowlist →
+  extension allowlist → tamanho. Todas configuráveis pelo PLATFORM_ADMIN
+  em `/settings/limits`.
+- Webhook GuardDuty público (`POST /api/webhooks/guardduty`, `@SkipCsrf`)
+  com verificação obrigatória de assinatura SNS — sem signature, qualquer
+  atacante poderia apagar ficheiros marcando como INFECTED.
+- Filename do Multer passa por `decodeMultipartFilename` (Latin-1→UTF-8
+  round-trip) — sem isto, acentos vêm mangled (`Ã§` em vez de `ç`).
+- Download via presigned URL com `ResponseContentDisposition: attachment;
+  filename*=UTF-8''<encoded>` para o browser descarregar com o nome
+  humano (bucket key continua opaco).
+
+Detalhes completos (modelo, pipeline, GuardDuty, UI, anti-padrões) em
+@docs/claude/uploads.md.
+
 ## Stack
 
 | Camada   | Tecnologia                  | Versão                              |
@@ -480,7 +509,8 @@ npm run build
 @docs/claude/timezone.md                 (timezone: hierarquia binária, datas puras vs momentos reais, helpers, anti-padrões)
 @docs/claude/notifications.md            (mecanismo de notificações: modelo, endpoints, hook, dropdown, gaps)
 @docs/claude/email.md                    (envio de emails transacionais: SMTP Brevo, React Email, locale-aware, 10 tipos)
-@docs/claude/storage.md                  (storage de ficheiros: AWS S3, pipeline sharp + file-type, avatares no bucket público)
+@docs/claude/storage.md                  (wrapper AWS S3: env vars, StorageService, pipeline genérico de validação, avatares no bucket público)
+@docs/claude/uploads.md                  (upload de ficheiros project-scoped: File model, flags upload/upload_secured, GuardDuty, permissões FILE_*, presigned download, UI)
 @docs/claude/tools/gantt/overview.md     (Gantt — ponto de entrada obrigatório)
 @docs/claude/tools/gantt/data-model.md   (modelos Prisma Gantt, holidays, GanttConfig)
 @docs/claude/tools/gantt/interactions.md (drag & drop, eventos DHTMLX, stale closures)

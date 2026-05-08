@@ -14,6 +14,7 @@ import { UpdateEmailConfigDto } from './dto/update-email-config.dto';
 import { UpdatePlatformLimitsDto } from './dto/update-platform-limits.dto';
 import { EmailService } from '../emails/email.service';
 import { StorageService } from '../storage/storage.service';
+import { FeatureFlagsService } from '../feature-flags/feature-flags.service';
 
 /** Garante que apenas PLATFORM_ADMIN acede a estes endpoints */
 function assertAdmin(user: JwtPayload) {
@@ -29,6 +30,7 @@ export class PlatformConfigController {
     private readonly service: PlatformConfigService,
     private readonly emailService: EmailService,
     private readonly storageService: StorageService,
+    private readonly featureFlags: FeatureFlagsService,
   ) {}
 
   // ── Email ───────────────────────────────────────────────────────────────────
@@ -111,5 +113,22 @@ export class PlatformConfigController {
   @Get('storage/availability')
   getStorageAvailability() {
     return { available: this.storageService.isReady() };
+  }
+
+  /**
+   * Disponibilidade pública da feature de uploads de ficheiros — combina
+   * `storage.isReady()` com a feature flag `upload` resolvida para o user
+   * autenticado. Usado pelo frontend para gating das tabs "Ficheiros"
+   * (TaskModal e PlanningPage).
+   *
+   * Princípio: utilizador final nunca vê motivos. Devolve apenas
+   * `{ available }` — admin tem `/storage/availability` e a página de
+   * feature flags para diagnóstico.
+   */
+  @Get('uploads/availability')
+  async getUploadsAvailability(@CurrentUser() user: JwtPayload) {
+    if (!this.storageService.isReady()) return { available: false };
+    const enabled = await this.featureFlags.isEnabled(user.sub, 'upload');
+    return { available: enabled };
   }
 }

@@ -13,7 +13,7 @@ import './toolbar.css';
 // O tab 'board' foi reintroduzido (Maio 2026) com a nova UI AwesomeKanban
 // vendorizada em `src/vendor/awesome-kanban/`. Toolbar Row 2 dedicada com
 // search, swimlanes toggle, undo/redo e botões "+ Coluna" / "+ Swimlane".
-type PageTab = 'planning' | 'gantt' | 'board' | 'calendar' | 'timesheet';
+type PageTab = 'planning' | 'gantt' | 'board' | 'calendar' | 'timesheet' | 'files';
 type PlanSubTab = 'tasks' | 'resources' | 'links';
 type TimesheetSubTab = 'mine' | 'team';
 type TimesheetTeamFilter = 'all' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'PARTIAL' | 'DRAFT';
@@ -95,6 +95,8 @@ export interface UnifiedToolbarProps {
 
   /* Timesheet flag */
   showTimesheet: boolean;
+  /* Files flag (project-level uploads tab) */
+  showFiles?: boolean;
   /* Timesheet — Row 1 right (CTA "+ Adicionar lançamento") */
   onCreateTimesheetEntry: () => void;
   /* Timesheet — Row 2 (mine) */
@@ -160,6 +162,7 @@ export function UnifiedToolbar(props: UnifiedToolbarProps) {
     onBoardUndo, onBoardRedo, boardCanUndo, boardCanRedo,
     onAddBoardColumn, onAddBoardSwimlane, onOpenBoardConfig,
     showTimesheet,
+    showFiles,
     onCreateTimesheetEntry,
     timesheetSubTab, setTimesheetSubTab,
     timesheetWeekStart, timesheetWeekStatus,
@@ -174,6 +177,7 @@ export function UnifiedToolbar(props: UnifiedToolbarProps) {
     canDo,
   } = props;
   const { t: tts } = useTranslation('timesheet');
+  const { t: tf } = useTranslation('files');
 
   const tabs: Array<[PageTab, string, string]> = [
     ['planning',  t('tab.planning'),  'ri-calendar-todo-line'],
@@ -181,11 +185,13 @@ export function UnifiedToolbar(props: UnifiedToolbarProps) {
     ['board',     tb('tab.label'),    'ri-layout-column-line'],
     ['calendar',  tcal('tab.label'),  'ri-calendar-line'],
     ['timesheet', tts('tab.label'),   'ri-time-line'],
+    ['files',     tf('page.project_tab_label'), 'ri-attachment-2'],
   ];
   const visibleTabs = tabs.filter(([k]) =>
     (k !== 'gantt'     || showGantt)     &&
     (k !== 'calendar'  || showCalendar)  &&
-    (k !== 'timesheet' || showTimesheet),
+    (k !== 'timesheet' || showTimesheet) &&
+    (k !== 'files'     || showFiles),
   );
 
   const zoomPct = Math.round((ZOOM_LEVELS[ganttZoomLevel] / ZOOM_LEVELS[DEFAULT_ZOOM_INDEX]) * 100);

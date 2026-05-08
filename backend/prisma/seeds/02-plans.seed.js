@@ -19,6 +19,8 @@ const PLANS = [
       { limitKey: 'max_api_calls',  limitValue: -1,  description: 'Chamadas API (ilimitado)' },
       { limitKey: 'max_holidays',   limitValue: 3,   description: 'Número máximo de listas de feriados' },
       { limitKey: 'max_licensed_seats', limitValue: 0, description: 'Seats LICENSED incluídos no plano (BASIC = 0)' },
+      { limitKey: 'max_uploads_count', limitValue: 100, description: 'Número máximo de ficheiros activos' },
+      { limitKey: 'max_upload_size_mb', limitValue: 25, description: 'Tamanho máximo por upload (MB)' },
     ],
     pricing: [
       { billingCycle: 'MONTHLY', basePrice: 0, trialDays: 0, pricePerExtraSeat: null, currency: 'EUR' },
@@ -52,6 +54,18 @@ const FEATURE_FLAGS = [
     key: 'timesheet_view',
     label: 'Timesheet',
     description: 'Registo semanal de horas por membro (vista do projeto + área global)',
+    enabledGlobally: false,
+  },
+  {
+    key: 'upload',
+    label: 'Uploads de Ficheiros',
+    description: 'Permite anexar ficheiros a tarefas e ao projecto. Bytes guardados em bucket privado.',
+    enabledGlobally: false,
+  },
+  {
+    key: 'upload_secured',
+    label: 'Uploads Protegidos',
+    description: 'Verifica novos uploads via AWS GuardDuty Malware Protection. Depende da flag upload.',
     enabledGlobally: false,
   },
 ];
@@ -139,6 +153,149 @@ async function seed(prisma) {
     console.log(`✔ Subscription default criada para ${usersWithoutSub.length} utilizador(es) existente(s)`);
   } else {
     console.log('✔ Todos os utilizadores têm subscription');
+  }
+
+  // PlatformLimits singleton (id=1) — garante allowlists iniciais sensatas
+  // para a feature `upload`. PLATFORM_ADMIN pode editar via /settings/limits.
+  //
+  // Notas importantes ao escolher defaults:
+  // - O `file-type` detecta apenas formatos com magic bytes / file signatures
+  //   reconhecíveis. Formatos baseados em texto puro (txt, csv, md, html, json,
+  //   svg, js, ts) NÃO são detectáveis e o backend rejeita-os com
+  //   UNRECOGNIZED_FILE_TYPE — não vale a pena pôr na lista.
+  // - SVG é deliberadamente excluído (XSS via <script> embebido).
+  // - Executáveis (exe, dll, bat, sh, msi, jar, apk) ficam fora por segurança.
+  // - Cada extensão tem que ter o MIME correspondente que `file-type` devolve;
+  //   se um upload válido for rejeitado, a mensagem de erro mostra qual o MIME
+  //   rejeitado e o admin pode acrescentar via UI sem mexer no seed.
+  const DEFAULT_MIMES = [
+    // Documentos
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.ms-powerpoint',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'application/vnd.oasis.opendocument.text',
+    'application/vnd.oasis.opendocument.spreadsheet',
+    'application/vnd.oasis.opendocument.presentation',
+    'application/rtf',
+    // Imagens
+    'image/png',
+    'image/jpeg',
+    'image/webp',
+    'image/gif',
+    'image/bmp',
+    'image/tiff',
+    'image/x-icon',
+    'image/avif',
+    'image/heic',
+    // Áudio
+    'audio/mpeg',
+    'audio/mp4',
+    'audio/x-wav',
+    'audio/ogg',
+    'audio/x-flac',
+    // Vídeo
+    'video/mp4',
+    'video/webm',
+    'video/quicktime',
+    'video/x-matroska',
+    'video/x-msvideo',
+    // Arquivos / compressão
+    'application/zip',
+    'application/x-7z-compressed',
+    'application/x-rar-compressed',
+    'application/x-tar',
+    'application/gzip',
+  ];
+  // Extensões canónicas devolvidas por `file-type` para os MIMEs acima.
+  // Nota: JPEG → 'jpg' (não 'jpeg'); ICO → 'ico'; admins podem adicionar
+  // 'jpeg' como alias mas o file-type só retorna 'jpg'.
+  const DEFAULT_EXTENSIONS = [
+    // Documentos
+    'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
+    'odt', 'ods', 'odp', 'rtf',
+    // Imagens
+    'png', 'jpg', 'webp', 'gif', 'bmp', 'tiff', 'ico', 'avif', 'heic',
+    // Áudio
+    'mp3', 'm4a', 'wav', 'ogg', 'flac',
+    // Vídeo
+    'mp4', 'webm', 'mov', 'mkv', 'avi',
+    // Arquivos / compressão
+    'zip', '7z', 'rar', 'tar', 'gz',
+  ];
+
+  // Sets antigos seeded em versões anteriores — usados pelo backfill abaixo
+  // para detectar instalações que ainda têm o default original e fazer
+  // upgrade automático sem sobrescrever customizações do admin.
+  const LEGACY_DEFAULT_EXTENSIONS = new Set([
+    'pdf', 'png', 'jpg', 'webp', 'gif',
+    'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
+    'txt', 'zip',
+  ]);
+  const LEGACY_DEFAULT_MIMES = new Set([
+    'application/pdf',
+    'image/png',
+    'image/jpeg',
+    'image/webp',
+    'image/gif',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.ms-powerpoint',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'text/plain',
+    'application/zip',
+  ]);
+  const isLegacyDefault = (current, legacySet) =>
+    Array.isArray(current) &&
+    current.length === legacySet.size &&
+    current.every((v) => legacySet.has(v));
+  const existingLimits = await prisma.platformLimits.findUnique({ where: { id: 1 } });
+  if (!existingLimits) {
+    await prisma.platformLimits.create({
+      data: {
+        id: 1,
+        // maxTaskBusinessDays e maxUploadSizeMb usam defaults do schema (1300 e 50)
+        allowedMimeTypes: DEFAULT_MIMES,
+        allowedFileExtensions: DEFAULT_EXTENSIONS,
+      },
+    });
+    console.log(
+      `✔ PlatformLimits singleton criado com ${DEFAULT_MIMES.length} MIME types e ${DEFAULT_EXTENSIONS.length} extensões`,
+    );
+  } else {
+    // Backfill / upgrade automático:
+    // - Lista vazia → popula com defaults novos (instância criada antes do field existir).
+    // - Lista igual ao default antigo (LEGACY) → upgrade para o novo default expandido.
+    // - Lista customizada pelo admin → não sobrescrever, deixar como está.
+    const currentExt = Array.isArray(existingLimits.allowedFileExtensions)
+      ? existingLimits.allowedFileExtensions
+      : [];
+    const currentMime = Array.isArray(existingLimits.allowedMimeTypes)
+      ? existingLimits.allowedMimeTypes
+      : [];
+
+    const updates = {};
+    if (currentExt.length === 0 || isLegacyDefault(currentExt, LEGACY_DEFAULT_EXTENSIONS)) {
+      updates.allowedFileExtensions = DEFAULT_EXTENSIONS;
+    }
+    if (currentMime.length === 0 || isLegacyDefault(currentMime, LEGACY_DEFAULT_MIMES)) {
+      updates.allowedMimeTypes = DEFAULT_MIMES;
+    }
+
+    if (Object.keys(updates).length > 0) {
+      await prisma.platformLimits.update({ where: { id: 1 }, data: updates });
+      const parts = [];
+      if (updates.allowedFileExtensions) parts.push(`${DEFAULT_EXTENSIONS.length} extensões`);
+      if (updates.allowedMimeTypes) parts.push(`${DEFAULT_MIMES.length} MIME types`);
+      console.log(`✔ PlatformLimits: upgrade automático para defaults novos (${parts.join(', ')})`);
+    } else {
+      console.log('✔ PlatformLimits singleton com customizações do admin — não sobrescrito');
+    }
   }
 }
 

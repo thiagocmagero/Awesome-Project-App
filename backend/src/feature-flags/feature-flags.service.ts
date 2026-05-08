@@ -189,6 +189,23 @@ export class FeatureFlagsService {
   }
 
   /**
+   * Resolve a feature como se `targetUserId` fosse o próprio user pedinte
+   * — isto é, verifica `enabledGlobally → override do target → plano do target`.
+   *
+   * Usado quando o **plano do dono** dita capabilities (ex.: uploads
+   * project-scoped — o `FilesService` resolve `project.ownerId` e chama esta
+   * função para decidir o path normal vs secured). Diferente de `isEnabled`
+   * com `ctx.projectPublicId` (esse resolve via workspace/seats; este é
+   * directo).
+   *
+   * Sem ctx (pass-through para `isEnabled` sem projectPublicId) → cai no
+   * próprio plano do `targetUserId`.
+   */
+  async isEnabledForUser(targetUserId: number, flagKey: string): Promise<boolean> {
+    return this.isEnabled(targetUserId, flagKey);
+  }
+
+  /**
    * Get all flags with resolved status for a user. Sem contexto — usado pela
    * página /my-flags do utilizador (próprio plano).
    */

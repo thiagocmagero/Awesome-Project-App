@@ -54,7 +54,11 @@
 
     "password_reset.subject": "Reset your password — Awesome Project App",
     "password_reset.body_p1": "Click the button below to reset your password. This link expires in 15 minutes.",
-    "password_reset.cta": "Reset password"
+    "password_reset.cta": "Reset password",
+
+    "file_infected.subject": "A file you uploaded was blocked",
+    "file_infected.body_p1": "We blocked a file you uploaded after our malware scanner detected a threat. The file has been removed and cannot be downloaded.",
+    "file_infected.body_p2": "If you believe this is a mistake, please contact your project owner. The file was identified as:"
   },
   "es": {
     "common.greeting": "Hola {{recipientName}},",
@@ -111,7 +115,11 @@
 
     "password_reset.subject": "Restablece tu contraseña — Awesome Project App",
     "password_reset.body_p1": "Haz clic en el botón de abajo para restablecer tu contraseña. Este enlace expira en 15 minutos.",
-    "password_reset.cta": "Restablecer contraseña"
+    "password_reset.cta": "Restablecer contraseña",
+
+    "file_infected.subject": "Un archivo que subiste fue bloqueado",
+    "file_infected.body_p1": "Hemos bloqueado un archivo que subiste después de que nuestro escáner de malware detectara una amenaza. El archivo ha sido eliminado y no se puede descargar.",
+    "file_infected.body_p2": "Si crees que es un error, contacta con el propietario del proyecto. El archivo identificado fue:"
   },
   "pt-BR": {
     "common.greeting": "Olá {{recipientName}},",
@@ -168,7 +176,11 @@
 
     "password_reset.subject": "Redefina sua senha — Awesome Project App",
     "password_reset.body_p1": "Clique no botão abaixo para redefinir sua senha. Este link expira em 15 minutos.",
-    "password_reset.cta": "Redefinir senha"
+    "password_reset.cta": "Redefinir senha",
+
+    "file_infected.subject": "Um arquivo enviado por você foi bloqueado",
+    "file_infected.body_p1": "Bloqueamos um arquivo que você enviou após nosso scanner de malware detectar uma ameaça. O arquivo foi removido e não pode ser baixado.",
+    "file_infected.body_p2": "Se acha que é um engano, entre em contato com o dono do projeto. O arquivo identificado foi:"
   },
   "pt-PT": {
     "common.greeting": "Olá {{recipientName}},",
@@ -225,6 +237,10 @@
 
     "password_reset.subject": "Repõe a tua password — Awesome Project App",
     "password_reset.body_p1": "Clica no botão abaixo para redefinir a tua password. O link expira em 15 minutos.",
-    "password_reset.cta": "Redefinir password"
+    "password_reset.cta": "Redefinir password",
+
+    "file_infected.subject": "Um ficheiro carregado por ti foi bloqueado",
+    "file_infected.body_p1": "Bloqueámos um ficheiro que carregaste após o nosso verificador de malware detectar uma ameaça. O ficheiro foi removido e não pode ser descarregado.",
+    "file_infected.body_p2": "Se achas que é um engano, contacta o dono do projecto. O ficheiro identificado foi:"
   }
 }

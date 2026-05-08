@@ -20,8 +20,8 @@ export interface UseTaskFormReturn {
   showTaskModal: boolean;
   setShowTaskModal: React.Dispatch<React.SetStateAction<boolean>>;
   taskModalKey: number;
-  taskModalTab: 'details' | 'comments' | 'links' | 'links';
-  setTaskModalTab: React.Dispatch<React.SetStateAction<'details' | 'comments' | 'links'>>;
+  taskModalTab: 'details' | 'comments' | 'links' | 'files';
+  setTaskModalTab: React.Dispatch<React.SetStateAction<'details' | 'comments' | 'links' | 'files'>>;
   editingTask: GanttTask | null;
   taskForm: typeof EMPTY_TASK_FORM;
   setTaskForm: React.Dispatch<React.SetStateAction<typeof EMPTY_TASK_FORM>>;
@@ -49,7 +49,7 @@ export function useTaskForm({
 
   const [showTaskModal, setShowTaskModal]     = useState(false);
   const [taskModalKey, setTaskModalKey]       = useState(0);
-  const [taskModalTab, setTaskModalTab]       = useState<'details' | 'comments' | 'links'>('details');
+  const [taskModalTab, setTaskModalTab]       = useState<'details' | 'comments' | 'links' | 'files'>('details');
   const [editingTask, setEditingTask]         = useState<GanttTask | null>(null);
   const [taskForm, setTaskForm]               = useState({ ...EMPTY_TASK_FORM });
   const [taskOwnerIds, setTaskOwnerIds]       = useState<string[]>([]);
