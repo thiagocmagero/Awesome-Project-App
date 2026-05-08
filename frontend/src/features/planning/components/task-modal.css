@@ -768,6 +768,8 @@
   transition: background 100ms ease;
 }
 .fmini-row:hover { background: var(--task-bg-soft); }
+.fmini-row--blocked { cursor: not-allowed; opacity: 0.5; }
+.fmini-row--blocked:hover { background: transparent; }
 
 .fmini-thumb {
   flex-shrink: 0;
@@ -1168,20 +1170,13 @@
   background: var(--task-purple-50);
 }
 
-.file-icon {
+.file-icon-svg-wrap {
   flex-shrink: 0;
-  width: 40px; height: 40px;
-  border-radius: 8px;
+  width: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 20px;
 }
-.file-icon.file-icon--pdf  { background: #fde8e6; color: #a3271d; }
-.file-icon.file-icon--xlsx { background: #e0f6ec; color: #1d7a4d; }
-.file-icon.file-icon--doc  { background: #e3edff; color: #2854ad; }
-.file-icon.file-icon--img  { background: #fff5e0; color: #92651a; }
-.file-icon.file-icon--default { background: var(--task-purple-50); color: var(--task-purple-700); }
 
 .file-row-body { flex: 1; min-width: 0; }
 .file-row-name {
@@ -1189,6 +1184,9 @@
   font-weight: 600;
   color: var(--task-text);
   word-break: break-word;
+}
+.file-row-name--clickable {
+  cursor: pointer;
 }
 .file-row-sub {
   font-size: 11.5px;

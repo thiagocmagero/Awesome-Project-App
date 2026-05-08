@@ -1,3 +1,4 @@
+import { FileIcon, defaultStyles } from 'react-file-icon';
 import { useTranslation } from 'react-i18next';
 import { ScanStatusBadge } from './ScanStatusBadge';
 import { useResolvedDateFormat } from '../../../contexts/ProjectDateFormatContext';
@@ -32,26 +33,6 @@ function extOf(name: string): string {
   return idx === -1 ? '' : name.slice(idx + 1).toLowerCase();
 }
 
-interface IconResolution {
-  cls: string;
-  icon: string;
-}
-
-function resolveIcon(name: string, mime: string): IconResolution {
-  const ext = extOf(name);
-  if (ext === 'pdf' || mime === 'application/pdf') return { cls: 'file-icon--pdf',  icon: 'ri-file-pdf-line' };
-  if (['xlsx', 'xls', 'csv'].includes(ext) || mime.includes('spreadsheet') || mime === 'text/csv') {
-    return { cls: 'file-icon--xlsx', icon: 'ri-file-excel-line' };
-  }
-  if (['doc', 'docx', 'odt', 'rtf'].includes(ext) || mime.includes('msword') || mime.includes('wordprocessing')) {
-    return { cls: 'file-icon--doc',  icon: 'ri-file-word-line' };
-  }
-  if (mime.startsWith('image/') || ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'avif', 'heic', 'bmp', 'ico'].includes(ext)) {
-    return { cls: 'file-icon--img',  icon: 'ri-image-line' };
-  }
-  return { cls: 'file-icon--default', icon: 'ri-file-line' };
-}
-
 export function FileListItem({
   file,
   canDownload,
@@ -65,19 +46,27 @@ export function FileListItem({
   const { t } = useTranslation('files');
   const dateFormat = useResolvedDateFormat();
 
+  const ext = extOf(file.originalName);
   const isInfected = file.scanStatus === 'INFECTED';
-  const downloadDisabled = !canDownload || isInfected;
-  const { cls: iconCls, icon } = resolveIcon(file.originalName, file.mimeType);
+  const downloadDisabled = !canDownload || isInfected || file.scanStatus === 'PENDING';
 
   return (
     <div className="file-row">
-      <span className={`file-icon ${iconCls}`} aria-hidden="true">
-        <i className={icon} />
+      <span className="file-icon-svg-wrap" aria-hidden="true">
+        <FileIcon
+          extension={ext || undefined}
+          {...(defaultStyles[ext] ?? {})}
+          radius={4}
+        />
       </span>
 
       <div className="file-row-body">
         <div className="d-flex align-items-center gap-2 flex-wrap">
-          <span className="file-row-name" title={file.originalName}>
+          <span
+            className={`file-row-name${!downloadDisabled ? ' file-row-name--clickable' : ''}`}
+            onClick={!downloadDisabled ? () => onDownload(file.publicId) : undefined}
+            title={!downloadDisabled ? t('actions.download') : file.originalName}
+          >
             {file.originalName}
           </span>
           <ScanStatusBadge status={file.scanStatus} isSecured={file.isSecured} />

@@ -14,6 +14,10 @@ export interface UseTaskFormProps {
   loadAll: () => Promise<void>;
   showToast: ShowToastFn;
   workHoursRef?: MutableRefObject<WorkHours | null>;
+  /** Chamado de forma síncrona antes de qualquer setState em openEditTask /
+   *  openCreateTask. Usado para destruir instâncias Choices.js antes que o
+   *  React reconcilie os <option>, evitando o crash "removeChild". */
+  onBeforeOpen?: () => void;
 }
 
 export interface UseTaskFormReturn {
@@ -41,7 +45,7 @@ export interface UseTaskFormReturn {
 }
 
 export function useTaskForm({
-  projectId, token, tasks: _tasks, endDateModeRef, loadAll, showToast, workHoursRef,
+  projectId, token, tasks: _tasks, endDateModeRef, loadAll, showToast, workHoursRef, onBeforeOpen,
 }: UseTaskFormProps): UseTaskFormReturn {
   const { t } = useTranslation('planning');
   const { t: tc } = useTranslation('common');
@@ -65,6 +69,9 @@ export function useTaskForm({
   }
 
   function openCreateTask(parentId = 0, boardColumnPublicId?: string, parentPublicId?: string) {
+    // Destruir Choices antes de qualquer setState para que os <option> estejam de
+    // volta ao <select> quando o React reconciliar — evita o crash "removeChild".
+    onBeforeOpen?.();
     // Se parentPublicId foi fornecido (ex: Board "+" subtask), resolver o id numérico
     // da tarefa pai para que o select do modal fique pré-seleccionado correctamente.
     let resolvedParentId = parentId;
@@ -88,6 +95,9 @@ export function useTaskForm({
   }
 
   function openEditTask(task: GanttTask, initialTab: 'details' | 'comments' | 'links' = 'details') {
+    // Destruir Choices antes de qualquer setState para que os <option> estejam de
+    // volta ao <select> quando o React reconciliar — evita o crash "removeChild".
+    onBeforeOpen?.();
     setEditingTask(task);
     setTaskForm({
       text: task.text,

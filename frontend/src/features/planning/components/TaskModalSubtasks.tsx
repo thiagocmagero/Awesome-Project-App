@@ -77,7 +77,6 @@ export function TaskModalSubtasks({
                 className={`subtask-row${isDone ? ' is-done' : ''}`}
                 onClick={() => onOpenSubtask(sub)}
               >
-                <span className={`subtask-check${isDone ? ' is-done' : ''}`} aria-hidden="true" />
                 <span className="subtask-name" title={sub.text}>{sub.text}</span>
                 <StateBadge column={column} />
               </button>

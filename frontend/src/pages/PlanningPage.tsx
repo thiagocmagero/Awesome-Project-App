@@ -236,7 +236,16 @@ export default function PlanningPage() {
   }, [loadAll]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Task form hook ────────────────────────────────────────────────────────────
-  const taskForm = useTaskForm({ projectId, token, tasks, endDateModeRef, loadAll: syncLoadAll, showToast, workHoursRef });
+  // Ref que mantém as instâncias Choices.js activas do modal de task.
+  // Destruídas de forma síncrona (onBeforeOpen) antes de qualquer setState,
+  // para que os <option> estejam de volta ao <select> quando o React reconciliar.
+  const choicesTaskModalInstancesRef = useRef<Array<{ destroy(): void }>>([]);
+  const destroyChoicesForTaskModal = useCallback(() => {
+    choicesTaskModalInstancesRef.current.forEach((c) => { try { c.destroy(); } catch { /* já destruído */ } });
+    choicesTaskModalInstancesRef.current = [];
+  }, []);
+
+  const taskForm = useTaskForm({ projectId, token, tasks, endDateModeRef, loadAll: syncLoadAll, showToast, workHoursRef, onBeforeOpen: destroyChoicesForTaskModal });
   const {
     showTaskModal, setShowTaskModal, taskModalKey, taskModalTab, setTaskModalTab,
     editingTask, taskForm: taskFormState, setTaskForm, taskOwnerIds, setTaskOwnerIds,
@@ -785,9 +794,13 @@ export default function PlanningPage() {
   }, [showTaskModal, taskFormState.constraint_type, scriptsReady, taskModalKey, taskFlatpickrFormat]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Choices.js — task modal ───────────────────────────────────────────────────
+  // As instâncias são guardadas em `choicesTaskModalInstancesRef` para que
+  // `destroyChoicesForTaskModal` as possa destruir de forma SÍNCRONA dentro de
+  // openEditTask/openCreateTask, antes de qualquer setState. Isto garante que os
+  // <option> estão de volta ao <select> quando o React reconcilia — evita o crash
+  // "removeChild" causado pelo Choices.js mover os nós para o seu próprio dropdown.
   useEffect(() => {
     if (!showTaskModal || typeof Choices === 'undefined') return;
-    const instances: Array<{ destroy(): void }> = [];
 
     // Choices.js lê `option.selected` (não o `value` controlado pelo React).
     // Pré-seleccionar explicitamente antes de criar a instância — padrão idêntico
@@ -801,7 +814,7 @@ export default function PlanningPage() {
 
     const init = (ref: React.RefObject<HTMLSelectElement | null>, searchable = false) => {
       if (!ref.current) return;
-      instances.push(new Choices(ref.current, {
+      choicesTaskModalInstancesRef.current.push(new Choices(ref.current, {
         searchEnabled: searchable,
         searchPlaceholderValue: searchable ? t('task.form.parent_search') : undefined,
         itemSelectText: '',
@@ -812,7 +825,7 @@ export default function PlanningPage() {
     init(choicesTypeRef); init(choicesPriorityRef); init(choicesConstraintRef);
     init(choicesParentRef, true);
     // Estado deixou de ter <select> no TaskModal (clicável directo no QuickFact).
-    return () => { instances.forEach((c) => c.destroy()); };
+    return () => { destroyChoicesForTaskModal(); };
   }, [showTaskModal, tasks, scriptsReady, taskModalKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Derived state ─────────────────────────────────────────────────────────────
@@ -1712,6 +1725,7 @@ export default function PlanningPage() {
       {/* Modals */}
       {showTaskModal && (
         <TaskModal
+          key={taskModalKey}
           projectId={projectId}
           editingTask={editingTask}
           taskModalTab={taskModalTab}

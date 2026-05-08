@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next';
 import { useFiles } from '../../files/useFiles';
 import { useResolvedDateFormat } from '../../../contexts/ProjectDateFormatContext';
 import { formatDate } from '../../../lib/dateFormatting';
+import { useToast } from '../../../contexts/ToastContext';
 import type { AppFile } from '../../files/types';
 
 interface Props {
@@ -22,14 +23,27 @@ export function TaskModalRecentFiles({
   onViewAll,
 }: Props) {
   const { t } = useTranslation('planning');
+  const { t: tf } = useTranslation('files');
+  const { t: tc } = useTranslation('common');
   const dateFormat = useResolvedDateFormat();
+  const { showToast } = useToast();
 
-  const { files, loading } = useFiles({
+  const { files, loading, getDownloadUrl } = useFiles({
     projectPublicId,
     taskPublicId,
     scope: 'all',
     enabled,
   });
+
+  async function handleDownload(f: AppFile) {
+    if (f.scanStatus === 'INFECTED' || f.scanStatus === 'PENDING') return;
+    try {
+      const info = await getDownloadUrl(f.publicId);
+      if (info?.url) window.open(info.url, '_blank', 'noopener,noreferrer');
+    } catch {
+      showToast('danger', tc('errors.generic'));
+    }
+  }
 
   if (!enabled) return null;
 
@@ -63,12 +77,16 @@ export function TaskModalRecentFiles({
         <div style={{ color: 'var(--task-muted)', fontSize: 12.5 }}>—</div>
       ) : (
         <div className="files-mini">
-          {recent.map((f) => (
+          {recent.map((f) => {
+            const blocked = f.scanStatus === 'INFECTED' || f.scanStatus === 'PENDING';
+            return (
             <button
               key={f.publicId}
               type="button"
-              className="fmini-row"
-              onClick={onViewAll}
+              className={`fmini-row${blocked ? ' fmini-row--blocked' : ''}`}
+              onClick={() => handleDownload(f)}
+              disabled={blocked}
+              title={blocked ? undefined : tf('actions.download')}
             >
               <span className={`fmini-thumb ${miniThumbClass(f)}`}>
                 <i className={miniThumbIcon(f)} aria-hidden="true" />
@@ -81,7 +99,8 @@ export function TaskModalRecentFiles({
                 </span>
               </span>
             </button>
-          ))}
+            );
+          })}
         </div>
       )}
     </section>
