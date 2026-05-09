@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type RefObject, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import CommentsPanel from '../../../components/CommentsPanel';
-import { FilesPanel } from '../../files/components/FilesPanel';
+import { TaskFilesPanel } from '../../files/components/TaskFilesPanel';
 import { useFiles } from '../../files/useFiles';
 import { useFeatureFlag } from '../../../hooks/useFeatureFlag';
 import {
@@ -293,7 +293,7 @@ export function TaskModal({
               )}
 
               {taskModalTab === 'files' && editingTask && projectId && showFilesTab && (
-                <FilesPanel
+                <TaskFilesPanel
                   projectPublicId={projectId}
                   taskPublicId={editingTask.publicId}
                   enabled

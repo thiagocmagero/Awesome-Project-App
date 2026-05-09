@@ -157,8 +157,13 @@ export class TeamsService {
     });
     if (!user) throw new AppException('NOT_FOUND', HttpStatus.NOT_FOUND);
 
-    // BASIC_USER can only add users from their own workspace
-    if (!IS_ADMIN(requestingUser) && user.createdById !== requestingUser.sub) {
+    // BASIC_USER pode adicionar qualquer pessoa do seu workspace —
+    // a si próprio (self) OU um user que ele criou. Espelha a regra de
+    // `users.findAll` (OR: createdById = me, id = me) para que tudo o que
+    // aparece em /users também possa ser adicionado a teams.
+    const isSelf = userId === requestingUser.sub;
+    const isWorkspaceUser = user.createdById === requestingUser.sub;
+    if (!IS_ADMIN(requestingUser) && !isSelf && !isWorkspaceUser) {
       throw new AppException('FORBIDDEN', HttpStatus.FORBIDDEN);
     }
 

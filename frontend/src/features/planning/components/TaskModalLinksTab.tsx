@@ -119,9 +119,10 @@ export function TaskModalLinksTab({
         {onAddLink && (
           <button
             type="button"
-            className="btn btn-purple-outline btn-sm"
+            className="btn btn-purple btn-sm"
             onClick={onAddLink}
           >
+            <i className="ri-add-line me-1" aria-hidden="true" />
             {t('task.links.btn_add')}
           </button>
         )}

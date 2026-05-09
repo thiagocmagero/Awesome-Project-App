@@ -47,7 +47,21 @@
     "errors.infected": "Este ficheiro foi bloqueado por motivos de segurança.",
     "errors.storage_unavailable": "O serviço de upload está temporariamente indisponível.",
     "errors.upload_failed": "Falha ao carregar o ficheiro.",
-    "errors.feature_disabled": "Os uploads não estão ativos no teu plano."
+    "errors.feature_disabled": "Os uploads não estão ativos no teu plano.",
+
+    "task_files.search_placeholder": "Pesquisar ficheiro pelo nome…",
+    "task_files.search_empty": "Nenhum ficheiro corresponde à pesquisa.",
+    "task_files.kebab_label": "Mais ações",
+    "task_files.col.name": "Nome",
+    "task_files.col.size": "Tamanho",
+    "task_files.col.uploader": "Enviado por",
+    "task_files.col.date": "Data",
+    "task_files.chip.all": "Todos",
+    "task_files.chip.pdf": "PDF",
+    "task_files.chip.docs": "Documentos",
+    "task_files.chip.sheets": "Folhas de cálculo",
+    "task_files.chip.images": "Imagens",
+    "task_files.chip.others": "Outros"
   },
   "pt-BR": {
     "page.tab_label": "Arquivos",
@@ -97,7 +111,21 @@
     "errors.infected": "Este arquivo foi bloqueado por motivos de segurança.",
     "errors.storage_unavailable": "O serviço de upload está temporariamente indisponível.",
     "errors.upload_failed": "Falha ao enviar o arquivo.",
-    "errors.feature_disabled": "Os uploads não estão ativos em seu plano."
+    "errors.feature_disabled": "Os uploads não estão ativos em seu plano.",
+
+    "task_files.search_placeholder": "Buscar arquivo por nome…",
+    "task_files.search_empty": "Nenhum arquivo corresponde à busca.",
+    "task_files.kebab_label": "Mais ações",
+    "task_files.col.name": "Nome",
+    "task_files.col.size": "Tamanho",
+    "task_files.col.uploader": "Enviado por",
+    "task_files.col.date": "Data",
+    "task_files.chip.all": "Todos",
+    "task_files.chip.pdf": "PDF",
+    "task_files.chip.docs": "Documentos",
+    "task_files.chip.sheets": "Planilhas",
+    "task_files.chip.images": "Imagens",
+    "task_files.chip.others": "Outros"
   },
   "en": {
     "page.tab_label": "Files",
@@ -147,7 +175,21 @@
     "errors.infected": "This file has been blocked for security reasons.",
     "errors.storage_unavailable": "The upload service is temporarily unavailable.",
     "errors.upload_failed": "File upload failed.",
-    "errors.feature_disabled": "Uploads are not active in your plan."
+    "errors.feature_disabled": "Uploads are not active in your plan.",
+
+    "task_files.search_placeholder": "Search file by name…",
+    "task_files.search_empty": "No files match your search.",
+    "task_files.kebab_label": "More actions",
+    "task_files.col.name": "Name",
+    "task_files.col.size": "Size",
+    "task_files.col.uploader": "Uploaded by",
+    "task_files.col.date": "Date",
+    "task_files.chip.all": "All",
+    "task_files.chip.pdf": "PDF",
+    "task_files.chip.docs": "Documents",
+    "task_files.chip.sheets": "Spreadsheets",
+    "task_files.chip.images": "Images",
+    "task_files.chip.others": "Other"
   },
   "es": {
     "page.tab_label": "Archivos",
@@ -197,6 +239,20 @@
     "errors.infected": "Este archivo ha sido bloqueado por motivos de seguridad.",
     "errors.storage_unavailable": "El servicio de subida no está disponible temporalmente.",
     "errors.upload_failed": "Error al subir el archivo.",
-    "errors.feature_disabled": "Las subidas no están activas en tu plan."
+    "errors.feature_disabled": "Las subidas no están activas en tu plan.",
+
+    "task_files.search_placeholder": "Buscar archivo por nombre…",
+    "task_files.search_empty": "Ningún archivo coincide con la búsqueda.",
+    "task_files.kebab_label": "Más acciones",
+    "task_files.col.name": "Nombre",
+    "task_files.col.size": "Tamaño",
+    "task_files.col.uploader": "Enviado por",
+    "task_files.col.date": "Fecha",
+    "task_files.chip.all": "Todos",
+    "task_files.chip.pdf": "PDF",
+    "task_files.chip.docs": "Documentos",
+    "task_files.chip.sheets": "Hojas de cálculo",
+    "task_files.chip.images": "Imágenes",
+    "task_files.chip.others": "Otros"
   }
 }

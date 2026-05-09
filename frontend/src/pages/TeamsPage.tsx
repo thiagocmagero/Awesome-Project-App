@@ -777,6 +777,7 @@ export default function TeamsPage() {
                               {t('member.user_label')} <span className="text-danger">*</span>
                             </label>
                             <select
+                              key={`${selectedTeam.publicId}:${selectedTeam.members.length}`}
                               ref={choicesMemberUserRef}
                               className="form-select form-select-sm"
                             />
