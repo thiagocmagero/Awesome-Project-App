@@ -64,6 +64,7 @@ export function TimesheetAddEntryModal({ open, weekStart, tasks, defaultTaskPubl
       shouldSort: false,
       placeholder: true,
       placeholderValue: t('add_entry.task_placeholder'),
+      allowHTML: false,
     });
     if (defaultTaskPublicId) c.setChoiceByValue(defaultTaskPublicId);
     return () => c.destroy();

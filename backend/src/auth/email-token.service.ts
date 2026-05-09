@@ -131,9 +131,14 @@ export class EmailTokenService {
   // ─── Cleanup stale PENDING tokens ─────────────────────────────────────────
 
   async cleanupExpiredTokensForEmail(email: string, type: TokenType): Promise<void> {
+    // Defensive guard: ensure email is a plain string before using as a filter value.
+    // Prisma + PostgreSQL is parameterized SQL (not NoSQL), but this guards against
+    // unexpected object injection if the call-site ever bypasses TypeScript types.
+    if (typeof email !== 'string' || !email.trim()) return;
+
     await this.prisma.emailToken.deleteMany({
       where: {
-        email,
+        email: String(email),
         type,
         expiresAt: { lt: new Date() },
       },

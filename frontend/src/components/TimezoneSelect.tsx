@@ -130,6 +130,7 @@ export function TimezoneSelect({
       placeholderValue: placeholder ?? t('timezone.placeholder'),
       itemSelectText: '',
       searchPlaceholderValue: t('timezone.search'),
+      allowHTML: false,
     });
     choicesInstanceRef.current = c;
 
