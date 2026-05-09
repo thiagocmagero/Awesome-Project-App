@@ -2,7 +2,7 @@ import {
   HttpStatus,
   Injectable,
 } from '@nestjs/common';
-import { EntityType, GanttTaskDurationUnit } from '@prisma/client';
+import { EntityType, TaskDurationUnit } from '@prisma/client';
 import { AppException } from '../common/exceptions/app.exception';
 import { PrismaService } from '../prisma/prisma.service';
 import { HolidaysService } from '../holidays/holidays.service';
@@ -92,7 +92,7 @@ export class PlanningService {
   }
 
   private async resolveTaskId(publicId: string): Promise<number> {
-    const task = await this.prisma.ganttTask.findUnique({
+    const task = await this.prisma.task.findUnique({
       where: { publicId },
       select: { id: true },
     });
@@ -101,7 +101,7 @@ export class PlanningService {
   }
 
   private async resolveLinkId(publicId: string): Promise<number> {
-    const link = await this.prisma.ganttLink.findUnique({
+    const link = await this.prisma.taskLink.findUnique({
       where: { publicId },
       select: { id: true },
     });
@@ -110,7 +110,7 @@ export class PlanningService {
   }
 
   private async resolveResourceId(publicId: string): Promise<number> {
-    const resource = await this.prisma.ganttResource.findUnique({
+    const resource = await this.prisma.taskResource.findUnique({
       where: { publicId },
       select: { id: true },
     });
@@ -139,7 +139,7 @@ export class PlanningService {
   // ── Resource Node Sync ───────────────────────────────────────────────────────
 
   /**
-   * Reconcilia a tabela GanttResourceNode com o estado actual do projecto.
+   * Reconcilia a tabela TaskResourceNode com o estado actual do projecto.
    * Garante 1 grupo por UserType presente + 1 folha por membro/externo.
    * Migra owner_id das tarefas de formato antigo (u_X, r_X, X) para IDs de nós.
    */
@@ -166,13 +166,13 @@ export class PlanningService {
           },
         },
       }),
-      this.prisma.ganttResource.findMany({
+      this.prisma.taskResource.findMany({
         where: { projectId, userId: null },
         include: { userType: { select: { id: true, code: true, label: true } } },
       }),
       this.prisma.projectMemberHours.findMany({ where: { projectId } }),
-      this.prisma.ganttResourceNode.findMany({ where: { projectId } }),
-      this.prisma.ganttTask.findMany({ where: { projectId }, select: { id: true, ownerIds: true } }),
+      this.prisma.taskResourceNode.findMany({ where: { projectId } }),
+      this.prisma.task.findMany({ where: { projectId }, select: { id: true, ownerIds: true } }),
     ]);
 
     if (!project) return [];
@@ -215,8 +215,8 @@ export class PlanningService {
         existingGroupsByType.set(n.userTypeId, n);
       } else if (n.userId !== null) {
         existingUserNodes.set(n.userId, n);
-      } else if (n.ganttResourceId !== null) {
-        existingExtNodes.set(n.ganttResourceId, n);
+      } else if (n.taskResourceId !== null) {
+        existingExtNodes.set(n.taskResourceId, n);
       }
     }
 
@@ -230,12 +230,12 @@ export class PlanningService {
       const existing = existingGroupsByType.get(typeId);
       if (existing) {
         if (existing.text !== label) {
-          await this.prisma.ganttResourceNode.update({ where: { id: existing.id }, data: { text: label, updatedAt: now } });
+          await this.prisma.taskResourceNode.update({ where: { id: existing.id }, data: { text: label, updatedAt: now } });
         }
         groupNodeIds.set(typeId, existing.id);
         seenNodeIds.add(existing.id);
       } else {
-        const created = await this.prisma.ganttResourceNode.create({
+        const created = await this.prisma.taskResourceNode.create({
           data: { text: label, projectId, userTypeId: typeId, isGroup: true, updatedAt: now },
         });
         groupNodeIds.set(typeId, created.id);
@@ -250,7 +250,7 @@ export class PlanningService {
         groupNodeIds.set(null, existing.id);
         seenNodeIds.add(existing.id);
       } else {
-        const created = await this.prisma.ganttResourceNode.create({
+        const created = await this.prisma.taskResourceNode.create({
           data: { text: 'Sem tipo', projectId, userTypeId: null, isGroup: true, updatedAt: now },
         });
         groupNodeIds.set(null, created.id);
@@ -266,14 +266,14 @@ export class PlanningService {
       if (existing) {
         const needsUpdate = existing.text !== m.name || existing.parentId !== parentId || existing.hoursPerDay !== hpd;
         if (needsUpdate) {
-          await this.prisma.ganttResourceNode.update({
+          await this.prisma.taskResourceNode.update({
             where: { id: existing.id },
             data: { text: m.name, parentId: parentId ?? null, hoursPerDay: hpd, updatedAt: now },
           });
         }
         seenNodeIds.add(existing.id);
       } else {
-        const created = await this.prisma.ganttResourceNode.create({
+        const created = await this.prisma.taskResourceNode.create({
           data: { text: m.name, projectId, userId: m.id, parentId: parentId ?? null, hoursPerDay: hpd, updatedAt: now },
         });
         seenNodeIds.add(created.id);
@@ -288,15 +288,15 @@ export class PlanningService {
       if (existing) {
         const needsUpdate = existing.text !== ext.text || existing.parentId !== parentId || existing.hoursPerDay !== ext.hoursPerDay;
         if (needsUpdate) {
-          await this.prisma.ganttResourceNode.update({
+          await this.prisma.taskResourceNode.update({
             where: { id: existing.id },
             data: { text: ext.text, parentId: parentId ?? null, hoursPerDay: ext.hoursPerDay, updatedAt: now },
           });
         }
         seenNodeIds.add(existing.id);
       } else {
-        const created = await this.prisma.ganttResourceNode.create({
-          data: { text: ext.text, projectId, ganttResourceId: ext.id, parentId: parentId ?? null, hoursPerDay: ext.hoursPerDay, updatedAt: now },
+        const created = await this.prisma.taskResourceNode.create({
+          data: { text: ext.text, projectId, taskResourceId: ext.id, parentId: parentId ?? null, hoursPerDay: ext.hoursPerDay, updatedAt: now },
         });
         seenNodeIds.add(created.id);
       }
@@ -306,17 +306,17 @@ export class PlanningService {
     const orphanIds = existingNodes.filter((n) => !seenNodeIds.has(n.id)).map((n) => n.id);
     if (orphanIds.length > 0) {
       // Delete leaves first (avoid FK cascade issues), then groups
-      await this.prisma.ganttResourceNode.deleteMany({ where: { id: { in: orphanIds }, isGroup: false } });
-      await this.prisma.ganttResourceNode.deleteMany({ where: { id: { in: orphanIds }, isGroup: true } });
+      await this.prisma.taskResourceNode.deleteMany({ where: { id: { in: orphanIds }, isGroup: false } });
+      await this.prisma.taskResourceNode.deleteMany({ where: { id: { in: orphanIds }, isGroup: true } });
     }
 
     // 9. Migrate legacy owner_id on tasks (idempotent)
-    const finalNodes = await this.prisma.ganttResourceNode.findMany({ where: { projectId }, orderBy: { id: 'asc' } });
+    const finalNodes = await this.prisma.taskResourceNode.findMany({ where: { projectId }, orderBy: { id: 'asc' } });
     const nodeByUserId = new Map<number, number>();
     const nodeByExtId = new Map<number, number>();
     for (const n of finalNodes) {
       if (n.userId !== null) nodeByUserId.set(n.userId, n.id);
-      if (n.ganttResourceId !== null) nodeByExtId.set(n.ganttResourceId, n.id);
+      if (n.taskResourceId !== null) nodeByExtId.set(n.taskResourceId, n.id);
     }
     const validNodeIds = new Set(finalNodes.map((n) => n.id));
 
@@ -349,14 +349,14 @@ export class PlanningService {
       }).filter((id): id is string => id !== null);
 
       if (changed) {
-        await this.prisma.ganttTask.update({ where: { id: task.id }, data: { ownerIds: newIds } });
+        await this.prisma.task.update({ where: { id: task.id }, data: { ownerIds: newIds } });
       }
     }
 
     // 10. Return serialized nodes — usa publicId (não `id` numérico interno)
     // tanto no `id` como no `parent`. DHTMLX aceita strings como ids; o
     // resource_property `owner_id` matches por igualdade. Cobertura de
-    // segurança: GanttResourceNode.id e User.id deixam de vazar para a API.
+    // segurança: TaskResourceNode.id e User.id deixam de vazar para a API.
     const idToPublicId = new Map<number, string>();
     for (const n of finalNodes) idToPublicId.set(n.id, n.publicId);
 
@@ -391,15 +391,17 @@ export class PlanningService {
     const projectId = await this.resolveProjectId(projectPublicId);
 
     const [tasks, links, resources, nonWorkingDays, commentCounts] = await Promise.all([
-      this.prisma.ganttTask.findMany({
+      this.prisma.task.findMany({
         where: { projectId },
         include: {
           boardColumn:   { select: { publicId: true } },
           boardSwimlane: { select: { publicId: true } },
+          createdBy:     { select: { publicId: true, name: true } },
+          updatedBy:     { select: { publicId: true, name: true } },
         },
         orderBy: { id: 'asc' },
       }),
-      this.prisma.ganttLink.findMany({
+      this.prisma.taskLink.findMany({
         where: {
           OR: [
             { source: { projectId } },
@@ -436,13 +438,13 @@ export class PlanningService {
   }
 
   /**
-   * Constrói Map<numericId, publicId> dos GanttResourceNode dum projecto.
+   * Constrói Map<numericId, publicId> dos TaskResourceNode dum projecto.
    * Usado para hidratar `task.ownerIds` (ints stringified em BD) para
    * publicIds (UUIDs) no wire format. A coluna BD continua a guardar ints
    * para reversibilidade — só o wire muda.
    */
   private async buildNodeIdToPublicIdMap(projectId: number): Promise<Map<number, string>> {
-    const nodes = await this.prisma.ganttResourceNode.findMany({
+    const nodes = await this.prisma.taskResourceNode.findMany({
       where: { projectId },
       select: { id: true, publicId: true },
     });
@@ -453,8 +455,8 @@ export class PlanningService {
 
   /**
    * Resolve `owner_id: string[]` recebido do DTO (publicIds UUID) para os
-   * ints stringified que `GanttTask.ownerIds` guarda. Lança 400 se algum
-   * publicId não pertence a um GanttResourceNode deste projecto.
+   * ints stringified que `Task.ownerIds` guarda. Lança 400 se algum
+   * publicId não pertence a um TaskResourceNode deste projecto.
    *
    * Aceita também ints stringified para retrocompatibilidade durante a
    * transição (o frontend pode estar a cachear payloads antigos).
@@ -475,7 +477,7 @@ export class PlanningService {
     const result: string[] = [...ints]; // legacy passa-através
 
     if (uuids.length > 0) {
-      const nodes = await this.prisma.ganttResourceNode.findMany({
+      const nodes = await this.prisma.taskResourceNode.findMany({
         where: { projectId, publicId: { in: uuids } },
         select: { id: true, publicId: true },
       });
@@ -496,7 +498,7 @@ export class PlanningService {
     const projectId = await this.resolveProjectId(projectPublicId);
     this.validateTaskConstraints(dto.type, dto.duration, dto.progress);
 
-    const durationUnit: GanttTaskDurationUnit = dto.durationUnit ?? GanttTaskDurationUnit.DAY;
+    const durationUnit: TaskDurationUnit = dto.durationUnit ?? TaskDurationUnit.DAY;
 
     const project = await this.prisma.project.findUnique({
       where: { id: projectId },
@@ -518,7 +520,7 @@ export class PlanningService {
     const maxBusinessDays = await this.platformConfig.getMaxTaskBusinessDays();
     assertTaskDurationWithinLimit(dto.duration, durationUnit, workHours, maxBusinessDays);
 
-    if (durationUnit === GanttTaskDurationUnit.HOUR) {
+    if (durationUnit === TaskDurationUnit.HOUR) {
       this.assertStartWithinWorkHours(startDate, workHours);
       endDate = addBusinessHoursInclusive(startDate, dto.duration, workHours, nonWorkingSet);
     } else {
@@ -538,7 +540,7 @@ export class PlanningService {
     if (effectiveType === 'task') {
       boardColumnId = await this.statesService.getInitialColumnId(projectId);
       if (boardColumnId !== null) {
-        const tail = await this.prisma.ganttTask.count({
+        const tail = await this.prisma.task.count({
           where: { boardColumnId },
         });
         boardPosition = tail;
@@ -550,7 +552,7 @@ export class PlanningService {
     if (dto.parent && dto.parent !== 0) {
       resolvedParentId = dto.parent;
     } else if (dto.parentPublicId) {
-      const parentTask = await this.prisma.ganttTask.findUnique({
+      const parentTask = await this.prisma.task.findUnique({
         where: { publicId: dto.parentPublicId },
         select: { id: true },
       });
@@ -563,10 +565,11 @@ export class PlanningService {
       ? await this.resolveOwnerIdsFromPublicIds(projectId, dto.owner_id)
       : [];
 
-    const task = await this.prisma.ganttTask.create({
+    const task = await this.prisma.task.create({
       data: {
         projectId,
         text: dto.text,
+        description: dto.description ?? null,
         type: effectiveType,
         startDate,
         endDate,
@@ -580,11 +583,14 @@ export class PlanningService {
         constraintDate: constraintDate ?? null,
         boardColumnId,
         boardPosition,
+        createdById: requestingUser?.sub ?? null,
+        updatedById: requestingUser?.sub ?? null,
       },
+      include: { createdBy: { select: { publicId: true, name: true } }, updatedBy: { select: { publicId: true, name: true } } },
     });
 
     // Notificar owners atribuídos na criação. `notifyNewOwners` espera ints
-    // stringified (matches em GanttResourceNode.id) — usa o array já resolvido.
+    // stringified (matches em TaskResourceNode.id) — usa o array já resolvido.
     if (requestingUser && ownerIdsToStore.length > 0) {
       const projectMeta = await this.prisma.project.findUnique({
         where: { id: projectId },
@@ -612,7 +618,7 @@ export class PlanningService {
   async updateTask(taskPublicId: string, dto: UpdateTaskDto, requestingUser?: JwtPayload) {
     const id = await this.resolveTaskId(taskPublicId);
 
-    const existing = await this.prisma.ganttTask.findUnique({ where: { id } });
+    const existing = await this.prisma.task.findUnique({ where: { id } });
     if (!existing) throw new AppException('TASK_NOT_FOUND', HttpStatus.NOT_FOUND);
 
     const effectiveType = dto.type ?? existing.type;
@@ -633,6 +639,9 @@ export class PlanningService {
 
     const data: Record<string, unknown> = {};
     if (dto.text !== undefined) data.text = dto.text;
+    if (dto.description !== undefined) {
+      data.description = dto.description.length > 0 ? dto.description : null;
+    }
     if (dto.type !== undefined) data.type = dto.type;
     if (dto.start_date !== undefined) data.startDate = parseGanttDate(dto.start_date);
     if (dto.duration !== undefined) data.duration = dto.duration;
@@ -664,7 +673,7 @@ export class PlanningService {
       const maxBusinessDays = await this.platformConfig.getMaxTaskBusinessDays();
       assertTaskDurationWithinLimit(effDur, effUnit, workHours, maxBusinessDays);
 
-      if (effUnit === GanttTaskDurationUnit.HOUR) {
+      if (effUnit === TaskDurationUnit.HOUR) {
         // Só validar quando o user tocou no start. Tasks legacy podem ter
         // startDate fora da janela e um resize-direita (sem dto.start_date)
         // não deve ser bloqueado por isso.
@@ -682,7 +691,14 @@ export class PlanningService {
     }
 
     const previousOwnerIds = existing.ownerIds;
-    const task = await this.prisma.ganttTask.update({ where: { id }, data });
+    if (requestingUser) {
+      data.updatedById = requestingUser.sub;
+    }
+    const task = await this.prisma.task.update({
+      where: { id },
+      data,
+      include: { createdBy: { select: { publicId: true, name: true } }, updatedBy: { select: { publicId: true, name: true } } },
+    });
 
     // Notificar novos owners — ambos os arrays em ints stringified
     // (post-resolução). `data.ownerIds` é o array que foi gravado.
@@ -722,7 +738,7 @@ export class PlanningService {
   ): Promise<{ affected: number }> {
     const projectId = await this.resolveProjectId(projectPublicId);
 
-    const tasks = await this.prisma.ganttTask.findMany({
+    const tasks = await this.prisma.task.findMany({
       where: { projectId },
       select: { id: true, startDate: true, duration: true, durationUnit: true },
     });
@@ -738,7 +754,7 @@ export class PlanningService {
     await this.prisma.$transaction(
       tasks.map((t) => {
         let endDate: Date;
-        if (t.durationUnit === GanttTaskDurationUnit.HOUR) {
+        if (t.durationUnit === TaskDurationUnit.HOUR) {
           endDate = addBusinessHoursInclusive(t.startDate, t.duration, workHours, nonWorkingSet);
         } else {
           const lastBusinessDay = addBusinessDaysInclusive(t.startDate, t.duration, nonWorkingSet);
@@ -746,7 +762,7 @@ export class PlanningService {
             ? lastBusinessDay
             : new Date(lastBusinessDay.getTime() + 86400000);
         }
-        return this.prisma.ganttTask.update({
+        return this.prisma.task.update({
           where: { id: t.id },
           data: { endDate },
         });
@@ -768,7 +784,7 @@ export class PlanningService {
     if (!addedIds.length) return;
     const numericIds = addedIds.map((id) => parseInt(id, 10)).filter((n) => !isNaN(n));
     if (!numericIds.length) return;
-    const nodes = await this.prisma.ganttResourceNode.findMany({
+    const nodes = await this.prisma.taskResourceNode.findMany({
       where: { id: { in: numericIds } },
       select: { userId: true },
     });
@@ -783,7 +799,7 @@ export class PlanningService {
   async deleteTask(taskPublicId: string) {
     const id = await this.resolveTaskId(taskPublicId);
 
-    const existing = await this.prisma.ganttTask.findUnique({ where: { id } });
+    const existing = await this.prisma.task.findUnique({ where: { id } });
     if (!existing) throw new AppException('TASK_NOT_FOUND', HttpStatus.NOT_FOUND);
 
     await this.deleteTaskCascade(id);
@@ -791,7 +807,7 @@ export class PlanningService {
   }
 
   private async deleteTaskCascade(id: number): Promise<void> {
-    const children = await this.prisma.ganttTask.findMany({
+    const children = await this.prisma.task.findMany({
       where: { parentId: id },
       select: { id: true },
     });
@@ -800,7 +816,7 @@ export class PlanningService {
       await this.deleteTaskCascade(child.id);
     }
 
-    await this.prisma.ganttTask.delete({ where: { id } });
+    await this.prisma.task.delete({ where: { id } });
   }
 
   // ── Links ───────────────────────────────────────────────────────────────────
@@ -811,8 +827,8 @@ export class PlanningService {
     }
 
     const [src, tgt] = await Promise.all([
-      this.prisma.ganttTask.findUnique({ where: { id: dto.source } }),
-      this.prisma.ganttTask.findUnique({ where: { id: dto.target } }),
+      this.prisma.task.findUnique({ where: { id: dto.source } }),
+      this.prisma.task.findUnique({ where: { id: dto.target } }),
     ]);
     if (!src) throw new AppException('TASK_NOT_FOUND', HttpStatus.NOT_FOUND);
     if (!tgt) throw new AppException('TASK_NOT_FOUND', HttpStatus.NOT_FOUND);
@@ -822,7 +838,7 @@ export class PlanningService {
       throw new AppException('LINK_CYCLE_DETECTED', HttpStatus.BAD_REQUEST);
     }
 
-    const link = await this.prisma.ganttLink.create({
+    const link = await this.prisma.taskLink.create({
       data: {
         sourceId: dto.source,
         targetId: dto.target,
@@ -837,30 +853,30 @@ export class PlanningService {
   async updateLink(linkPublicId: string, dto: UpdateLinkDto) {
     const id = await this.resolveLinkId(linkPublicId);
 
-    const existing = await this.prisma.ganttLink.findUnique({ where: { id } });
+    const existing = await this.prisma.taskLink.findUnique({ where: { id } });
     if (!existing) throw new AppException('NOT_FOUND', HttpStatus.NOT_FOUND);
 
     const data: Record<string, unknown> = {};
     if (dto.type !== undefined) data.type = dto.type;
     if (dto.lag !== undefined) data.lag = dto.lag;
 
-    const link = await this.prisma.ganttLink.update({ where: { id }, data });
+    const link = await this.prisma.taskLink.update({ where: { id }, data });
     return this.serializeLink(link);
   }
 
   async deleteLink(linkPublicId: string) {
     const id = await this.resolveLinkId(linkPublicId);
 
-    const existing = await this.prisma.ganttLink.findUnique({ where: { id } });
+    const existing = await this.prisma.taskLink.findUnique({ where: { id } });
     if (!existing) throw new AppException('NOT_FOUND', HttpStatus.NOT_FOUND);
 
-    await this.prisma.ganttLink.delete({ where: { id } });
+    await this.prisma.taskLink.delete({ where: { id } });
     return { deleted: id };
   }
 
   // ── Resources ───────────────────────────────────────────────────────────────
 
-  /** Serializa um GanttResource para o formato de resposta da API */
+  /** Serializa um TaskResource para o formato de resposta da API */
   private serializeResource(r: {
     id: number;
     publicId: string;
@@ -884,7 +900,7 @@ export class PlanningService {
   async getResources(projectPublicId: string) {
     const projectId = await this.resolveProjectId(projectPublicId);
 
-    const resources = await this.prisma.ganttResource.findMany({
+    const resources = await this.prisma.taskResource.findMany({
       where: { projectId },
       orderBy: { id: 'asc' },
       include: { userType: { select: { publicId: true, code: true, label: true } } },
@@ -897,7 +913,7 @@ export class PlanningService {
     const projectId = await this.resolveProjectId(projectPublicId);
     const userTypeId = await this.resolveUserTypeId(dto.userTypeId);
 
-    const resource = await this.prisma.ganttResource.create({
+    const resource = await this.prisma.taskResource.create({
       data: {
         text: dto.text,
         parentId: dto.parentId ?? null,
@@ -918,7 +934,7 @@ export class PlanningService {
   async updateResource(resourcePublicId: string, dto: UpdateResourceDto) {
     const id = await this.resolveResourceId(resourcePublicId);
 
-    const existing = await this.prisma.ganttResource.findUnique({ where: { id } });
+    const existing = await this.prisma.taskResource.findUnique({ where: { id } });
     if (!existing) throw new AppException('RESOURCE_NOT_FOUND', HttpStatus.NOT_FOUND);
 
     const data: Record<string, unknown> = {};
@@ -930,7 +946,7 @@ export class PlanningService {
       data.userTypeId = await this.resolveUserTypeId(dto.userTypeId);
     }
 
-    const resource = await this.prisma.ganttResource.update({
+    const resource = await this.prisma.taskResource.update({
       where: { id },
       data,
       include: { userType: { select: { publicId: true, code: true, label: true } } },
@@ -945,10 +961,10 @@ export class PlanningService {
   async deleteResource(resourcePublicId: string) {
     const id = await this.resolveResourceId(resourcePublicId);
 
-    const existing = await this.prisma.ganttResource.findUnique({ where: { id } });
+    const existing = await this.prisma.taskResource.findUnique({ where: { id } });
     if (!existing) throw new AppException('RESOURCE_NOT_FOUND', HttpStatus.NOT_FOUND);
 
-    await this.prisma.ganttResource.delete({ where: { id } });
+    await this.prisma.taskResource.delete({ where: { id } });
 
     // Sync to remove orphaned node from the Gantt tree
     if (existing.projectId) await this.syncResourceNodes(existing.projectId);
@@ -1052,7 +1068,7 @@ export class PlanningService {
       if (visited.has(current)) continue;
       visited.add(current);
 
-      const outgoing = await this.prisma.ganttLink.findMany({
+      const outgoing = await this.prisma.taskLink.findMany({
         where: { sourceId: current },
         select: { targetId: true },
       });
@@ -1068,11 +1084,12 @@ export class PlanningService {
     id: number;
     publicId: string;
     text: string;
+    description?: string | null;
     type: string;
     startDate: Date;
     endDate: Date | null;
     duration: number;
-    durationUnit: GanttTaskDurationUnit;
+    durationUnit: TaskDurationUnit;
     progress: number;
     ownerIds: string[];
     parentId: number | null;
@@ -1082,8 +1099,10 @@ export class PlanningService {
     boardPosition?: number | null;
     boardColumn?: { publicId: string } | null;
     boardSwimlane?: { publicId: string } | null;
+    createdBy?: { publicId: string; name: string } | null;
+    updatedBy?: { publicId: string; name: string } | null;
   }, commentCount = 0, nodeIdToPublicId?: Map<number, string>) {
-    // owner_id wire format: publicIds (UUIDs) do GanttResourceNode. A coluna
+    // owner_id wire format: publicIds (UUIDs) do TaskResourceNode. A coluna
     // BD `ownerIds` continua a guardar ints stringified — convertemos na
     // boundary para evitar leak de IDs internos. Se o map não for fornecido
     // (ex.: chamadas isoladas de createTask/updateTask) devolvemos sem
@@ -1101,10 +1120,11 @@ export class PlanningService {
       id: t.id,
       publicId: t.publicId,
       text: t.text,
+      description: t.description ?? null,
       type: t.type,
       start_date: formatGanttDate(t.startDate),
       end_date: formatGanttDate(t.endDate ?? (
-        t.durationUnit === GanttTaskDurationUnit.HOUR
+        t.durationUnit === TaskDurationUnit.HOUR
           ? new Date(t.startDate.getTime() + t.duration * 3_600_000)
           : new Date(t.startDate.getTime() + t.duration * 24 * 60 * 60 * 1000)
       )),
@@ -1131,6 +1151,12 @@ export class PlanningService {
       updatedAt: tWithAudit.updatedAt
         ? tWithAudit.updatedAt.toISOString()
         : undefined,
+      createdBy: t.createdBy
+        ? { publicId: t.createdBy.publicId, name: t.createdBy.name }
+        : null,
+      updatedBy: t.updatedBy
+        ? { publicId: t.updatedBy.publicId, name: t.updatedBy.name }
+        : null,
     };
   }
 

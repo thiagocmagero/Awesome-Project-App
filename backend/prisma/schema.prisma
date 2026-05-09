@@ -44,7 +44,7 @@ enum GanttConfigScope {
 /// DAY (default, retrocompat): duration em dias úteis, endDate via addBusinessDaysInclusive.
 /// HOUR: duration em horas úteis dentro de Project.workHours, endDate via addBusinessHoursInclusive.
 /// Ver docs/claude/tools/gantt/data-model.md.
-enum GanttTaskDurationUnit {
+enum TaskDurationUnit {
   DAY
   HOUR
 }
@@ -229,9 +229,9 @@ model UserType {
   ownerId Int?
   owner   User? @relation("UserTypeOwner", fields: [ownerId], references: [id], onDelete: SetNull)
 
-  users              User[]
-  ganttResources     GanttResource[]
-  ganttResourceNodes GanttResourceNode[]
+  users             User[]
+  taskResources     TaskResource[]
+  taskResourceNodes TaskResourceNode[]
 
   @@unique([code, ownerId])
 }
@@ -301,8 +301,8 @@ model User {
   /// Convites enviados por este utilizador
   sentInvitations ProjectMember[] @relation("SentInvitations")
 
-  /// Recursos Gantt opcionalmente ligados a este utilizador
-  ganttResources GanttResource[]
+  /// Recursos de task opcionalmente ligados a este utilizador
+  taskResources TaskResource[]
 
   /// Disponibilidade horária por projeto
   memberHours ProjectMemberHours[]
@@ -315,8 +315,8 @@ model User {
   /// Registos de uso (contadores)
   usageRecords UsageRecord[]
 
-  /// Nós de recurso Gantt (folhas internas)
-  ganttResourceNodes GanttResourceNode[]
+  /// Nós de recurso de task (folhas internas)
+  taskResourceNodes TaskResourceNode[]
 
   /// Listas de feriados criadas por este utilizador
   holidays Holiday[]
@@ -380,6 +380,12 @@ model User {
 
   /// Ficheiros enviados por este utilizador (authorship — sobrevive ao delete).
   filesUploaded File[] @relation("FileUploadedBy")
+
+  /// Tasks criadas por este utilizador (audit — SetNull preserva história).
+  tasksCreated Task[] @relation("TaskCreatedBy")
+
+  /// Tasks actualizadas por este utilizador (audit — SetNull preserva história).
+  tasksUpdated Task[] @relation("TaskUpdatedBy")
 
   /// IANA timezone identifier do utilizador (ex.: 'Europe/Lisbon').
   /// MOMENTO REAL — usado em páginas globais (cross-project) e como default
@@ -519,7 +525,7 @@ model Project {
   /// null ⇒ usa default platform-wide ('DD/MM/YYYY').
   dateFormat String?
 
-  /// Janela horária útil para tasks GanttTask com `durationUnit=HOUR`.
+  /// Janela horária útil para tasks Task com `durationUnit=HOUR`.
   /// JSON `{ start: number, end: number }` em formato 24h (ex.: { start: 9, end: 18 }).
   /// null ⇒ default 09:00–18:00. Ignorado por tasks DAY.
   /// Ver docs/claude/tools/gantt/data-model.md.
@@ -534,17 +540,17 @@ model Project {
   /// Swimlanes (linhas do board) — agrupamento horizontal de cards
   boardSwimlanes BoardSwimlane[]
 
-  /// Tarefas Gantt associadas ao projeto
-  ganttTasks GanttTask[]
+  /// Tarefas associadas ao projeto
+  tasks Task[]
 
-  /// Recursos Gantt (departamentos e pessoas) associados ao projeto
-  ganttResources GanttResource[]
+  /// Recursos de task (departamentos e pessoas) associados ao projeto
+  taskResources TaskResource[]
 
   /// Disponibilidade horária dos membros neste projeto
   memberHours ProjectMemberHours[]
 
-  /// Nós de recurso Gantt (árvore para o DHTMLX resource datastore)
-  ganttResourceNodes GanttResourceNode[]
+  /// Nós de recurso de task (árvore para o DHTMLX resource datastore)
+  taskResourceNodes TaskResourceNode[]
 
   /// Listas de feriados associadas ao projeto
   holidays ProjectHoliday[]
@@ -690,12 +696,12 @@ model EmailConfig {
 
 /// Limites globais da plataforma — singleton (id sempre = 1).
 /// Configuráveis apenas por PLATFORM_ADMIN. Lidos pelo backend em
-/// validações (ex.: cap de duração de GanttTask).
+/// validações (ex.: cap de duração de Task).
 /// Ver docs/claude/tools/gantt/data-model.md.
 model PlatformLimits {
   id Int @id @default(1)
 
-  /// Cap de duração de uma GanttTask em dias úteis.
+  /// Cap de duração de uma Task em dias úteis.
   /// Tasks HOUR convertem-se via Project.workHours (`durationHours / dailyHours`).
   /// Default 1300 (~5 anos calendário).
   maxTaskBusinessDays Int @default(1300)
@@ -1015,13 +1021,15 @@ model Invoice {
 
 /// Tarefa Gantt — unidade de trabalho dentro de um Projeto
 /// Tipos: "task" (tarefa simples), "project" (agrupador), "milestone" (marco, duration=0)
-model GanttTask {
+model Task {
   id        Int     @id @default(autoincrement())
   publicId  String  @unique @default(uuid(7))
   projectId Int
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   text      String
+  /// Descrição rica/longa da task (opcional). Editada no TaskModal.
+  description String?
   type      String    @default("task") // "task" | "project" | "milestone"
   startDate DateTime
   endDate   DateTime? // calculado automaticamente se omitido
@@ -1032,7 +1040,7 @@ model GanttTask {
 
   /// Unidade da duração. DAY = dias úteis (default, retrocompat); HOUR = horas
   /// úteis dentro de Project.workHours. Ver docs/claude/tools/gantt/data-model.md.
-  durationUnit GanttTaskDurationUnit @default(DAY)
+  durationUnit TaskDurationUnit @default(DAY)
 
   /// Percentual de conclusão: 0.0 a 1.0
   progress Float @default(0)
@@ -1042,8 +1050,8 @@ model GanttTask {
 
   /// Relação hierárquica pai-filho
   parentId Int?
-  parent   GanttTask?  @relation("TaskHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
-  children GanttTask[] @relation("TaskHierarchy")
+  parent   Task?  @relation("TaskHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children Task[] @relation("TaskHierarchy")
 
   /// Prioridade definida pela aplicação: 1=Alta, 2=Média, 3=Baixa
   priority Int?
@@ -1056,10 +1064,10 @@ model GanttTask {
   constraintType String? // "asap" | "alap" | "snet" | "snlt" | "fnet" | "fnlt" | "mso" | "mfo"
   constraintDate DateTime? // obrigatório para snet, snlt, fnet, fnlt, mso, mfo
 
-  linksAsSource GanttLink[]       @relation("LinkSource")
-  linksAsTarget GanttLink[]       @relation("LinkTarget")
-  assignments   GanttAssignment[]
-  baselines     GanttBaseline[]
+  linksAsSource TaskLink[]       @relation("LinkSource")
+  linksAsTarget TaskLink[]       @relation("LinkTarget")
+  assignments   TaskAssignment[]
+  baselines     TaskBaseline[]
 
   /// Board — posição e estado no quadro Kanban
   boardColumnId Int?
@@ -1080,18 +1088,26 @@ model GanttTask {
   /// ficheiros em project-level (taskId passa a null), preservando-os.
   files File[]
 
+  /// Audit — quem criou a task (SetNull para preservar história em delete de user).
+  createdById Int?
+  createdBy   User? @relation("TaskCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  /// Audit — quem fez a última actualização (SetNull para preservar história).
+  updatedById Int?
+  updatedBy   User? @relation("TaskUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
 /// Dependência entre duas tarefas Gantt
-model GanttLink {
+model TaskLink {
   id       Int       @id @default(autoincrement())
   publicId String    @unique @default(uuid(7))
   sourceId Int
-  source   GanttTask @relation("LinkSource", fields: [sourceId], references: [id], onDelete: Cascade)
+  source   Task @relation("LinkSource", fields: [sourceId], references: [id], onDelete: Cascade)
   targetId Int
-  target   GanttTask @relation("LinkTarget", fields: [targetId], references: [id], onDelete: Cascade)
+  target   Task @relation("LinkTarget", fields: [targetId], references: [id], onDelete: Cascade)
 
   /// Tipo: "0"=FS (Finish-to-Start) | "1"=SS | "2"=FF | "3"=SF
   type String @default("0")
@@ -1105,7 +1121,7 @@ model GanttLink {
 
 /// Recurso Gantt — pessoa ou departamento
 /// Estrutura hierárquica: departamento (parent=null) → pessoa (leaf)
-model GanttResource {
+model TaskResource {
   id       Int    @id @default(autoincrement())
   publicId String @unique @default(uuid(7))
   text     String
@@ -1119,8 +1135,8 @@ model GanttResource {
 
   /// Departamento pai (null = raiz)
   parentId Int?
-  parent   GanttResource?  @relation("ResourceHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
-  children GanttResource[] @relation("ResourceHierarchy")
+  parent   TaskResource?  @relation("ResourceHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children TaskResource[] @relation("ResourceHierarchy")
 
   /// Vínculo opcional com utilizador da plataforma
   userId Int?
@@ -1130,25 +1146,25 @@ model GanttResource {
   projectId Int?
   project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  assignments GanttAssignment[]
+  assignments TaskAssignment[]
 
-  /// Nós de recurso que apontam para este GanttResource (externos)
-  ganttResourceNodes GanttResourceNode[]
+  /// Nós de recurso que apontam para este TaskResource (externos)
+  taskResourceNodes TaskResourceNode[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
 /// Nó da árvore de recursos do Gantt — IDs auto-increment simples para o DHTMLX
-model GanttResourceNode {
+model TaskResourceNode {
   id       Int    @id @default(autoincrement())
   publicId String @unique @default(uuid(7))
   text     String
 
   /// Hierarquia: null = nó raiz (grupo de tipo funcional)
   parentId Int?
-  parent   GanttResourceNode?  @relation("NodeHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
-  children GanttResourceNode[] @relation("NodeHierarchy")
+  parent   TaskResourceNode?  @relation("NodeHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children TaskResourceNode[] @relation("NodeHierarchy")
 
   /// Projecto (scope obrigatório)
   projectId Int
@@ -1163,8 +1179,8 @@ model GanttResourceNode {
   user   User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   /// Para folhas externas: recurso sem conta
-  ganttResourceId Int?
-  ganttResource   GanttResource? @relation(fields: [ganttResourceId], references: [id], onDelete: SetNull)
+  taskResourceId Int?
+  taskResource   TaskResource? @relation(fields: [taskResourceId], references: [id], onDelete: SetNull)
 
   hoursPerDay Float   @default(8)
   isGroup     Boolean @default(false)
@@ -1174,13 +1190,13 @@ model GanttResourceNode {
 }
 
 /// Alocação detalhada de um recurso a uma tarefa
-model GanttAssignment {
+model TaskAssignment {
   id         Int           @id @default(autoincrement())
   publicId   String        @unique @default(uuid(7))
   taskId     Int
-  task       GanttTask     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  task       Task         @relation(fields: [taskId], references: [id], onDelete: Cascade)
   resourceId Int
-  resource   GanttResource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  resource   TaskResource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
 
   /// Taxa de alocação: 0 a 1 (ex: 0.5 = 50% da capacidade)
   units Float @default(1)
@@ -1193,11 +1209,11 @@ model GanttAssignment {
 }
 
 /// Baseline — snapshot do cronograma planejado para comparação futura
-model GanttBaseline {
+model TaskBaseline {
   id       Int       @id @default(autoincrement())
   publicId String    @unique @default(uuid(7))
   taskId   Int
-  task     GanttTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  task     Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
   startDate DateTime
   endDate   DateTime
@@ -1282,15 +1298,15 @@ model BoardColumn {
   updatedAt DateTime @updatedAt
 
   /// Tarefas neste estado
-  tasks GanttTask[]
+  tasks Task[]
 
   @@index([projectId, position])
 }
 
-/// Responsável atribuído a um cartão via board (n:m entre GanttTask e User)
+/// Responsável atribuído a um cartão via board (n:m entre Task e User)
 model BoardCardAssignee {
   taskId Int
-  task   GanttTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  task   Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
   userId Int
   user   User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -1336,7 +1352,7 @@ model BoardSwimlane {
   status    Status  @default(ACTIVE)
 
   /// Tarefas associadas a esta swimlane
-  tasks      GanttTask[]
+  tasks      Task[]
   /// Estado collapsed/expandido por utilizador
   userStates BoardSwimlaneUserState[]
 
@@ -1589,7 +1605,7 @@ model File {
   /// Task associada — opcional (project-level files têm null).
   /// SetNull: apagar task não apaga o ficheiro; passa a project-level.
   taskId Int?
-  task   GanttTask? @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  task   Task? @relation(fields: [taskId], references: [id], onDelete: SetNull)
 
   /// Quem fez o upload — authorship preservada após delete do user.
   uploadedById Int?
@@ -1802,7 +1818,7 @@ model TimesheetEntry {
   userId    Int
   user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   taskId    Int
-  task      GanttTask     @relation(fields: [taskId], references: [id], onDelete: Restrict)
+  task      Task          @relation(fields: [taskId], references: [id], onDelete: Restrict)
   weekId    Int
   week      TimesheetWeek @relation(fields: [weekId], references: [id], onDelete: Cascade)
   dayId     Int

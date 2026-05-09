@@ -12,7 +12,7 @@ interface ProjectBrief {
   name: string;
 }
 
-interface GanttTask {
+interface Task {
   id: number;
   text: string;
   type: string;
@@ -27,7 +27,7 @@ interface GanttTask {
   constraint_date?: string;
 }
 
-interface GanttLink {
+interface TaskLink {
   id: string;
   source: number;
   target: number;
@@ -35,7 +35,7 @@ interface GanttLink {
   lag: number;
 }
 
-interface GanttResource {
+interface TaskResource {
   id: number;
   text: string;
   parent: number;
@@ -88,14 +88,14 @@ function displayDate(d: string): string {
 }
 
 /** Devolve a lista de tarefas em tree order (pais antes dos filhos) */
-function flattenTree(tasks: GanttTask[]): Array<GanttTask & { depth: number }> {
-  const byParent = new Map<number, GanttTask[]>();
+function flattenTree(tasks: Task[]): Array<Task & { depth: number }> {
+  const byParent = new Map<number, Task[]>();
   for (const t of tasks) {
     const p = t.parent ?? 0;
     if (!byParent.has(p)) byParent.set(p, []);
     byParent.get(p)!.push(t);
   }
-  const result: Array<GanttTask & { depth: number }> = [];
+  const result: Array<Task & { depth: number }> = [];
   function walk(parentId: number, depth: number) {
     for (const t of byParent.get(parentId) ?? []) {
       result.push({ ...t, depth });
@@ -182,9 +182,9 @@ export default function GanttPage() {
 
   // Data
   const [project, setProject] = useState<ProjectBrief | null>(null);
-  const [tasks, setTasks] = useState<GanttTask[]>([]);
-  const [links, setLinks] = useState<GanttLink[]>([]);
-  const [resources, setResources] = useState<GanttResource[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [links, setLinks] = useState<TaskLink[]>([]);
+  const [resources, setResources] = useState<TaskResource[]>([]);
   const [loading, setLoading] = useState(true);
   const [pageError, setPageError] = useState('');
 
@@ -193,19 +193,19 @@ export default function GanttPage() {
 
   // Task modal
   const [showTaskModal, setShowTaskModal] = useState(false);
-  const [editingTask, setEditingTask] = useState<GanttTask | null>(null);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [taskForm, setTaskForm] = useState({ ...EMPTY_TASK_FORM });
   const [taskFormError, setTaskFormError] = useState('');
   const [taskFormLoading, setTaskFormLoading] = useState(false);
 
   // Delete task modal
   const [showDeleteTask, setShowDeleteTask] = useState(false);
-  const [deletingTask, setDeletingTask] = useState<GanttTask | null>(null);
+  const [deletingTask, setDeletingTask] = useState<Task | null>(null);
   const [deleteTaskLoading, setDeleteTaskLoading] = useState(false);
 
   // Resource modal
   const [showResourceModal, setShowResourceModal] = useState(false);
-  const [editingResource, setEditingResource] = useState<GanttResource | null>(null);
+  const [editingResource, setEditingResource] = useState<TaskResource | null>(null);
   const [resourceForm, setResourceForm] = useState({ ...EMPTY_RESOURCE_FORM });
   const [resourceFormError, setResourceFormError] = useState('');
   const [resourceFormLoading, setResourceFormLoading] = useState(false);
@@ -277,7 +277,7 @@ export default function GanttPage() {
     setShowTaskModal(true);
   }
 
-  function openEditTask(t: GanttTask) {
+  function openEditTask(t: Task) {
     setEditingTask(t);
     setTaskForm({
       text: t.text,
@@ -362,7 +362,7 @@ export default function GanttPage() {
     setShowResourceModal(true);
   }
 
-  function openEditResource(r: GanttResource) {
+  function openEditResource(r: TaskResource) {
     setEditingResource(r);
     setResourceForm({ text: r.text, parentId: r.parent ? String(r.parent) : '' });
     setResourceFormError('');
@@ -398,7 +398,7 @@ export default function GanttPage() {
     }
   }
 
-  async function handleDeleteResource(r: GanttResource) {
+  async function handleDeleteResource(r: TaskResource) {
     if (!confirm(t('resource.confirm_delete', { name: r.text }))) return;
     setDeleteResourceLoading(r.id);
     try {
@@ -455,7 +455,7 @@ export default function GanttPage() {
     }
   }
 
-  async function handleDeleteLink(link: GanttLink) {
+  async function handleDeleteLink(link: TaskLink) {
     const srcTask = tasks.find((t) => t.id === link.source);
     const tgtTask = tasks.find((t) => t.id === link.target);
     if (!confirm(t('link.confirm_delete', { src: srcTask?.text ?? String(link.source), tgt: tgtTask?.text ?? String(link.target) }))) return;

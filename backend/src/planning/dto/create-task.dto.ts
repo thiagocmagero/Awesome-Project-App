@@ -9,11 +9,16 @@ import {
   IsUUID,
   Min,
 } from 'class-validator';
-import { GanttTaskDurationUnit } from '@prisma/client';
+import { TaskDurationUnit } from '@prisma/client';
 
 export class CreateTaskDto {
   @IsString()
   text!: string;
+
+  /** Descrição rica/longa (opcional). */
+  @IsOptional()
+  @IsString()
+  description?: string;
 
   /** "task" | "project" | "milestone" — padrão "task" */
   @IsOptional()
@@ -38,15 +43,15 @@ export class CreateTaskDto {
    * Ver docs/claude/tools/gantt/data-model.md.
    */
   @IsOptional()
-  @IsEnum(GanttTaskDurationUnit)
-  durationUnit?: GanttTaskDurationUnit;
+  @IsEnum(TaskDurationUnit)
+  durationUnit?: TaskDurationUnit;
 
   @IsOptional()
   @IsNumber()
   @Min(0)
   progress?: number;
 
-  /** Array de IDs de GanttResource como strings */
+  /** Array de IDs de TaskResource como strings */
   @IsOptional()
   @IsArray()
   @IsString({ each: true })

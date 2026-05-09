@@ -19,7 +19,7 @@ import { GanttService } from './gantt.service';
 export class GanttController {
   constructor(private readonly ganttService: GanttService) {}
 
-  /** Retorna { data: GanttTask[], links: GanttLink[] } no formato DHTMLX */
+  /** Retorna { data: Task[], links: TaskLink[] } no formato DHTMLX */
   @Get('gantt')
   @RequireProjectPermission(ProjectAction.PROJECT_VIEW)
   getProjectData(@Param('projectId', ParseUUIDPipe) projectId: string) {

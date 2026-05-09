@@ -72,7 +72,7 @@ service for refactored sem manter a verificação.
 - Endpoints de leitura cross-tenant (ex.: `/api/projects`) filtram no service
   por ownership/membership; mesmo aí, autenticação é mandatória.
 - A API **nunca** expõe `id` numérico interno — apenas `publicId` UUID v7.
-  Excepção documentada: `GanttTask.id`/`GanttLink.id`/`parent`/`source`/`target`
+  Excepção documentada: `Task.id`/`TaskLink.id`/`parent`/`source`/`target`
   por compatibilidade DHTMLX (IDs locais ao projecto, scoped pelo guard).
 
 Detalhes completos, hierarquia de roles, padrão UI espelho (`canDo()`),
@@ -122,7 +122,7 @@ de conversão. Detalhes completos, tabela exaustiva por campo, edge cases
 
 **Resumo:**
 - **DATA PURA** (workDate, weekStart, Project.startDate/endDate,
-  GanttTask.startDate/endDate, HolidayDate.date, TimesheetApprovalLog.scopeDate)
+  Task.startDate/endDate, HolidayDate.date, TimesheetApprovalLog.scopeDate)
   → `timestamp(3)` sem tz, UTC midnight + `formatDate(d, dateFormat)` **tz-agnostic**.
 - **MOMENTO REAL** (Notification.createdAt, Session.*At, Comment.createdAt,
   CalendarEvent.startAt/endAt, audit createdAt) → `@db.Timestamptz(6)` +
@@ -268,7 +268,7 @@ config**, não `api.on/intercept`.
     persistido em `CalendarConfig.sources.holidays`. Linkados ao projecto
     mostram badge "Projeto". Holidays platform-level (`scope=GLOBAL/REGIONAL`)
     não-linkados e não-owned **não aparecem** (Abril 2026).
-  - "Projeto / Tarefas / Milestones" ← `Project` + `GanttTask`.
+  - "Projeto / Tarefas / Milestones" ← `Project` + `Task`.
 - **Feature flag** `calendar_view` (PLATFORM_ADMIN bypassa).
 - **Permissões granulares**: `CALENDAR_VIEW` (READER), `CALENDAR_EVENT_CREATE`/`EDIT`/`DELETE`
   + `CALENDAR_EVENT_TYPE_MANAGE` + `CALENDAR_CONFIG` (CONTRIBUTOR).
@@ -361,7 +361,7 @@ Ver @docs/claude/tools/timesheet/overview.md para detalhes.
 
 ## Regra obrigatória — Cap de duração de tasks Gantt (configurável)
 
-`GanttTask.duration` tem um cap **único** expresso em **dias úteis**, configurável
+`Task.duration` tem um cap **único** expresso em **dias úteis**, configurável
 ao nível PLATFORM_ADMIN via `PlatformLimits.maxTaskBusinessDays` (singleton id=1).
 Default 1300 (~5 anos calendário). Tasks HOUR convertem-se via
 `dailyHours = workHours.end - workHours.start` antes da comparação.
@@ -386,7 +386,7 @@ em anos calendário (`/260`). Detalhes em
 
 ## Regra obrigatória — Granularidade de tasks Gantt (DAY vs HOUR)
 
-`GanttTask` tem duas granularidades co-existentes via `durationUnit`:
+`Task` tem duas granularidades co-existentes via `durationUnit`:
 - **DAY** (default, retrocompat): `duration` em dias úteis, `endDate`
   calculado por `addBusinessDaysInclusive` (em
   [business-days.util.ts](backend/src/planning/business-days.util.ts)).
@@ -426,8 +426,8 @@ Detalhes completos, algoritmo de `addBusinessHoursInclusive`, edge cases
 
 ## Regra obrigatória — Estado da tarefa = `BoardColumn`
 
-Desde Abril 2026 o "estado" duma tarefa é a `BoardColumn` (`GanttTask.boardColumnId`).
-O campo legado `GanttTask.status` foi renomeado para `legacyStatus` e será removido.
+Desde Abril 2026 o "estado" duma tarefa é a `BoardColumn` (`Task.boardColumnId`).
+O campo legado `Task.status` foi renomeado para `legacyStatus` e será removido.
 - A mudança de estado é feita no TaskModal (select) e persiste via
   `PATCH /projects/:id/planning/tasks/:taskId/state`.
 - CRUD de Estados vive em `PlanningStatesController` (`/projects/:id/planning/states/*`)

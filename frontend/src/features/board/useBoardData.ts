@@ -10,7 +10,7 @@ import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Card, Column, Row } from 'awesome-kanban';
 import type { ITaskState, ITaskSwimlane } from '../planning/states-types';
-import type { GanttTask, ResourceNode, ProjectDetail } from '../planning/types';
+import type { Task, ResourceNode, ProjectDetail } from '../planning/types';
 import {
   stateToColumn,
   swimlaneToRow,
@@ -19,7 +19,7 @@ import {
 import type { BoardBundle, BoardUserOption } from './types';
 
 interface UseBoardDataInput {
-  tasks: GanttTask[];
+  tasks: Task[];
   states: ITaskState[];
   swimlanes: ITaskSwimlane[];
   project?: ProjectDetail | null;
@@ -27,7 +27,7 @@ interface UseBoardDataInput {
    * Nós de recursos do Gantt (folhas = utilizadores/externos). Usados para
    * construir o mapa de avatares por resource-node publicId (que é o que
    * `task.owner_id` contém desde Maio 2026 — publicIds UUID do
-   * `GanttResourceNode`, não publicIds de User).
+   * `TaskResourceNode`, não publicIds de User).
    */
   resourceNodes: ResourceNode[];
   /** publicId do utilizador autenticado (passado ao widget como `currentUser`). */
@@ -136,7 +136,7 @@ export function useBoardData({
 
     // ── Users — indexados por resource-node publicId ────────────────────────
     // Desde Maio 2026 `task.owner_id` é array de publicIds (UUIDs) do
-    // GanttResourceNode (não User.publicId). O KanbanCard faz lookup de
+    // TaskResourceNode (não User.publicId). O KanbanCard faz lookup de
     // `card.users[i]` dentro de `cardShape.users.values` — o `id` aqui tem de
     // bater certo com o publicId que vai estar em `card.users`.
     const users: BoardUserOption[] = resourceNodes

@@ -24,7 +24,7 @@ Documentação completa: `GANTT.md` (na raiz do projecto).
 
 ## Fases concluídas
 
-- **Fase 6** — Fundação: 5 modelos Prisma (GanttTask, GanttLink, GanttResource, GanttAssignment, GanttBaseline), CRUD backend.
+- **Fase 6** — Fundação: 5 modelos Prisma (Task, TaskLink, TaskResource, TaskAssignment, TaskBaseline), CRUD backend.
 - **Fase 6b** — Integração DHTMLX: layout 2 painéis, drag&drop, resize, links, resource grid.
 - **Fase 6c** — Recursos externos (contractors) com `hoursPerDay` e `userTypeId`.
 - **Fase 10** — Config Gantt 3 níveis (GLOBAL < USER < PROJECT), offcanvas, GanttSettingsPage.

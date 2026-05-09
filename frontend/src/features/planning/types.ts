@@ -37,12 +37,14 @@ export interface ProjectDetail {
 }
 
 /** Granularidade da `duration` da task. Espelha o enum Prisma. */
-export type GanttTaskDurationUnit = 'DAY' | 'HOUR';
+export type TaskDurationUnit = 'DAY' | 'HOUR';
 
-export interface GanttTask {
+export interface Task {
   id: number;
   publicId: string;
   text: string;
+  /** Descrição rica/longa (opcional) — editada no TaskModal. */
+  description?: string | null;
   type: string;
   start_date: string;
   end_date?: string;
@@ -55,7 +57,7 @@ export interface GanttTask {
    * Default `'DAY'` (retrocompat). Tasks novas com hora exacta são `'HOUR'`.
    * Ver docs/claude/tools/gantt/data-model.md.
    */
-  durationUnit?: GanttTaskDurationUnit;
+  durationUnit?: TaskDurationUnit;
   progress: number;
   owner_id: string[];
   parent: number;
@@ -74,9 +76,13 @@ export interface GanttTask {
    *  Podem ser undefined em payloads que não os incluam — UI faz fallback. */
   createdAt?: string;
   updatedAt?: string;
+  /** Autor da criação (audit). null se user removido (onDelete: SetNull). */
+  createdBy?: { publicId: string; name: string } | null;
+  /** Autor da última actualização (audit). null se user removido. */
+  updatedBy?: { publicId: string; name: string } | null;
 }
 
-export interface GanttLink {
+export interface TaskLink {
   id: string;
   publicId: string;
   source: number;
@@ -110,8 +116,8 @@ export interface UserTypeLookup {
   label: string;
 }
 
-/** Nó da árvore de recursos do Gantt — vem do backend (GanttResourceNode).
- *  `id` e `parent` são `publicId` UUIDs do `GanttResourceNode`. `parent: null`
+/** Nó da árvore de recursos do Gantt — vem do backend (TaskResourceNode).
+ *  `id` e `parent` são `publicId` UUIDs do `TaskResourceNode`. `parent: null`
  *  indica nó raiz (grupo top-level). DHTMLX aceita string como id e usa-o
  *  para matching com `task.owner_id` (também publicId desde Maio 2026). */
 export interface ResourceNode {
@@ -164,6 +170,7 @@ export const CONSTRAINT_NEEDS_DATE = new Set(['snet', 'snlt', 'fnet', 'fnlt', 'm
 
 export const EMPTY_TASK_FORM = {
   text: '',
+  description: '',
   type: 'task',
   start_date: '',
   duration: '1',
@@ -171,7 +178,7 @@ export const EMPTY_TASK_FORM = {
    * Default 'DAY' (retrocompat). User pode alternar para 'HOUR' via switch
    * "Definir hora exacta" no TaskModal. Em HOUR, `duration` representa horas.
    */
-  durationUnit: 'DAY' as 'DAY' | 'HOUR',
+  durationUnit: 'DAY' as TaskDurationUnit,
   progress: '0',
   parent: '0',
   priority: '',

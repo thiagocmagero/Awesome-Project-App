@@ -12,7 +12,7 @@ import {
   CONSTRAINT_OPTIONS,
   CONSTRAINT_NEEDS_DATE,
   type EMPTY_TASK_FORM,
-  type GanttTask,
+  type Task,
 } from '../types';
 import type { ITaskState } from '../states-types';
 
@@ -20,14 +20,14 @@ type TaskFormShape = typeof EMPTY_TASK_FORM;
 
 interface Props {
   projectId: string | undefined;
-  editingTask: GanttTask | null;
+  editingTask: Task | null;
   taskForm: TaskFormShape;
   setTaskForm: (form: TaskFormShape) => void;
   description: string;
   setDescription: (value: string) => void;
   taskOwnerIds: string[];
   setTaskOwnerIds: (ids: string[]) => void;
-  tasks: GanttTask[];
+  tasks: Task[];
   boardColumns: ITaskState[];
   allResourcesByType: Map<string, { label: string; items: Array<{ id: string; name: string; avatarUrl: string | null }> }>;
   showFilesSidebar: boolean;
@@ -38,7 +38,7 @@ interface Props {
   choicesConstraintRef: RefObject<HTMLSelectElement>;
   choicesParentRef: RefObject<HTMLSelectElement>;
   onAddSubtask: (parentPublicId: string) => void;
-  onOpenSubtask: (task: GanttTask) => void;
+  onOpenSubtask: (task: Task) => void;
   onJumpToFiles: () => void;
 }
 

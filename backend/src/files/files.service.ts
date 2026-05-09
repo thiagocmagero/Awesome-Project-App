@@ -398,7 +398,7 @@ export class FilesService {
     publicId: string,
     projectId: number,
   ): Promise<TaskContext> {
-    const task = await this.prisma.ganttTask.findUnique({
+    const task = await this.prisma.task.findUnique({
       where: { publicId },
       select: { id: true, publicId: true, projectId: true },
     });

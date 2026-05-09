@@ -420,6 +420,27 @@
 }
 .task-section-title-row .ms-auto { margin-left: auto; }
 
+/* Collapsible section toggle (Sistema panel) */
+.task-section-collapse-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 0;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+}
+.task-section-collapse-toggle > i {
+  margin-left: auto;
+  color: var(--task-muted);
+  font-size: 16px;
+  transition: transform 120ms ease;
+}
+.task-section-collapse-toggle:hover > i { color: var(--task-purple-600); }
+
 /* Description — contentEditable */
 .task-description {
   min-height: 110px;

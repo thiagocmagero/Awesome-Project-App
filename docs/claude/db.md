@@ -4,7 +4,7 @@
 
 - Todos os modelos têm: `id` (interno), `publicId` (externo), `createdAt`, `updatedAt`, `status`.
 - `publicId String @unique @default(uuid(7))` — UUID v7, gerado automaticamente pelo Prisma.
-- API nunca expõe `id` numérico — apenas `publicId` (excepção: GanttTask/GanttLink por compatibilidade DHTMLX).
+- API nunca expõe `id` numérico — apenas `publicId` (excepção: Task/TaskLink por compatibilidade DHTMLX).
 - DTOs aceitam UUID strings para relações (`profileId`, `userId`, etc.) — service resolve para id interno.
 - **Soft delete obrigatório**: `remove()` define `status: INACTIVE`. Nunca `prisma.model.delete()`.
   - **Excepção**: hard delete recursivo de utilizador (`UsersService.removeHard`,
@@ -98,7 +98,7 @@ model ProjectTeam {
 ## Modelos de feriados e planeamento
 
 Ver @docs/claude/tools/gantt/data-model.md para:
-- `GanttTask`, `GanttLink`, `GanttResource`, `GanttAssignment`, `GanttBaseline`
+- `Task`, `TaskLink`, `TaskResource`, `TaskAssignment`, `TaskBaseline`
 - `Holiday`, `HolidayDate`, `ProjectHoliday`
 - `GanttConfig`, `ProjectMemberHours`
 
@@ -118,7 +118,7 @@ as FKs que apontam para `User` **devem** ter `onDelete` explícito.
 | **Workspace ownership** (workspace é o user) | WorkspaceMember.ownerId | **Cascade** |
 | **Memberships do próprio user** | ProjectMember.userId, WorkspaceMember.userId | **Cascade** |
 | **Audit / authorship** (preserva história) | User.createdById, ProjectMember.invitedById, ProjectPermissionGrant.grantedById, WorkspaceMember.invitedById, Comment.authorId, TimesheetApprovalLog.actorId, TimesheetDay.approvedById/rejectedById, CalendarEvent.createdById | **SetNull** (campo nullable) |
-| **Owned entities** (sobrevivem ao user) | Project.ownerId/managerId, Team.ownerId, Holiday.ownerId, GanttResource.userId, GanttResourceNode.userId, UserType.ownerId | **SetNull** (campo já nullable) |
+| **Owned entities** (sobrevivem ao user) | Project.ownerId/managerId, Team.ownerId, Holiday.ownerId, TaskResource.userId, TaskResourceNode.userId, UserType.ownerId | **SetNull** (campo já nullable) |
 
 ### Como adicionar nova FK para User
 

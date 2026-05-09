@@ -1,10 +1,10 @@
 import type { FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { LINK_TYPES } from '../types';
-import type { GanttTask } from '../types';
+import type { Task } from '../types';
 
 export interface LinkModalProps {
-  tasks: GanttTask[];
+  tasks: Task[];
   linkForm: { source: string; target: string; type: string; lag: string };
   setLinkForm: (form: LinkModalProps['linkForm']) => void;
   linkFormError: string;

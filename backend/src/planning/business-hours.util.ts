@@ -1,5 +1,5 @@
 /**
- * Helper de cálculo de endDate para GanttTask com `durationUnit = HOUR`.
+ * Helper de cálculo de endDate para Task com `durationUnit = HOUR`.
  *
  * Análogo a `addBusinessDaysInclusive`, mas em granularidade horária.
  * Respeita:

@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useResolvedDateFormat } from '../../../contexts/ProjectDateFormatContext';
 import { formatDate, formatDateTime } from '../../../lib/dateFormatting';
 import { StateBadge } from './StateBadge';
-import type { EMPTY_TASK_FORM, GanttTask } from '../types';
+import type { EMPTY_TASK_FORM, Task } from '../types';
 import type { ITaskState } from '../states-types';
 
 type TaskFormShape = typeof EMPTY_TASK_FORM;
@@ -11,7 +11,7 @@ type TaskFormShape = typeof EMPTY_TASK_FORM;
 interface Props {
   taskForm: TaskFormShape;
   setTaskForm: (form: TaskFormShape) => void;
-  editingTask: GanttTask | null;
+  editingTask: Task | null;
   boardColumns: ITaskState[];
 }
 

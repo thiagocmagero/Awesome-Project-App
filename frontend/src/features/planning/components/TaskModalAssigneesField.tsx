@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { avatarColorFor, initialsOf } from '../../../lib/avatars';
 
 interface ResourceItem {
-  id: string;   // publicId do GanttResourceNode
+  id: string;   // publicId do TaskResourceNode
   name: string;
   avatarUrl: string | null;
 }
@@ -82,7 +82,7 @@ function AssigneeAvatar({
  * e suporta navegação por teclado (Enter para seleccionar primeiro
  * resultado, Backspace para remover último chip quando input vazio).
  *
- * Os IDs trafegados são `GanttResourceNode.publicId` — convenção desde
+ * Os IDs trafegados são `TaskResourceNode.publicId` — convenção desde
  * Maio 2026 (ver docs/claude/tools/gantt/data-model.md).
  */
 export function TaskModalAssigneesField({

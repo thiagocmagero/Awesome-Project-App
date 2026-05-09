@@ -3,7 +3,7 @@ import { useState, useEffect, type MutableRefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getApiBase, apiFetch } from '../../lib/api';
 import type {
-  ProjectDetail, GanttTask, GanttLink, ExternalResource,
+  ProjectDetail, Task, TaskLink, ExternalResource,
   ResourceNode, UserTypeLookup,
 } from './types';
 
@@ -16,8 +16,8 @@ export interface UsePlanningDataProps {
 
 export interface UsePlanningDataReturn {
   project: ProjectDetail | null;
-  tasks: GanttTask[];
-  links: GanttLink[];
+  tasks: Task[];
+  links: TaskLink[];
   externalResources: ExternalResource[];
   resourceNodes: ResourceNode[];
   userTypes: UserTypeLookup[];
@@ -26,8 +26,8 @@ export interface UsePlanningDataReturn {
   loading: boolean;
   pageError: string;
   loadAll: () => Promise<void>;
-  setTasks: React.Dispatch<React.SetStateAction<GanttTask[]>>;
-  setLinks: React.Dispatch<React.SetStateAction<GanttLink[]>>;
+  setTasks: React.Dispatch<React.SetStateAction<Task[]>>;
+  setLinks: React.Dispatch<React.SetStateAction<TaskLink[]>>;
   setMemberHours: React.Dispatch<React.SetStateAction<Record<string, number>>>;
 }
 
@@ -39,8 +39,8 @@ export function usePlanningData({
   const api = getApiBase();
 
   const [project, setProject]                   = useState<ProjectDetail | null>(null);
-  const [tasks, setTasks]                       = useState<GanttTask[]>([]);
-  const [links, setLinks]                       = useState<GanttLink[]>([]);
+  const [tasks, setTasks]                       = useState<Task[]>([]);
+  const [links, setLinks]                       = useState<TaskLink[]>([]);
   const [externalResources, setExternalResources] = useState<ExternalResource[]>([]);
   const [resourceNodes, setResourceNodes]       = useState<ResourceNode[]>([]);
   const [userTypes, setUserTypes]               = useState<UserTypeLookup[]>([]);

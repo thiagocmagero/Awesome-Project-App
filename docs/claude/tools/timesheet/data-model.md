@@ -104,7 +104,7 @@ model TimesheetEntry {
 
   project     Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
   user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  task        GanttTask           @relation(fields: [taskId], references: [id], onDelete: Restrict)
+  task        Task           @relation(fields: [taskId], references: [id], onDelete: Restrict)
   week        TimesheetWeek       @relation(fields: [weekId], references: [id], onDelete: Cascade)
   day         TimesheetDay        @relation(fields: [dayId], references: [id], onDelete: Cascade)
 

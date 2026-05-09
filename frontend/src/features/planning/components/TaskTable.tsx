@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { GanttTask, ResourceNode } from '../types';
+import type { Task, ResourceNode } from '../types';
 import type { ITaskState } from '../states-types';
 import { formatDate } from '../../../lib/dateFormatting';
 import { useResolvedDateFormat } from '../../../contexts/ProjectDateFormatContext';
@@ -10,14 +10,14 @@ import { StateBadge } from './StateBadge';
 import { avatarColorFor, initialsOf as initials } from '../../../lib/avatars';
 
 export interface TaskTableProps {
-  filteredTasks: Array<GanttTask & { depth: number }>;
+  filteredTasks: Array<Task & { depth: number }>;
   boardColumns: ITaskState[];
   nodeMap: Map<string, ResourceNode>;
   /** True when the column filter is active (distinguishes "no tasks" from "filtered to empty"). */
   isFiltered: boolean;
-  openEditTask: (task: GanttTask) => void;
+  openEditTask: (task: Task) => void;
   setCommentTask: (v: { publicId: string; name: string } | null) => void;
-  setDeletingTask: (task: GanttTask | null) => void;
+  setDeletingTask: (task: Task | null) => void;
   setShowDeleteTask: (v: boolean) => void;
   /** Optional permission check — if provided, buttons are hidden when action is denied */
   canDo?: (action: string) => boolean;
@@ -130,7 +130,7 @@ export function TaskTable({
                   {visibleTasks.map((tk) => {
                     const owners = (tk.owner_id ?? [])
                       .map((oid: string) => {
-                        // owner_id agora é publicId (UUID) do GanttResourceNode.
+                        // owner_id agora é publicId (UUID) do TaskResourceNode.
                         const node = nodeMap.get(oid);
                         return node
                           ? { name: node.text, publicId: node.id, avatarUrl: node.avatarUrl }

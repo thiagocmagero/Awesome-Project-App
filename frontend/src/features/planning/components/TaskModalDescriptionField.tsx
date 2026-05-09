@@ -9,7 +9,7 @@ interface Props {
 /**
  * Descrição da tarefa — `contentEditable` com placeholder via :empty::before.
  *
- * UI-only state local até o schema GanttTask suportar `description`.
+ * UI-only state local até o schema Task suportar `description`.
  * Persiste apenas enquanto o modal está aberto.
  */
 export function TaskModalDescriptionField({ value, onChange }: Props) {

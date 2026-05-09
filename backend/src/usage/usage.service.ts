@@ -158,7 +158,7 @@ export class UsageService {
           select: { id: true },
         });
         if (projects.length === 0) return 0;
-        return this.prisma.ganttTask.count({
+        return this.prisma.task.count({
           where: { projectId: { in: projects.map(p => p.id) } },
         });
       }

@@ -3,13 +3,13 @@ import { useState, type FormEvent, type MutableRefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getApiBase, apiFetch } from '../../lib/api';
 import { EMPTY_TASK_FORM, CONSTRAINT_NEEDS_DATE } from './types';
-import type { GanttTask, ShowToastFn } from './types';
+import type { Task, ShowToastFn } from './types';
 import { isStartWithinWorkHours, type WorkHours } from '../../lib/workHours';
 
 export interface UseTaskFormProps {
   projectId: string | undefined;
   token: string | null;
-  tasks: GanttTask[];
+  tasks: Task[];
   endDateModeRef: MutableRefObject<'inclusive' | 'exclusive'>;
   loadAll: () => Promise<void>;
   showToast: ShowToastFn;
@@ -26,7 +26,7 @@ export interface UseTaskFormReturn {
   taskModalKey: number;
   taskModalTab: 'details' | 'comments' | 'links' | 'files';
   setTaskModalTab: React.Dispatch<React.SetStateAction<'details' | 'comments' | 'links' | 'files'>>;
-  editingTask: GanttTask | null;
+  editingTask: Task | null;
   taskForm: typeof EMPTY_TASK_FORM;
   setTaskForm: React.Dispatch<React.SetStateAction<typeof EMPTY_TASK_FORM>>;
   taskOwnerIds: string[];
@@ -35,11 +35,11 @@ export interface UseTaskFormReturn {
   taskFormLoading: boolean;
   showDeleteTask: boolean;
   setShowDeleteTask: React.Dispatch<React.SetStateAction<boolean>>;
-  deletingTask: GanttTask | null;
-  setDeletingTask: React.Dispatch<React.SetStateAction<GanttTask | null>>;
+  deletingTask: Task | null;
+  setDeletingTask: React.Dispatch<React.SetStateAction<Task | null>>;
   deleteTaskLoading: boolean;
   openCreateTask: (parentId?: number, boardColumnPublicId?: string, parentPublicId?: string) => void;
-  openEditTask: (task: GanttTask, initialTab?: 'details' | 'comments' | 'links') => void;
+  openEditTask: (task: Task, initialTab?: 'details' | 'comments' | 'links') => void;
   handleTaskSubmit: (e: FormEvent) => Promise<void>;
   handleDeleteTask: () => Promise<void>;
 }
@@ -54,14 +54,14 @@ export function useTaskForm({
   const [showTaskModal, setShowTaskModal]     = useState(false);
   const [taskModalKey, setTaskModalKey]       = useState(0);
   const [taskModalTab, setTaskModalTab]       = useState<'details' | 'comments' | 'links' | 'files'>('details');
-  const [editingTask, setEditingTask]         = useState<GanttTask | null>(null);
+  const [editingTask, setEditingTask]         = useState<Task | null>(null);
   const [taskForm, setTaskForm]               = useState({ ...EMPTY_TASK_FORM });
   const [taskOwnerIds, setTaskOwnerIds]       = useState<string[]>([]);
   const [taskFormError, setTaskFormError]     = useState('');
   const [taskFormLoading, setTaskFormLoading] = useState(false);
 
   const [showDeleteTask, setShowDeleteTask]       = useState(false);
-  const [deletingTask, setDeletingTask]           = useState<GanttTask | null>(null);
+  const [deletingTask, setDeletingTask]           = useState<Task | null>(null);
   const [deleteTaskLoading, setDeleteTaskLoading] = useState(false);
 
   function h() {
@@ -94,13 +94,14 @@ export function useTaskForm({
     setShowTaskModal(true);
   }
 
-  function openEditTask(task: GanttTask, initialTab: 'details' | 'comments' | 'links' = 'details') {
+  function openEditTask(task: Task, initialTab: 'details' | 'comments' | 'links' = 'details') {
     // Destruir Choices antes de qualquer setState para que os <option> estejam de
     // volta ao <select> quando o React reconciliar — evita o crash "removeChild".
     onBeforeOpen?.();
     setEditingTask(task);
     setTaskForm({
       text: task.text,
+      description: task.description ?? '',
       type: task.type,
       start_date: task.start_date,
       duration: String(task.duration),
@@ -134,6 +135,13 @@ export function useTaskForm({
         type: taskForm.type,
         progress: Number(taskForm.progress) / 100,
       };
+
+      // Description só é enviado em update se mudou; em create vai sempre.
+      if (!editingTask) {
+        body.description = taskForm.description ?? '';
+      } else if ((taskForm.description ?? '') !== (editingTask.description ?? '')) {
+        body.description = taskForm.description ?? '';
+      }
 
       // Em modo edição, só envia start_date / duration / durationUnit / endDateMode
       // se o user **realmente** os alterou no form. Caso contrário o backend

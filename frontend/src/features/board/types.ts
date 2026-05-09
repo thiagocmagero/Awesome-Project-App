@@ -1,6 +1,6 @@
 // Tipos partilhados pelo novo Board (vendor: AwesomeKanban — `src/vendor/awesome-kanban/`).
 // Mantêm-se separados dos tipos do Planning porque o Board é um concept-mapping
-// distinto: domain (`GanttTask`/`BoardColumn`/`BoardSwimlane`) ↔ widget
+// distinto: domain (`Task`/`BoardColumn`/`BoardSwimlane`) ↔ widget
 // (`Card`/`Column`/`Row`).
 
 import type { Card, Column, Row } from 'awesome-kanban';

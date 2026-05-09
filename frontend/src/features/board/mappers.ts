@@ -1,5 +1,5 @@
 // Mappers entre o domain (backend) e a shape do widget AwesomeKanban.
-// Domain: BoardColumn / BoardSwimlane / GanttTask
+// Domain: BoardColumn / BoardSwimlane / Task
 // Widget: Column / Row / Card (vendor `awesome-kanban`)
 //
 // Notas críticas:
@@ -12,7 +12,7 @@
 
 import type { Card, Column, Row } from 'awesome-kanban';
 import type { ITaskState, ITaskSwimlane } from '../planning/states-types';
-import type { GanttTask } from '../planning/types';
+import type { Task } from '../planning/types';
 import { ganttToDate } from '../planning/ganttDateUtils';
 
 // ─── Priority ───────────────────────────────────────────────────────────────
@@ -76,10 +76,10 @@ export function swimlaneToRow(
   };
 }
 
-// ─── Task (GanttTask) → Card ────────────────────────────────────────────────
+// ─── Task (Task) → Card ────────────────────────────────────────────────
 
 export function taskToCard(
-  task: GanttTask,
+  task: Task,
   idToPublicId: Map<number, string>,
   fallbackColumnPublicId: string,
   fallbackSwimlanePublicId?: string,
@@ -190,7 +190,7 @@ export interface MoveTaskStatePayload {
   swimlaneId?: string | null;
 }
 
-// ─── Card update (GanttTask patch) → PATCH /tasks/:id ───────────────────────
+// ─── Card update (Task patch) → PATCH /tasks/:id ───────────────────────
 
 export interface UpdateTaskPayload {
   text?: string;

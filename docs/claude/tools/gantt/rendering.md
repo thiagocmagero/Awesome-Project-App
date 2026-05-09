@@ -87,9 +87,9 @@ nonWorkingDaysRef.current.forEach(d =>
 ## Resource Grid — agrupamento
 
 - Recursos agrupados por `userType` (DEVELOPER, QA, etc.).
-- Grupo "Externos" para `GanttResource` sem `userId` (contractors).
+- Grupo "Externos" para `TaskResource` sem `userId` (contractors).
 - `hoursPerDay` dos membros: vem de `ProjectMemberHours`.
-- `hoursPerDay` dos externos: vem directamente de `GanttResource.hoursPerDay`.
+- `hoursPerDay` dos externos: vem directamente de `TaskResource.hoursPerDay`.
 
 ## Zoom
 

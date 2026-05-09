@@ -32,7 +32,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 import { getApiBase, apiFetch } from '../../lib/api';
 import type { ITaskState, ITaskSwimlane } from '../planning/states-types';
-import type { GanttTask, ProjectDetail, ResourceNode } from '../planning/types';
+import type { Task, ProjectDetail, ResourceNode } from '../planning/types';
 import {
   columnAddEventToPayload,
   columnUpdateEventToPayload,
@@ -85,7 +85,7 @@ export interface BoardViewApi {
 
 interface BoardViewProps {
   projectPublicId: string;
-  tasks: GanttTask[];
+  tasks: Task[];
   states: ITaskState[];
   swimlanes: ITaskSwimlane[];
   project: ProjectDetail | null;

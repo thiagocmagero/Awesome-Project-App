@@ -1,5 +1,5 @@
 import { HttpStatus } from '@nestjs/common';
-import { GanttTaskDurationUnit } from '@prisma/client';
+import { TaskDurationUnit } from '@prisma/client';
 import { AppException } from '../common/exceptions/app.exception';
 import { WorkHours, DEFAULT_WORK_HOURS } from './business-hours.util';
 
@@ -10,7 +10,7 @@ import { WorkHours, DEFAULT_WORK_HOURS } from './business-hours.util';
 export const DEFAULT_MAX_TASK_BUSINESS_DAYS = 1300;
 
 /**
- * Cap unificado de duração de uma `GanttTask`. Tasks HOUR convertem-se em
+ * Cap unificado de duração de uma `Task`. Tasks HOUR convertem-se em
  * dias úteis equivalentes via `dailyHours = workHours.end - workHours.start`.
  *
  * Lança `TASK_DURATION_EXCEEDS_LIMIT` (400) se exceder.
@@ -27,7 +27,7 @@ export const DEFAULT_MAX_TASK_BUSINESS_DAYS = 1300;
  */
 export function assertTaskDurationWithinLimit(
   duration: number,
-  unit: GanttTaskDurationUnit,
+  unit: TaskDurationUnit,
   workHours: WorkHours | null | undefined,
   maxBusinessDays: number,
 ): void {
@@ -38,7 +38,7 @@ export function assertTaskDurationWithinLimit(
     : DEFAULT_WORK_HOURS;
   const dailyHours = Math.max(1, wh.end - wh.start);
 
-  const equivalentBusinessDays = unit === GanttTaskDurationUnit.HOUR
+  const equivalentBusinessDays = unit === TaskDurationUnit.HOUR
     ? duration / dailyHours
     : duration;
 

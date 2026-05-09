@@ -3,7 +3,7 @@
 ## Modelos Prisma — Gantt core
 
 ```prisma
-model GanttTask {
+model Task {
   id          Int       @id @default(autoincrement())
   publicId    String    @unique @default(uuid(7))
   projectId   Int
@@ -13,7 +13,7 @@ model GanttTask {
   duration    Int       // dias úteis (skip Sáb/Dom + nonWorkingDays); 0 para milestone
   progress    Float     @default(0)  // 0.0–1.0
   type        String?   // "task" | "milestone" | "project"
-  ownerId     Int?      // FK → User ou GanttResource
+  ownerId     Int?      // FK → User ou TaskResource
   ownerType   String?   // "user" | "resource"
   boardColumnId Int?    // FK → BoardColumn (estado funcional da tarefa — unificação Abril 2026)
   boardPosition Int?    // ordem dentro da coluna (re-sequenciado em cada moveCard)
@@ -21,15 +21,15 @@ model GanttTask {
   // NOTA: `legacyStatus` ainda existe no DB até `drop_gantt_task_legacy_status`.
 }
 
-model GanttLink {
+model TaskLink {
   id       Int    @id @default(autoincrement())
   publicId String @unique @default(uuid(7))
-  sourceId Int    // FK → GanttTask
-  targetId Int    // FK → GanttTask
+  sourceId Int    // FK → Task
+  targetId Int    // FK → Task
   type     String // "0"=FS, "1"=SS, "2"=FF, "3"=SF
 }
 
-model GanttResource {
+model TaskResource {
   id          Int     @id @default(autoincrement())
   publicId    String  @unique @default(uuid(7))
   projectId   Int
@@ -39,21 +39,21 @@ model GanttResource {
   // sem userId = recurso externo (contractor)
 }
 
-model GanttAssignment {
-  taskId     Int  // FK → GanttTask
-  resourceId Int  // FK → GanttResource
+model TaskAssignment {
+  taskId     Int  // FK → Task
+  resourceId Int  // FK → TaskResource
 }
 
-model GanttBaseline {
+model TaskBaseline {
   taskId    Int; startDate DateTime; duration Int  // snapshot do plano original
 }
 ```
 
-> GanttTask e GanttLink expõem **ambos** `id` e `publicId` (excepção à regra geral) por compatibilidade DHTMLX.
+> Task e TaskLink expõem **ambos** `id` e `publicId` (excepção à regra geral) por compatibilidade DHTMLX.
 
 ## Cálculo de `endDate` (semântica obrigatória)
 
-`GanttTask.duration` é contado em **dias úteis** — alinhado com
+`Task.duration` é contado em **dias úteis** — alinhado com
 `gantt.config.work_time = true` do DHTMLX no frontend. Sáb, Dom e cada dia em
 `nonWorkingDays` (feriados linkados ao projecto) **não contam**. Esta unidade
 é canónica em ambos os lados — confundi-la com dias corridos produz drift
@@ -143,7 +143,7 @@ model ProjectMemberHours {
 ```
 
 Endpoints: `GET/PUT /api/projects/:id/planning/member-hours[/:userId]`.
-`hoursPerDay` dos membros vem daqui; dos recursos externos vem de `GanttResource.hoursPerDay`.
+`hoursPerDay` dos membros vem daqui; dos recursos externos vem de `TaskResource.hoursPerDay`.
 
 ## Modelos Holiday e integração Gantt
 
@@ -185,13 +185,13 @@ model ProjectHoliday {
 
 ## `durationUnit` — granularidade per-task (DAY vs HOUR)
 
-Desde Maio 2026, `GanttTask` ganhou o enum `durationUnit`:
+Desde Maio 2026, `Task` ganhou o enum `durationUnit`:
 
 ```prisma
-enum GanttTaskDurationUnit { DAY  HOUR }
-model GanttTask {
+enum TaskDurationUnit { DAY  HOUR }
+model Task {
   duration     Float                 // dias úteis (DAY) ou horas úteis (HOUR)
-  durationUnit GanttTaskDurationUnit @default(DAY)
+  durationUnit TaskDurationUnit @default(DAY)
 }
 ```
 

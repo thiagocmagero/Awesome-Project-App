@@ -15,7 +15,7 @@ import { TaskModalTabsBar } from './TaskModalTabsBar';
 import { TaskModalDetailsTab } from './TaskModalDetailsTab';
 import { TaskModalLinksTab } from './TaskModalLinksTab';
 import { TaskModalFooter } from './TaskModalFooter';
-import type { GanttTask, EMPTY_TASK_FORM } from '../types';
+import type { Task, EMPTY_TASK_FORM } from '../types';
 import type { ITaskState } from '../states-types';
 import './task-modal.css';
 
@@ -24,7 +24,7 @@ type TaskTab = 'details' | 'comments' | 'links' | 'files';
 
 export interface TaskModalProps {
   projectId: string | undefined;
-  editingTask: GanttTask | null;
+  editingTask: Task | null;
   taskModalTab: TaskTab;
   setTaskModalTab: (tab: TaskTab) => void;
   /** Links onde a task é source ou target (subset filtrado pelo orchestrator). */
@@ -42,7 +42,7 @@ export interface TaskModalProps {
   /** State dos responsáveis seleccionados (publicIds). */
   taskOwnerIds: string[];
   setTaskOwnerIds: (ids: string[]) => void;
-  tasks: GanttTask[];
+  tasks: Task[];
   boardColumns: ITaskState[];
   allResourcesByType: Map<string, { label: string; items: Array<{ id: string; name: string; avatarUrl: string | null }> }>;
   // DOM refs for FlatPickr / Choices (managed by orchestrator effects)
@@ -57,7 +57,7 @@ export interface TaskModalProps {
   /** Abrir modal de criação para subtarefa (parent pré-preenchido). */
   openCreateSubtask?: (parentPublicId: string) => void;
   /** Abrir o modal a editar outra tarefa (clique numa subtarefa). */
-  openEditTaskFromSubtask?: (task: GanttTask) => void;
+  openEditTaskFromSubtask?: (task: Task) => void;
 }
 
 export function TaskModal({
@@ -86,8 +86,10 @@ export function TaskModal({
   const [isFollowing, setIsFollowing] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [tags, setTags] = useState<string[]>([]);
-  const [description, setDescription] = useState('');
   const [followerCount] = useState(4); // mock UI-only
+  // `description` vive em taskForm.description (useTaskForm) — persiste no backend.
+  const description = taskForm.description ?? '';
+  const setDescription = (v: string) => setTaskForm({ ...taskForm, description: v });
   const initialTaskFormRef = useRef<string>('');
 
   // Reset state UI-only quando muda a task em edição (publicId é a chave estável).
@@ -96,7 +98,6 @@ export function TaskModal({
     setIsFollowing(false);
     setFullscreen(false);
     setTags([]);
-    setDescription('');
     initialTaskFormRef.current = JSON.stringify(taskForm);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editingKey]);
@@ -133,13 +134,12 @@ export function TaskModal({
     const current = JSON.stringify(taskForm);
     if (current !== initialTaskFormRef.current) return true;
     if (tags.length > 0) return true;
-    if (description.trim().length > 0) return true;
     return false;
-  }, [taskForm, tags, description, taskFormLoading]);
+  }, [taskForm, tags, taskFormLoading]);
 
   // ── Contadores no header (Discussão / Arquivos) ──────────────────────────
 
-  // Discussão — `commentCount` vem da resposta do board (tipo GanttTask).
+  // Discussão — `commentCount` vem da resposta do board (tipo Task).
   const commentCount = editingTask?.commentCount ?? 0;
 
   // Arquivos — fetch lazy via useFiles (só se a task existe e é tab visível).
@@ -360,7 +360,7 @@ export function CommentTaskModal({ projectId, commentTask, setCommentTask }: Com
 // ── DeleteTaskModal ───────────────────────────────────────────────────────────
 
 export interface DeleteTaskModalProps {
-  deletingTask: GanttTask;
+  deletingTask: Task;
   deleteTaskLoading: boolean;
   setShowDeleteTask: (v: boolean) => void;
   handleDeleteTask: () => Promise<void>;

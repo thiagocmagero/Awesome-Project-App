@@ -53,7 +53,7 @@ export class NotificationsService {
     entityPublicId: string,
   ): Promise<string> {
     if (entityType === EntityType.TASK) {
-      const task = await this.prisma.ganttTask.findUnique({
+      const task = await this.prisma.task.findUnique({
         where: { publicId: entityPublicId },
         select: { text: true },
       });

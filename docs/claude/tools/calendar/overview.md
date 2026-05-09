@@ -79,10 +79,10 @@ partilhados com a equipa.
 > anterior (todos os GLOBAL/REGIONAL visíveis em todos os projectos) foi
 > substituído por esta UX mais explícita.
 
-### 2. Entidades do Projeto (read-only — origem em `Project`/`GanttTask`)
+### 2. Entidades do Projeto (read-only — origem em `Project`/`Task`)
 - **Projeto** — `Project.startDate`/`endDate` como evento span
-- **Tarefas** — `GanttTask.type='task'` (drag bloqueado por `eventAllow`)
-- **Milestones** — `GanttTask.type='milestone'` ou `duration=0`
+- **Tarefas** — `Task.type='task'` (drag bloqueado por `eventAllow`)
+- **Milestones** — `Task.type='milestone'` ou `duration=0`
 
 ### 3. Tipos de Evento (escrita — origem em `CalendarEventType`)
 - 3 tipos sistema lazy-init: `MANUAL`, `MEETING`, `REMINDER`

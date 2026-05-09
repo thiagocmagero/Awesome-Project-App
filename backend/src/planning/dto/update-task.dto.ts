@@ -8,12 +8,17 @@ import {
   IsString,
   Min,
 } from 'class-validator';
-import { GanttTaskDurationUnit } from '@prisma/client';
+import { TaskDurationUnit } from '@prisma/client';
 
 export class UpdateTaskDto {
   @IsOptional()
   @IsString()
   text?: string;
+
+  /** Descrição rica/longa (opcional). String vazia limpa o valor. */
+  @IsOptional()
+  @IsString()
+  description?: string;
 
   @IsOptional()
   @IsString()
@@ -34,8 +39,8 @@ export class UpdateTaskDto {
    * Ver docs/claude/tools/gantt/data-model.md.
    */
   @IsOptional()
-  @IsEnum(GanttTaskDurationUnit)
-  durationUnit?: GanttTaskDurationUnit;
+  @IsEnum(TaskDurationUnit)
+  durationUnit?: TaskDurationUnit;
 
   @IsOptional()
   @IsNumber()

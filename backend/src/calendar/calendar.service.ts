@@ -125,7 +125,7 @@ export class CalendarService {
             createdBy: { select: { publicId: true, name: true } },
           },
         }),
-        this.prisma.ganttTask.findMany({
+        this.prisma.task.findMany({
           where: { projectId, type: { in: ['task', 'milestone'] } },
           select: {
             publicId: true,

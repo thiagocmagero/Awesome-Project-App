@@ -3,7 +3,7 @@ import { apiFetch } from '../../lib/api';
 import { buildCellCSS } from '../../lib/ganttPatterns';
 import { formatDate } from '../../lib/dateFormatting';
 import type {
-  GanttTask, GanttLink, ResourceNode, GanttConfigData, GanttConfigColors,
+  Task, TaskLink, ResourceNode, GanttConfigData, GanttConfigColors,
   ShowToastFn,
 } from './types';
 import { dateToGanttStr } from './ganttDateUtils';
@@ -19,14 +19,14 @@ type TFn = (key: any, opts?: any) => string;
 
 // ─── Tree helpers ─────────────────────────────────────────────────────────────
 
-export function flattenTree(tasks: GanttTask[]): Array<GanttTask & { depth: number }> {
-  const byParent = new Map<number, GanttTask[]>();
+export function flattenTree(tasks: Task[]): Array<Task & { depth: number }> {
+  const byParent = new Map<number, Task[]>();
   for (const task of tasks) {
     const p = task.parent ?? 0;
     if (!byParent.has(p)) byParent.set(p, []);
     byParent.get(p)!.push(task);
   }
-  const result: Array<GanttTask & { depth: number }> = [];
+  const result: Array<Task & { depth: number }> = [];
   function walk(parentId: number, depth: number) {
     for (const task of byParent.get(parentId) ?? []) {
       result.push({ ...task, depth });
@@ -101,7 +101,7 @@ export function buildColumns(
   tRef: MutableRefObject<TFn>,
   endDateModeRef: MutableRefObject<'inclusive' | 'exclusive'>,
   dateFormatRef: MutableRefObject<string>,
-  tasksRef?: MutableRefObject<GanttTask[]>,
+  tasksRef?: MutableRefObject<Task[]>,
 ): object[] {
   const ownerTpl = (task: Record<string, unknown>) => {
     if (task.type === gantt.config.types.project) return '';
@@ -219,8 +219,8 @@ export function buildGanttLayout(
 // ─── Gantt data parse ─────────────────────────────────────────────────────────
 
 export interface ParseGanttDataParams {
-  tasks: GanttTask[];
-  links: GanttLink[];
+  tasks: Task[];
+  links: TaskLink[];
   resourceNodes: ResourceNode[];
   nonWorkingDaysRef: MutableRefObject<string[]>;
   endDateModeRef: MutableRefObject<'inclusive' | 'exclusive'>;
@@ -265,7 +265,7 @@ export function parseGanttData({
   });
 
   // Só mostrar no resource grid os recursos que têm tarefas associadas.
-  // `task.owner_id` agora é array de publicIds (UUIDs do GanttResourceNode).
+  // `task.owner_id` agora é array de publicIds (UUIDs do TaskResourceNode).
   const assignedNodeIds = new Set<string>();
   for (const task of tasks) {
     for (const oid of task.owner_id ?? []) {
@@ -339,7 +339,7 @@ export function parseGanttData({
   // No modo inclusivo o backend devolve end_date = último dia real — converter para exclusivo (DHTMLX).
   // Tasks com `durationUnit === 'HOUR'` NÃO são afectadas: o end_date já é a hora exacta canónica,
   // não há "+1 dia" semântica. Ver docs/claude/tools/gantt/data-model.md.
-  let tasksForGantt: GanttTask[] = tasks;
+  let tasksForGantt: Task[] = tasks;
   if (endDateModeRef.current === 'inclusive') {
     tasksForGantt = tasks.map((t) => {
       if (!t.end_date) return t;
@@ -378,14 +378,14 @@ export interface AttachGanttEventsParams {
   token: string | null;
   api: string;
   endDateModeRef: MutableRefObject<'inclusive' | 'exclusive'>;
-  linksRef: MutableRefObject<GanttLink[]>;
+  linksRef: MutableRefObject<TaskLink[]>;
   /**
    * Tasks vindas do backend (estado React). É a FONTE DE VERDADE para edits
    * via TaskModal — em vez de ler `gantt.getTask()` (que tem `duration`
    * recomputado pelo widget conforme `duration_unit` global, causando drift
    * quando a unidade da task ≠ unidade do widget).
    */
-  tasksRef: MutableRefObject<GanttTask[]>;
+  tasksRef: MutableRefObject<Task[]>;
   showToastRef: MutableRefObject<ShowToastFn>;
   openCreateTaskRef: MutableRefObject<(parentId?: number) => void>;
   ganttSearchTextRef: MutableRefObject<string>;
@@ -397,9 +397,9 @@ export interface AttachGanttEventsParams {
    *  hardcoded `*9` (que assume workHours 9-18 default). */
   workHoursRef: MutableRefObject<{ start: number; end: number } | null>;
   setColumnMenuPos: (pos: { x: number; y: number } | null) => void;
-  setTasks: (fn: (prev: GanttTask[]) => GanttTask[]) => void;
-  setLinks: (fn: (prev: GanttLink[]) => GanttLink[]) => void;
-  openEditTask: (task: GanttTask) => void;
+  setTasks: (fn: (prev: Task[]) => Task[]) => void;
+  setLinks: (fn: (prev: TaskLink[]) => TaskLink[]) => void;
+  openEditTask: (task: Task) => void;
   loadAll: () => Promise<void>;
 }
 
@@ -437,7 +437,7 @@ export function attachGanttEvents(params: AttachGanttEventsParams): () => void {
     // com defaults seguros — o user terá de ajustar no modal antes de salvar.
     const task = gantt.getTask(numericId);
     if (!task) return false;
-    const mapped: GanttTask = {
+    const mapped: Task = {
       id: task.id as number,
       publicId: (task as Record<string, unknown>).publicId as string ?? '',
       text: task.text,

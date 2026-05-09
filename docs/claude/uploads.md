@@ -4,7 +4,7 @@
 
 Sistema de upload e gestão de ficheiros project-scoped. Bytes guardados em
 **bucket privado AWS S3** (`awesomeproject-dev`); acesso só via presigned
-URL com TTL curto. Ficheiros podem ser anexados a uma tarefa (`GanttTask`)
+URL com TTL curto. Ficheiros podem ser anexados a uma tarefa (`Task`)
 ou ao próprio projecto (project-level, sem task).
 
 Gated por feature flag `upload`. Sub-flag `upload_secured` activa scan AWS
@@ -347,7 +347,7 @@ gerais de criação de notificações.
 ## Endpoints REST
 
 > **Convenção obrigatória de IDs**: `:id` no path = `projectPublicId`,
-> `:fileId` = `File.publicId`, `taskPublicId` no body/query = `GanttTask.publicId`.
+> `:fileId` = `File.publicId`, `taskPublicId` no body/query = `Task.publicId`.
 > **Nunca** trafega `id` numérico interno. `bucketKey` também **nunca** é
 > exposto pela API — apenas via presigned URL gerada em `/download`.
 

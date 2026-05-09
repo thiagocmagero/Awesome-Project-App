@@ -107,7 +107,7 @@ export class CommentsService {
    * utilizadores com `status: 'ACTIVE'` são incluídos (evita listar contas
    * inactivadas/arquivadas que não receberiam a notificação de menção).
    *
-   * Recursos externos do Gantt (GanttResource sem userId) **não** entram
+   * Recursos externos do Gantt (TaskResource sem userId) **não** entram
    * porque não há `User` ao qual associar a notificação `MENTION` —
    * `CommentMention.mentionedUserId` é FK para User. Para flagar recursos
    * externos numa discussão, o utilizador refere-os pelo nome no texto sem

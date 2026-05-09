@@ -1,15 +1,15 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { StateBadge } from './StateBadge';
-import type { GanttTask } from '../types';
+import type { Task } from '../types';
 import type { ITaskState } from '../states-types';
 
 interface Props {
-  parentTask: GanttTask;
-  tasks: GanttTask[];
+  parentTask: Task;
+  tasks: Task[];
   boardColumns: ITaskState[];
   onAddSubtask: (parentPublicId: string) => void;
-  onOpenSubtask: (task: GanttTask) => void;
+  onOpenSubtask: (task: Task) => void;
 }
 
 const VISIBLE_LIMIT = 4;

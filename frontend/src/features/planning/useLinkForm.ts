@@ -3,12 +3,12 @@ import { useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getApiBase, apiFetch } from '../../lib/api';
 import { EMPTY_LINK_FORM } from './types';
-import type { GanttTask, GanttLink, ShowToastFn } from './types';
+import type { Task, TaskLink, ShowToastFn } from './types';
 
 export interface UseLinkFormProps {
   projectId: string | undefined;
   token: string | null;
-  tasks: GanttTask[];
+  tasks: Task[];
   loadAll: () => Promise<void>;
   showToast: ShowToastFn;
 }
@@ -22,7 +22,7 @@ export interface UseLinkFormReturn {
   linkFormLoading: boolean;
   deleteLinkLoading: string | null;
   handleLinkSubmit: (e: FormEvent) => Promise<void>;
-  handleDeleteLink: (link: GanttLink) => Promise<void>;
+  handleDeleteLink: (link: TaskLink) => Promise<void>;
 }
 
 export function useLinkForm({
@@ -73,7 +73,7 @@ export function useLinkForm({
     }
   }
 
-  async function handleDeleteLink(link: GanttLink) {
+  async function handleDeleteLink(link: TaskLink) {
     const srcTask = tasks.find((tk) => tk.id === link.source);
     const tgtTask = tasks.find((tk) => tk.id === link.target);
     if (!confirm(t('link.confirm_delete', { src: srcTask?.text ?? String(link.source), tgt: tgtTask?.text ?? String(link.target) }))) return;

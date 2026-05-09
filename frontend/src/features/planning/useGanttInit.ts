@@ -10,7 +10,7 @@ import {
 } from './ganttHelpers';
 import { ZOOM_LEVELS, DEFAULT_ZOOM_INDEX, getMinZoomIndex } from './types';
 import type {
-  GanttTask, GanttLink, ResourceNode, ShowToastFn,
+  Task, TaskLink, ResourceNode, ShowToastFn,
   GanttConfigData, GanttConfigColors,
 } from './types';
 
@@ -41,21 +41,21 @@ export interface UseGanttInitProps {
   workHoursRef: MutableRefObject<{ start: number; end: number } | null>;
   nonWorkingDaysRef: MutableRefObject<string[]>;
   tRef: MutableRefObject<TFn>;
-  linksRef: MutableRefObject<GanttLink[]>;
+  linksRef: MutableRefObject<TaskLink[]>;
   /** Tasks do estado React (espelho do backend) — fonte de verdade no onTaskDblClick. */
-  tasksRef: MutableRefObject<GanttTask[]>;
+  tasksRef: MutableRefObject<Task[]>;
   showToastRef: MutableRefObject<ShowToastFn>;
   canDoRef: MutableRefObject<(action: string) => boolean>;
   openCreateTaskRef: MutableRefObject<(parentId?: number) => void>;
   // Data (from usePlanningData)
-  tasks: GanttTask[];
-  links: GanttLink[];
+  tasks: Task[];
+  links: TaskLink[];
   resourceNodes: ResourceNode[];
   nonWorkingDays: string[];
-  setTasks: React.Dispatch<React.SetStateAction<GanttTask[]>>;
-  setLinks: React.Dispatch<React.SetStateAction<GanttLink[]>>;
+  setTasks: React.Dispatch<React.SetStateAction<Task[]>>;
+  setLinks: React.Dispatch<React.SetStateAction<TaskLink[]>>;
   // From useTaskForm
-  openEditTask: (task: GanttTask) => void;
+  openEditTask: (task: Task) => void;
   // From usePlanningData
   loadAll: () => Promise<void>;
   // Orchestrator state setters
@@ -160,8 +160,8 @@ export function useGanttInit({
   // ── Helper: call parseGanttData helper with current state ────────────────────
 
   function doParse(
-    currentTasks: GanttTask[],
-    currentLinks: GanttLink[],
+    currentTasks: Task[],
+    currentLinks: TaskLink[],
     currentResourceNodes: ResourceNode[],
   ) {
     if (!ganttInitialized.current) return;

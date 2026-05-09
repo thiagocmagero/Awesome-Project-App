@@ -1,10 +1,10 @@
 import { useTranslation } from 'react-i18next';
 import { useTimezone } from '../../../contexts/TimezoneContext';
 import { relativeTimeInTimezone } from '../../../lib/dateFormatting';
-import type { GanttTask } from '../types';
+import type { Task } from '../types';
 
 interface Props {
-  editingTask: GanttTask | null;
+  editingTask: Task | null;
   isFollowing: boolean;
   onToggleFollow: () => void;
   fullscreen: boolean;
@@ -14,11 +14,11 @@ interface Props {
 
 /**
  * Linha 1 do modal — barra de identificação fixa.
- * Badge "TAREFA" / "SUBTAREFA" à esquerda, "Atualizada há X" no meio,
+ * Badge "TAREFA" / "SUBTAREFA" à esquerda, "Atualizada há X por Y" no meio,
  * Seguindo / fullscreen / fechar à direita.
  *
- * "por X" só é exibido quando o backend devolve um actor — o schema
- * GanttTask não tem hoje `updatedById`, então cai em "Atualizada há X".
+ * `updatedBy` vem do backend (audit Task.updatedById). Quando ausente
+ * (record antigo sem audit) cai para "Atualizada há X".
  */
 export function TaskModalTopbar({
   editingTask,
@@ -38,7 +38,7 @@ export function TaskModalTopbar({
 
   const updatedAt = editingTask?.updatedAt ?? null;
   const updatedRel = updatedAt ? relativeTimeInTimezone(updatedAt, tz, t as never) : null;
-  const updatedActorName: string | null = null; // schema sem updatedById ainda
+  const updatedActorName: string | null = editingTask?.updatedBy?.name ?? null;
 
   const updatedText = updatedRel
     ? (updatedActorName

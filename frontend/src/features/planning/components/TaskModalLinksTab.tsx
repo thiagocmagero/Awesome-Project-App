@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import type { GanttTask } from '../types';
+import type { Task } from '../types';
 
 interface LinkRow {
   id: string | number;
@@ -10,7 +10,7 @@ interface LinkRow {
 }
 
 interface Props {
-  editingTask: GanttTask;
+  editingTask: Task;
   links: LinkRow[];
   tasksById?: Map<number, { publicId: string; text: string }>;
   onAddLink?: () => void;

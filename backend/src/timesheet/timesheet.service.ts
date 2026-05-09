@@ -82,7 +82,7 @@ export class TimesheetService {
   }
 
   private async resolveTaskId(taskPublicId: string, projectId: number): Promise<{ id: number; text: string }> {
-    const t = await this.prisma.ganttTask.findFirst({
+    const t = await this.prisma.task.findFirst({
       where: { publicId: taskPublicId, projectId },
       select: { id: true, text: true },
     });
@@ -307,7 +307,7 @@ export class TimesheetService {
         },
         orderBy: [{ workDate: 'asc' }, { id: 'asc' }],
       }),
-      this.prisma.ganttTask.findMany({
+      this.prisma.task.findMany({
         where: { projectId: project.id, type: { in: ['task', 'milestone'] } },
         select: { publicId: true, text: true },
         orderBy: { text: 'asc' },

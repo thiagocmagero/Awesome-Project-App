@@ -40,7 +40,7 @@ export class StatesService {
   }
 
   private async resolveTaskId(taskPublicId: string, projectId: number): Promise<number> {
-    const task = await this.prisma.ganttTask.findFirst({
+    const task = await this.prisma.task.findFirst({
       where: { publicId: taskPublicId, projectId },
       select: { id: true },
     });
@@ -200,7 +200,7 @@ export class StatesService {
     const swimlanes = rawSwimlanes.map((sw) => this.mapSwimlaneRow(sw, sw.userStates[0]?.collapsed ?? false));
 
     // Buscar tarefas do tipo 'task' (inclui pais e subtarefas — o frontend filtra pelo toggle)
-    const tasks = await this.prisma.ganttTask.findMany({
+    const tasks = await this.prisma.task.findMany({
       where: { projectId, type: 'task' },
       select: {
         publicId: true,
@@ -231,8 +231,8 @@ export class StatesService {
       orderBy: [{ boardPosition: 'asc' }, { createdAt: 'asc' }],
     });
 
-    // Resolver ownerIds (IDs de GanttResourceNode) → User.publicId
-    // ownerIds são strings numéricas que referenciam GanttResourceNode.id (folhas internas têm userId)
+    // Resolver ownerIds (IDs de TaskResourceNode) → User.publicId
+    // ownerIds são strings numéricas que referenciam TaskResourceNode.id (folhas internas têm userId)
     const allNodeIds = new Set<number>();
     for (const task of tasks) {
       for (const oid of task.ownerIds) {
@@ -242,7 +242,7 @@ export class StatesService {
     }
     const nodeUserMap = new Map<number, string>();
     if (allNodeIds.size > 0) {
-      const nodes = await this.prisma.ganttResourceNode.findMany({
+      const nodes = await this.prisma.taskResourceNode.findMany({
         where: { id: { in: Array.from(allNodeIds) }, userId: { not: null } },
         select: { id: true, user: { select: { publicId: true } } },
       });
@@ -530,7 +530,7 @@ export class StatesService {
     }
 
     // Contar tarefas na coluna
-    const taskCount = await this.prisma.ganttTask.count({
+    const taskCount = await this.prisma.task.count({
       where: { boardColumnId: col.id },
     });
 
@@ -546,7 +546,7 @@ export class StatesService {
       if (!targetCol) throw new AppException('TARGET_COLUMN_NOT_FOUND', HttpStatus.NOT_FOUND);
 
       // Realocar tarefas para a coluna de destino
-      await this.prisma.ganttTask.updateMany({
+      await this.prisma.task.updateMany({
         where: { boardColumnId: col.id },
         data: { boardColumnId: targetCol.id },
       });
@@ -602,7 +602,7 @@ export class StatesService {
     }
 
     // Estado actual do card
-    const current = await this.prisma.ganttTask.findUnique({
+    const current = await this.prisma.task.findUnique({
       where: { id: taskId },
       select: { boardColumnId: true, boardPosition: true },
     });
@@ -616,7 +616,7 @@ export class StatesService {
       if (oldColumnId === newColumnId && newColumnId !== null) {
         // Reorder dentro da mesma coluna
         if (oldPosition < targetPosition) {
-          await tx.ganttTask.updateMany({
+          await tx.task.updateMany({
             where: {
               boardColumnId: newColumnId,
               boardPosition: { gt: oldPosition, lte: targetPosition },
@@ -625,7 +625,7 @@ export class StatesService {
             data: { boardPosition: { decrement: 1 } },
           });
         } else if (oldPosition > targetPosition) {
-          await tx.ganttTask.updateMany({
+          await tx.task.updateMany({
             where: {
               boardColumnId: newColumnId,
               boardPosition: { gte: targetPosition, lt: oldPosition },
@@ -637,7 +637,7 @@ export class StatesService {
       } else {
         // Mover entre colunas: compactar origem + abrir espaço no destino
         if (oldColumnId !== null) {
-          await tx.ganttTask.updateMany({
+          await tx.task.updateMany({
             where: {
               boardColumnId: oldColumnId,
               boardPosition: { gt: oldPosition },
@@ -647,7 +647,7 @@ export class StatesService {
           });
         }
         if (newColumnId !== null) {
-          await tx.ganttTask.updateMany({
+          await tx.task.updateMany({
             where: {
               boardColumnId: newColumnId,
               boardPosition: { gte: targetPosition },
@@ -667,11 +667,11 @@ export class StatesService {
       if (swimlaneIntent.change) {
         updateData.boardSwimlaneId = swimlaneIntent.value;
       }
-      await tx.ganttTask.update({ where: { id: taskId }, data: updateData });
+      await tx.task.update({ where: { id: taskId }, data: updateData });
     });
 
     // Serializar card actualizado
-    const updated = await this.prisma.ganttTask.findUnique({
+    const updated = await this.prisma.task.findUnique({
       where: { id: taskId },
       select: {
         publicId: true,
@@ -776,7 +776,7 @@ export class StatesService {
           },
           select: { id: true },
         });
-        await tx.ganttTask.updateMany({
+        await tx.task.updateMany({
           where: { projectId, boardSwimlaneId: null, type: 'task' },
           data:  { boardSwimlaneId: created.id },
         });
@@ -787,7 +787,7 @@ export class StatesService {
           where: { id: primary.id },
           data:  { status: Status.ACTIVE },
         });
-        await tx.ganttTask.updateMany({
+        await tx.task.updateMany({
           where: { projectId, boardSwimlaneId: null, type: 'task' },
           data:  { boardSwimlaneId: primary.id },
         });
@@ -877,7 +877,7 @@ export class StatesService {
       }
       // É a última — os cards voltam a null (board regressa ao modo sem swimlanes)
       await this.prisma.$transaction(async (tx) => {
-        await tx.ganttTask.updateMany({
+        await tx.task.updateMany({
           where: { boardSwimlaneId: sw.id },
           data:  { boardSwimlaneId: null },
         });
@@ -893,7 +893,7 @@ export class StatesService {
         throw new AppException('BOARD_PRIMARY_SWIMLANE_NOT_FOUND', HttpStatus.CONFLICT);
       }
       await this.prisma.$transaction(async (tx) => {
-        await tx.ganttTask.updateMany({
+        await tx.task.updateMany({
           where: { boardSwimlaneId: sw.id },
           data:  { boardSwimlaneId: primary.id },
         });

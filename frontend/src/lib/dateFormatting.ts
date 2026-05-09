@@ -7,7 +7,7 @@
  * Ver docs/claude/timezone.md para tabela completa.
  *
  *   DATA PURA (label de calendário, sem hora):
- *     workDate, weekStart, Project.startDate/endDate, GanttTask.startDate,
+ *     workDate, weekStart, Project.startDate/endDate, Task.startDate,
  *     HolidayDate.date, TimesheetApprovalLog.scopeDate.
  *     → usar formatDate, formatDateTime, formatDateShort.
  *     → tz-AGNOSTIC. Mostra "dia X" sem conversão.

@@ -12,7 +12,7 @@ import {
 /**
  * Body do PATCH /platform-config/limits — apenas PLATFORM_ADMIN.
  *
- * - `maxTaskBusinessDays`: cap de duração de GanttTask (1..99999, soft 1300).
+ * - `maxTaskBusinessDays`: cap de duração de Task (1..99999, soft 1300).
  *   Ver docs/claude/tools/gantt/data-model.md.
  * - `maxUploadSizeMb`: cap absoluto da plataforma para single file upload
  *   (1..2048). Qualquer plano só pode oferecer ≤ a este valor.
