@@ -19,6 +19,7 @@ import { FeatureFlagsService } from './feature-flags.service';
 import { CreateFeatureFlagDto } from './dto/create-feature-flag.dto';
 import { UpdateFeatureFlagDto } from './dto/update-feature-flag.dto';
 import { SetUserOverrideDto } from './dto/set-user-override.dto';
+import type { FeatureKey } from '../common/entitlements';
 
 @Controller('feature-flags')
 @UseGuards(JwtAuthGuard)
@@ -84,7 +85,10 @@ export class FeatureFlagsController {
     @CurrentUser() user: JwtPayload,
     @Query('projectId') projectPublicId?: string,
   ) {
-    const enabled = await this.featureFlagsService.isEnabled(user.sub, key, {
+    // `key` chega como string do path; se não estiver no catálogo `FeatureKey`
+    // o `isEnabled` falha em runtime (flag não existe na BD → false), mas
+    // mantemos o cast para preservar a tipagem das chamadas internas.
+    const enabled = await this.featureFlagsService.isEnabled(user.sub, key as FeatureKey, {
       projectPublicId: projectPublicId ?? null,
     });
     return { key, enabled };

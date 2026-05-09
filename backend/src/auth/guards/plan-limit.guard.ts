@@ -55,7 +55,13 @@ export class PlanLimitGuard implements CanActivate {
     if (user.profileCode === 'PLATFORM_ADMIN') return true;
 
     const projectPublicId = extractProjectPublicId(req, projectIdFrom);
-    const check = await this.usageService.checkLimit(user.sub, limitKey, { projectPublicId });
+    // Cast: o decorator garante LimitKey, mas o reflector aceita string em
+    // legacy mode. Runtime trata chaves desconhecidas como sem limite.
+    const check = await this.usageService.checkLimit(
+      user.sub,
+      limitKey as import('../../common/entitlements').LimitKey,
+      { projectPublicId },
+    );
 
     if (!check.allowed) {
       throw new ForbiddenException({

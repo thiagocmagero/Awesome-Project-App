@@ -18,6 +18,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { EmailTokenService } from '../auth/email-token.service';
 import { EmailService } from '../emails/email.service';
 import { TokenType } from '@prisma/client';
+import { LimitKey } from '../common/entitlements';
 
 /** User fields included in owner/manager relations */
 const USER_BRIEF = {
@@ -260,7 +261,7 @@ export class ProjectsService {
       },
     });
 
-    await this.usageService.increment(requestingUser.sub, 'max_projects');
+    await this.usageService.increment(requestingUser.sub, LimitKey.MAX_PROJECTS);
     return project;
   }
 
@@ -324,7 +325,7 @@ export class ProjectsService {
       },
     });
 
-    await this.usageService.decrement(requestingUser.sub, 'max_projects');
+    await this.usageService.decrement(requestingUser.sub, LimitKey.MAX_PROJECTS);
     return project;
   }
 

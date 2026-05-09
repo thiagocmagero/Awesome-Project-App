@@ -67,31 +67,63 @@ export class NotificationsService {
     return (process.env.APP_URL ?? 'http://localhost:5173').replace(/\/+$/, '');
   }
 
-  private buildTaskUrl(projectPublicId: string, taskPublicId: string): string {
-    return `${this.baseUrl}/projects/${projectPublicId}/planning/tasks/${taskPublicId}`;
+  /**
+   * Resolve o prefixo workspace `/{workspacePublicId}` a partir do projecto.
+   * Retorna `''` se o projecto não existir ou não tiver workspace (orphan
+   * pré-migração) — deeplink degrada graciosamente para o redirect raiz.
+   */
+  private async resolveWorkspacePrefixForProject(projectPublicId: string): Promise<string> {
+    const project = await this.prisma.project.findUnique({
+      where: { publicId: projectPublicId },
+      select: { workspace: { select: { publicId: true } } },
+    });
+    const wsPublicId = project?.workspace?.publicId;
+    return wsPublicId ? `/${wsPublicId}` : '';
   }
 
-  private buildEntityUrl(
+  /** Resolve workspace do user (V1: 1:1). Fallback `''` se não existir. */
+  private async resolveWorkspacePrefixForUser(userId: number): Promise<string> {
+    const ws = await this.prisma.workspace.findUnique({
+      where: { ownerId: userId },
+      select: { publicId: true },
+    });
+    return ws?.publicId ? `/${ws.publicId}` : '';
+  }
+
+  private async buildTaskUrl(projectPublicId: string, taskPublicId: string): Promise<string> {
+    const wsPrefix = await this.resolveWorkspacePrefixForProject(projectPublicId);
+    return `${this.baseUrl}${wsPrefix}/projects/${projectPublicId}/planning/tasks/${taskPublicId}`;
+  }
+
+  private async buildEntityUrl(
     projectPublicId: string,
     entityType: EntityType,
     entityPublicId: string,
-  ): string {
+  ): Promise<string> {
     if (entityType === EntityType.TASK) {
       return this.buildTaskUrl(projectPublicId, entityPublicId);
     }
-    return `${this.baseUrl}/projects/${projectPublicId}/planning`;
+    const wsPrefix = await this.resolveWorkspacePrefixForProject(projectPublicId);
+    return `${this.baseUrl}${wsPrefix}/projects/${projectPublicId}/planning`;
   }
 
-  private buildProjectUrl(projectPublicId: string): string {
-    return `${this.baseUrl}/projects/${projectPublicId}/planning`;
+  private async buildProjectUrl(projectPublicId: string): Promise<string> {
+    const wsPrefix = await this.resolveWorkspacePrefixForProject(projectPublicId);
+    return `${this.baseUrl}${wsPrefix}/projects/${projectPublicId}/planning`;
   }
 
-  private buildProjectsListUrl(): string {
-    return `${this.baseUrl}/projects`;
+  /**
+   * URL da lista de projectos do user. Usado como fallback de `inviteUrl`
+   * quando o caller não fornece. Resolve o workspace do destinatário.
+   */
+  private async buildProjectsListUrlForUser(userId: number): Promise<string> {
+    const wsPrefix = await this.resolveWorkspacePrefixForUser(userId);
+    return `${this.baseUrl}${wsPrefix}/projects`;
   }
 
-  private buildTimesheetUrl(projectPublicId: string, weekStart: string): string {
-    return `${this.baseUrl}/projects/${projectPublicId}/planning?tab=timesheet&week=${weekStart}`;
+  private async buildTimesheetUrl(projectPublicId: string, weekStart: string): Promise<string> {
+    const wsPrefix = await this.resolveWorkspacePrefixForProject(projectPublicId);
+    return `${this.baseUrl}${wsPrefix}/projects/${projectPublicId}/planning?tab=timesheet&week=${weekStart}`;
   }
 
   // ─── Creators ────────────────────────────────────────────────────────────────
@@ -133,6 +165,7 @@ export class NotificationsService {
         this.resolveProjectName(projectPublicId),
         this.resolveContextName(projectPublicId, entityType, entityPublicId),
       ]);
+      const commentUrl = await this.buildEntityUrl(projectPublicId, entityType, entityPublicId);
       this.emailService
         .sendMentionEmail({
           recipientEmail: recipient.email,
@@ -142,7 +175,7 @@ export class NotificationsService {
           projectName,
           contextName,
           excerpt,
-          commentUrl: this.buildEntityUrl(projectPublicId, entityType, entityPublicId),
+          commentUrl,
         })
         .catch(() => {/* silent — emailService logs internally */});
     }
@@ -172,7 +205,10 @@ export class NotificationsService {
     if (await this.shouldNotify(assigneeUserId, NotificationType.TASK_ASSIGNED, NotificationChannel.EMAIL)) {
       const recipient = await this.resolveRecipient(assigneeUserId);
       if (!recipient?.email) return;
-      const projectName = await this.resolveProjectName(projectPublicId);
+      const [projectName, taskUrl] = await Promise.all([
+        this.resolveProjectName(projectPublicId),
+        this.buildTaskUrl(projectPublicId, taskPublicId),
+      ]);
       this.emailService
         .sendTaskAssignedEmail({
           recipientEmail: recipient.email,
@@ -181,7 +217,7 @@ export class NotificationsService {
           actorName: assignerName,
           projectName,
           taskName,
-          taskUrl: this.buildTaskUrl(projectPublicId, taskPublicId),
+          taskUrl,
         })
         .catch(() => {});
     }
@@ -211,6 +247,7 @@ export class NotificationsService {
     if (await this.shouldNotify(userId, NotificationType.INVITATION_RECEIVED, NotificationChannel.EMAIL)) {
       const recipient = await this.resolveRecipient(userId);
       if (!recipient?.email) return;
+      const resolvedInviteUrl = inviteUrl ?? (await this.buildProjectsListUrlForUser(userId));
       this.emailService
         .sendInvitationReceivedEmail({
           recipientEmail: recipient.email,
@@ -218,7 +255,7 @@ export class NotificationsService {
           locale: recipient.locale,
           inviterName,
           projectName,
-          inviteUrl: inviteUrl ?? this.buildProjectsListUrl(),
+          inviteUrl: resolvedInviteUrl,
         })
         .catch(() => {});
     }
@@ -245,6 +282,7 @@ export class NotificationsService {
     if (await this.shouldNotify(userId, NotificationType.INVITATION_ACCEPTED, NotificationChannel.EMAIL)) {
       const recipient = await this.resolveRecipient(userId);
       if (!recipient?.email) return;
+      const projectUrl = await this.buildProjectUrl(projectPublicId);
       this.emailService
         .sendInvitationAcceptedEmail({
           recipientEmail: recipient.email,
@@ -252,7 +290,7 @@ export class NotificationsService {
           locale: recipient.locale,
           inviteeName,
           projectName,
-          projectUrl: this.buildProjectUrl(projectPublicId),
+          projectUrl,
         })
         .catch(() => {});
     }
@@ -315,9 +353,10 @@ export class NotificationsService {
       const recipient = await this.resolveRecipient(userId);
       if (!recipient?.email) return;
       // Reactions estão sempre num comment ligado a uma TASK no fluxo actual.
-      const [projectName, contextName] = await Promise.all([
+      const [projectName, contextName, commentUrl] = await Promise.all([
         this.resolveProjectName(projectPublicId),
         this.resolveContextName(projectPublicId, EntityType.TASK, entityPublicId),
+        this.buildEntityUrl(projectPublicId, EntityType.TASK, entityPublicId),
       ]);
       this.emailService
         .sendCommentReactionEmail({
@@ -328,7 +367,7 @@ export class NotificationsService {
           emoji,
           projectName,
           contextName,
-          commentUrl: this.buildEntityUrl(projectPublicId, EntityType.TASK, entityPublicId),
+          commentUrl,
         })
         .catch(() => {});
     }
@@ -359,6 +398,7 @@ export class NotificationsService {
     if (await this.shouldNotify(approverUserId, NotificationType.TIMESHEET_SUBMITTED, NotificationChannel.EMAIL)) {
       const recipient = await this.resolveRecipient(approverUserId);
       if (!recipient?.email) return;
+      const timesheetUrl = await this.buildTimesheetUrl(projectPublicId, weekStartIso);
       this.emailService
         .sendTimesheetSubmittedEmail({
           recipientEmail: recipient.email,
@@ -367,7 +407,7 @@ export class NotificationsService {
           submitterName,
           projectName,
           weekStart: weekStartIso,
-          timesheetUrl: this.buildTimesheetUrl(projectPublicId, weekStartIso),
+          timesheetUrl,
         })
         .catch(() => {});
     }
@@ -396,6 +436,7 @@ export class NotificationsService {
     if (await this.shouldNotify(submitterUserId, NotificationType.TIMESHEET_APPROVED, NotificationChannel.EMAIL)) {
       const recipient = await this.resolveRecipient(submitterUserId);
       if (!recipient?.email) return;
+      const timesheetUrl = await this.buildTimesheetUrl(projectPublicId, weekStartIso);
       this.emailService
         .sendTimesheetApprovedEmail({
           recipientEmail: recipient.email,
@@ -404,7 +445,7 @@ export class NotificationsService {
           approverName,
           projectName,
           weekStart: weekStartIso,
-          timesheetUrl: this.buildTimesheetUrl(projectPublicId, weekStartIso),
+          timesheetUrl,
         })
         .catch(() => {});
     }
@@ -433,6 +474,7 @@ export class NotificationsService {
     if (await this.shouldNotify(submitterUserId, NotificationType.TIMESHEET_PARTIALLY_APPROVED, NotificationChannel.EMAIL)) {
       const recipient = await this.resolveRecipient(submitterUserId);
       if (!recipient?.email) return;
+      const timesheetUrl = await this.buildTimesheetUrl(projectPublicId, weekStartIso);
       this.emailService
         .sendTimesheetPartiallyApprovedEmail({
           recipientEmail: recipient.email,
@@ -441,7 +483,7 @@ export class NotificationsService {
           approverName,
           projectName,
           weekStart: weekStartIso,
-          timesheetUrl: this.buildTimesheetUrl(projectPublicId, weekStartIso),
+          timesheetUrl,
         })
         .catch(() => {});
     }
@@ -474,6 +516,7 @@ export class NotificationsService {
     if (await this.shouldNotify(submitterUserId, NotificationType.TIMESHEET_REJECTED, NotificationChannel.EMAIL)) {
       const recipient = await this.resolveRecipient(submitterUserId);
       if (!recipient?.email) return;
+      const timesheetUrl = await this.buildTimesheetUrl(projectPublicId, scopeDateIso);
       this.emailService
         .sendTimesheetRejectedEmail({
           recipientEmail: recipient.email,
@@ -483,7 +526,7 @@ export class NotificationsService {
           projectName,
           scopeDate: scopeDateIso,
           reason,
-          timesheetUrl: this.buildTimesheetUrl(projectPublicId, scopeDateIso),
+          timesheetUrl,
         })
         .catch(() => {});
     }

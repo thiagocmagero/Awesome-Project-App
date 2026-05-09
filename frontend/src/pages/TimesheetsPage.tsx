@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useFeatureFlag } from '../hooks/useFeatureFlag';
-import { useAuth } from '../contexts/AuthContext';
+import { FeatureKey } from '../lib/entitlements';
 import {
   EMPTY_FILTERS,
   useTimesheetApprovalAccess,
@@ -25,9 +25,8 @@ import '../features/timesheet/timesheet.css';
  */
 export default function TimesheetsPage() {
   const { t } = useTranslation('timesheet');
-  const { user } = useAuth();
-  const { enabled } = useFeatureFlag('timesheet_view');
-  const allowed = enabled || user?.profileCode === 'PLATFORM_ADMIN';
+  // PLATFORM_ADMIN bypass é tratado dentro do useFeatureFlag.
+  const { enabled: allowed } = useFeatureFlag(FeatureKey.TIMESHEET_VIEW);
 
   const { hasAccess: hasApprovalAccess, loading: accessLoading } = useTimesheetApprovalAccess();
 

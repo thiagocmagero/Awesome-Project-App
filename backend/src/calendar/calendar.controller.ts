@@ -23,6 +23,7 @@ import { UpdateEventDto } from './dto/update-event.dto';
 import { CreateEventTypeDto } from './dto/create-event-type.dto';
 import { UpdateEventTypeDto } from './dto/update-event-type.dto';
 import { ReorderEventTypesDto } from './dto/reorder-event-types.dto';
+import { FeatureKey } from '../common/entitlements';
 
 /**
  * CalendarController — vista de calendário por projecto.
@@ -33,7 +34,7 @@ import { ReorderEventTypesDto } from './dto/reorder-event-types.dto';
  */
 @Controller('projects/:id/calendar')
 @UseGuards(JwtAuthGuard, FeatureFlagGuard, ProjectPermissionGuard)
-@RequireFeature('calendar_view')
+@RequireFeature(FeatureKey.CALENDAR_VIEW)
 export class CalendarController {
   constructor(private readonly service: CalendarService) {}
 

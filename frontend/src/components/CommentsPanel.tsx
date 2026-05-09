@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
+import { useIsPlatformAdmin } from '../hooks/useIsPlatformAdmin';
 import { getApiBase, apiFetch } from '../lib/api';
 import { useToast } from '../contexts/ToastContext';
 import { avatarColorFor, initialsOf } from '../lib/avatars';
@@ -124,7 +125,7 @@ function groupCommentsByDay(
 export default function CommentsPanel({ projectId, entityType, entityPublicId }: CommentsPanelProps) {
   const { token, user } = useAuth();
   const api = getApiBase();
-  const isAdmin = user?.profileCode === 'PLATFORM_ADMIN';
+  const isAdmin = useIsPlatformAdmin();
   const { showToast } = useToast();
   const { t } = useTranslation('planning');
   const { t: tc } = useTranslation('common');

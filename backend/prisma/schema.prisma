@@ -218,22 +218,27 @@ model Profile {
 model UserType {
   id          Int      @id @default(autoincrement())
   publicId    String   @unique @default(uuid(7))
-  code        String // único por (code, ownerId) — ver @@unique abaixo
+  code        String // único por (code, workspaceId) — ver @@unique abaixo
   label       String
   description String?
   status      Status   @default(ACTIVE)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  /// Dono do tipo — null = tipo de plataforma (PLATFORM_ADMIN); não-null = tipo do workspace do utilizador
+  /// Dono original do tipo (audit) — null = tipo de plataforma (PLATFORM_ADMIN);
+  /// não-null = tipo criado por este utilizador no seu workspace.
   ownerId Int?
   owner   User? @relation("UserTypeOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+
+  /// Workspace ao qual o tipo pertence — null para tipos de plataforma (PLATFORM_ADMIN seed).
+  workspaceId Int?
+  workspace   Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   users             User[]
   taskResources     TaskResource[]
   taskResourceNodes TaskResourceNode[]
 
-  @@unique([code, ownerId])
+  @@unique([code, workspaceId])
 }
 
 /// Níveis de experiência (mantido no schema por compatibilidade — não exposto na UI)
@@ -309,11 +314,8 @@ model User {
 
   // Phase 7: relations userPlans/assignedPlans removidas. Ver Subscription.
 
-  /// Feature flags com override individual
-  userFeatureFlags UserFeatureFlag[]
-
-  /// Registos de uso (contadores)
-  usageRecords UsageRecord[]
+  // UserFeatureFlag e UsageRecord migraram para Workspace (workspaceId).
+  // Acesso via user.workspaces[0].featureFlags / .usageRecords (V1).
 
   /// Nós de recurso de task (folhas internas)
   taskResourceNodes TaskResourceNode[]
@@ -431,21 +433,18 @@ model User {
   /// Stripe customer ID — null até primeiro checkout. Único por utilizador.
   stripeCustomerId String? @unique
 
-  /// Subscrição activa (1 por owner). Substitui `userPlans` como fonte
-  /// de verdade após Phase 7. Durante phases 1–6 coexiste em dual-write.
-  subscription Subscription?
+  /// Workspaces dos quais este utilizador é owner.
+  /// V1: 1 só (constraint @@unique([ownerId]) em Workspace). V2: N possíveis.
+  workspaces Workspace[] @relation("UserWorkspaces")
 
-  /// Workspaces a que este utilizador pertence (como membro convidado)
+  // Subscription, Invoice e ownedWorkspaceMembers migraram para Workspace.
+  // Acesso via user.workspaces[0].subscription / .invoices / .members (V1).
+
+  /// Workspaces a que este utilizador pertence como membro convidado
   workspaceMemberships WorkspaceMember[] @relation("WorkspaceMember_User")
-
-  /// Membros convidados para o workspace deste utilizador (owner)
-  ownedWorkspaceMembers WorkspaceMember[] @relation("WorkspaceMember_Owner")
 
   /// Convites de workspace enviados por este utilizador
   invitedWorkspaceMembers WorkspaceMember[] @relation("WorkspaceMember_InvitedBy")
-
-  /// Facturas associadas à subscrição deste utilizador
-  invoices Invoice[]
 
   createdAt DateTime @default(now()) @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @db.Timestamptz(6)
@@ -467,6 +466,10 @@ model Team {
   /// Dono da equipa — utilizador que criou/gere esta equipa no seu workspace
   ownerId Int?
   owner   User? @relation("TeamOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+
+  /// Workspace ao qual a equipa pertence. Nullable por tolerância a orphans pré-existentes.
+  workspaceId Int?
+  workspace   Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -503,9 +506,16 @@ model Project {
   description String?
   status      Status  @default(ACTIVE)
 
-  /// Owner aplicacional / workspace owner — obrigatório para BASIC_USER, opcional para PLATFORM_ADMIN
+  /// Owner aplicacional — utilizador que criou o projecto (audit; survive ao delete via SetNull).
+  /// V2-ready: representa "owner-within-workspace"; em V1 = owner do workspace.
   ownerId Int?
   owner   User? @relation("ProjectOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+
+  /// Workspace ao qual o projecto pertence. Nullable para tolerar orphans pré-existentes
+  /// (projectos cujo owner foi hard-deleted antes da introdução de Workspace).
+  /// Em creates novos passa a ser sempre populado via WorkspaceContextGuard.
+  workspaceId Int?
+  workspace   Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   /// Project Manager — responsável pela gestão do projeto
   managerId Int?
@@ -847,28 +857,30 @@ model PlanFeatureFlag {
   @@unique([planId, featureFlagId])
 }
 
-/// Override de feature flag por utilizador (admin pode ativar/desativar individualmente)
+/// Override de feature flag por workspace (admin pode ativar/desativar individualmente)
+/// Mantém o nome "UserFeatureFlag" por retrocompatibilidade do code path; chave passa
+/// a ser workspaceId (V1: 1:1 com User via Workspace).
 model UserFeatureFlag {
   id            Int         @id @default(autoincrement())
   publicId      String      @unique @default(uuid(7))
-  userId        Int
-  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspaceId   Int
+  workspace     Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   featureFlagId Int
   featureFlag   FeatureFlag @relation(fields: [featureFlagId], references: [id], onDelete: Cascade)
 
   enabled Boolean
 
-  @@unique([userId, featureFlagId])
+  @@unique([workspaceId, featureFlagId])
 }
 
 // Phase 7: model UserPlan removido. Subscription é a fonte de verdade.
 
-/// Contadores de uso por utilizador — comparados com PlanLimit
+/// Contadores de uso por workspace — comparados com PlanLimit
 model UsageRecord {
-  id       Int    @id @default(autoincrement())
-  publicId String @unique @default(uuid(7))
-  userId   Int
-  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id          Int       @id @default(autoincrement())
+  publicId    String    @unique @default(uuid(7))
+  workspaceId Int
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   /// Mesma chave que PlanLimit.limitKey para comparação directa
   usageKey String
@@ -881,22 +893,52 @@ model UsageRecord {
 
   updatedAt DateTime @updatedAt
 
-  @@unique([userId, usageKey])
+  @@unique([workspaceId, usageKey])
 }
 
-// ─── Workspace Members, Subscriptions & Invoices ─────────────────────────────
+// ─── Workspaces, Members, Subscriptions & Invoices ──────────────────────────
 
-/// Membro de um workspace (workspace = conjunto dos projectos do owner).
-/// Cada utilizador tem 1 workspace implícito; este modelo regista quem é
-/// convidado para nele participar e com que nível de acesso.
+/// Workspace — entidade explícita que agrupa projectos, equipas, feriados,
+/// tipos de utilizador, billing, quotas e membros convidados de um owner.
+/// V1: 1 workspace por User (constraint @@unique([ownerId])). V2: drop unique,
+/// um user pode possuir múltiplos workspaces.
+/// Auto-criação 1:1 nos hooks de criação de User (auth.register,
+/// createAccountFromInvite, admin POST /users, seed). Sem CRUD em V1.
+/// Cascade no delete do owner: User.delete → Workspace.delete → todas as
+/// 9 tabelas com workspaceId.
+model Workspace {
+  id        Int      @id @default(autoincrement())
+  publicId  String   @unique @default(uuid(7))
+  ownerId   Int      @unique
+  owner     User     @relation("UserWorkspaces", fields: [ownerId], references: [id], onDelete: Cascade)
+  name      String
+  status    Status   @default(ACTIVE)
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  projects     Project[]
+  teams        Team[]
+  holidays     Holiday[]
+  userTypes    UserType[]
+  members      WorkspaceMember[]
+  subscription Subscription?
+  invoices     Invoice[]
+  usageRecords UsageRecord[]
+  featureFlags UserFeatureFlag[]
+
+  @@index([ownerId])
+}
+
+/// Membro de um workspace.
+/// Cada workspace pode ter N membros convidados, com nível BASIC ou LICENSED.
 /// Ver docs/claude/permissions.md (workspace seats).
 model WorkspaceMember {
   id       Int    @id @default(autoincrement())
   publicId String @unique @default(uuid(7))
 
-  /// Owner do workspace (= dono dos projectos)
-  ownerId Int
-  owner   User @relation("WorkspaceMember_Owner", fields: [ownerId], references: [id], onDelete: Cascade)
+  /// Workspace ao qual o membro pertence
+  workspaceId Int
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   /// Utilizador convidado — null até ao registo na plataforma.
   /// Cascade: remover o user apaga as memberships (limpa orphans com email).
@@ -927,21 +969,20 @@ model WorkspaceMember {
   updatedAt DateTime @updatedAt
 
   /// 1 convite activo por (workspace, email) — owner não duplica convites
-  @@unique([ownerId, email])
+  @@unique([workspaceId, email])
   @@index([userId, status])
 }
 
-/// Subscrição de um workspace owner. Substitui UserPlan como fonte de verdade
-/// para resolução de features/limits a partir da Phase 5. Durante phases 1–4
-/// coexiste em dual-write com UserPlan.
+/// Subscrição de um workspace. Substitui UserPlan como fonte de verdade
+/// para resolução de features/limits a partir da Phase 5.
 /// Stripe IDs são nullable até integração na Phase 8.
 model Subscription {
   id       Int    @id @default(autoincrement())
   publicId String @unique @default(uuid(7))
 
-  /// Owner do workspace — 1 subscrição por utilizador
-  userId Int  @unique
-  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Workspace — 1 subscrição por workspace (V1: 1:1 com user via Workspace)
+  workspaceId Int       @unique
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   planId Int
   plan   Plan @relation(fields: [planId], references: [id])
@@ -984,9 +1025,9 @@ model Invoice {
   subscriptionId Int
   subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
 
-  /// Owner cobrado (denormalizado para queries diretas por user)
-  userId Int
-  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Workspace cobrado (denormalizado para queries diretas por workspace)
+  workspaceId Int
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   status InvoiceStatus @default(DRAFT)
 
@@ -1013,7 +1054,7 @@ model Invoice {
 
   createdAt DateTime @default(now())
 
-  @@index([userId])
+  @@index([workspaceId])
   @@index([subscriptionId])
 }
 
@@ -1027,12 +1068,12 @@ model Task {
   projectId Int
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  text      String
+  text        String
   /// Descrição rica/longa da task (opcional). Editada no TaskModal.
   description String?
-  type      String    @default("task") // "task" | "project" | "milestone"
-  startDate DateTime
-  endDate   DateTime? // calculado automaticamente se omitido
+  type        String    @default("task") // "task" | "project" | "milestone"
+  startDate   DateTime
+  endDate     DateTime? // calculado automaticamente se omitido
 
   /// Duração em dias OU horas (float). Interpretação depende de `durationUnit`.
   /// Milestone obrigatoriamente 0 (qualquer unidade).
@@ -1102,12 +1143,12 @@ model Task {
 
 /// Dependência entre duas tarefas Gantt
 model TaskLink {
-  id       Int       @id @default(autoincrement())
-  publicId String    @unique @default(uuid(7))
+  id       Int    @id @default(autoincrement())
+  publicId String @unique @default(uuid(7))
   sourceId Int
-  source   Task @relation("LinkSource", fields: [sourceId], references: [id], onDelete: Cascade)
+  source   Task   @relation("LinkSource", fields: [sourceId], references: [id], onDelete: Cascade)
   targetId Int
-  target   Task @relation("LinkTarget", fields: [targetId], references: [id], onDelete: Cascade)
+  target   Task   @relation("LinkTarget", fields: [targetId], references: [id], onDelete: Cascade)
 
   /// Tipo: "0"=FS (Finish-to-Start) | "1"=SS | "2"=FF | "3"=SF
   type String @default("0")
@@ -1191,8 +1232,8 @@ model TaskResourceNode {
 
 /// Alocação detalhada de um recurso a uma tarefa
 model TaskAssignment {
-  id         Int           @id @default(autoincrement())
-  publicId   String        @unique @default(uuid(7))
+  id         Int          @id @default(autoincrement())
+  publicId   String       @unique @default(uuid(7))
   taskId     Int
   task       Task         @relation(fields: [taskId], references: [id], onDelete: Cascade)
   resourceId Int
@@ -1210,10 +1251,10 @@ model TaskAssignment {
 
 /// Baseline — snapshot do cronograma planejado para comparação futura
 model TaskBaseline {
-  id       Int       @id @default(autoincrement())
-  publicId String    @unique @default(uuid(7))
+  id       Int    @id @default(autoincrement())
+  publicId String @unique @default(uuid(7))
   taskId   Int
-  task     Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  task     Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
   startDate DateTime
   endDate   DateTime
@@ -1308,7 +1349,7 @@ model BoardCardAssignee {
   taskId Int
   task   Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
   userId Int
-  user   User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([taskId, userId])
   @@index([taskId])
@@ -1388,6 +1429,10 @@ model Holiday {
   description String?
   ownerId     Int?
   owner       User?        @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  /// Workspace ao qual a lista de feriados pertence. Nullable para holidays
+  /// platform-level (PLATFORM_ADMIN seed) ou orphans pré-existentes.
+  workspaceId Int?
+  workspace   Workspace?   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   /// Categoria do calendário — usada pelo Calendar feature para agrupar fontes
   /// (Global / Regional / Project / Custom). Default CUSTOM mantém compatibilidade.
   scope       HolidayScope @default(CUSTOM)

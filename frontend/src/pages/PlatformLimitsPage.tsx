@@ -2,6 +2,7 @@ import { useEffect, useState, FormEvent } from 'react';
 import { Navigate, NavLink } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
+import { useIsPlatformAdmin } from '../hooks/useIsPlatformAdmin';
 import { useToast } from '../contexts/ToastContext';
 import { getApiBase, apiFetch } from '../lib/api';
 
@@ -17,6 +18,7 @@ interface PlatformLimitsResponse {
 
 export default function PlatformLimitsPage() {
   const { token, user } = useAuth();
+  const isAdmin = useIsPlatformAdmin();
   const api = getApiBase();
   const { showToast } = useToast();
   const { t } = useTranslation('platform_config');
@@ -30,8 +32,9 @@ export default function PlatformLimitsPage() {
   const [savingTasks, setSavingTasks] = useState(false);
   const [savingUploads, setSavingUploads] = useState(false);
 
-  if (user && user.profileCode !== 'PLATFORM_ADMIN') {
-    return <Navigate to="/dashboard" replace />;
+  // `user &&` evita redirect durante o loading inicial (user ainda undefined).
+  if (user && !isAdmin) {
+    return <Navigate to="/" replace />;
   }
 
   useEffect(() => {
@@ -128,7 +131,7 @@ export default function PlatformLimitsPage() {
           <nav aria-label="breadcrumb">
             <ol className="breadcrumb mb-0 breadcrumb-style2">
               <li className="breadcrumb-item">
-                <NavLink to="/dashboard">{tc('nav.dashboard')}</NavLink>
+                <NavLink to="/">{tc('nav.dashboard')}</NavLink>
               </li>
               <li className="breadcrumb-item">{tc('nav.section.platform')}</li>
               <li className="breadcrumb-item active" aria-current="page">

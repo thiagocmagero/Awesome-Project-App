@@ -352,8 +352,13 @@ export class PlansService {
    */
   async getUserPlanHistory(userPublicId: string) {
     const userId = await this.resolveUserId(userPublicId);
+    const workspace = await this.prisma.workspace.findUnique({
+      where: { ownerId: userId },
+      select: { id: true },
+    });
+    if (!workspace) return [];
     const sub = await this.prisma.subscription.findUnique({
-      where: { userId },
+      where: { workspaceId: workspace.id },
       include: { plan: { select: { publicId: true, code: true, name: true } } },
     });
     if (!sub) return [];
@@ -377,11 +382,17 @@ export class PlansService {
     return this.subscriptions.getResolvedPlanForOwner(userId);
   }
 
-  /** Assign default plan to a user (used on registration). */
+  /** Assign default plan to a user (used on registration). Pré-requisito:
+   * o Workspace já tem que existir (auto-criado no hook de User creation). */
   async assignDefaultPlan(userId: number) {
     await createDefaultBilling(this.prisma, userId);
+    const workspace = await this.prisma.workspace.findUnique({
+      where: { ownerId: userId },
+      select: { id: true },
+    });
+    if (!workspace) return null;
     return this.prisma.subscription.findUnique({
-      where: { userId },
+      where: { workspaceId: workspace.id },
       include: { plan: true },
     });
   }

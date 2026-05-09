@@ -1,6 +1,12 @@
 // === SEED: plans ===
 // Claude: ler este ficheiro para tarefas relacionadas com planos, limites, feature flags e atribuição de planos
 // Dependências: 01-users.seed.js (utilizadores devem existir para a atribuição de plano default)
+//
+// As chaves de feature flags e limites vêm do catálogo formal em
+// `backend/prisma/seeds/entitlement-keys.js` (espelho CJS de
+// `backend/src/common/entitlements.ts`). NÃO usar strings literais aqui.
+
+const { FeatureKey, LimitKey } = require('./entitlement-keys');
 
 // ─── Dados de referência ──────────────────────────────────────────────────────
 
@@ -11,16 +17,16 @@ const PLANS = [
     description: 'Plano gratuito por defeito para todos os novos utilizadores',
     isDefault: true,
     limits: [
-      { limitKey: 'max_projects',   limitValue: 3,   description: 'Número máximo de projetos' },
-      { limitKey: 'max_teams',      limitValue: 3,   description: 'Número máximo de equipas' },
-      { limitKey: 'max_members',    limitValue: 10,  description: 'Número máximo de pessoas' },
-      { limitKey: 'max_tasks',      limitValue: 50,  description: 'Número máximo de tarefas' },
-      { limitKey: 'max_storage_mb', limitValue: 500, description: 'Storage em MB' },
-      { limitKey: 'max_api_calls',  limitValue: -1,  description: 'Chamadas API (ilimitado)' },
-      { limitKey: 'max_holidays',   limitValue: 3,   description: 'Número máximo de listas de feriados' },
-      { limitKey: 'max_licensed_seats', limitValue: 0, description: 'Seats LICENSED incluídos no plano (BASIC = 0)' },
-      { limitKey: 'max_uploads_count', limitValue: 100, description: 'Número máximo de ficheiros activos' },
-      { limitKey: 'max_upload_size_mb', limitValue: 25, description: 'Tamanho máximo por upload (MB)' },
+      { limitKey: LimitKey.MAX_PROJECTS,        limitValue: 3,   description: 'Número máximo de projetos' },
+      { limitKey: LimitKey.MAX_TEAMS,           limitValue: 3,   description: 'Número máximo de equipas' },
+      { limitKey: LimitKey.MAX_MEMBERS,         limitValue: 10,  description: 'Número máximo de pessoas' },
+      { limitKey: LimitKey.MAX_TASKS,           limitValue: 50,  description: 'Número máximo de tarefas' },
+      { limitKey: LimitKey.MAX_STORAGE_MB,      limitValue: 500, description: 'Storage em MB' },
+      { limitKey: LimitKey.MAX_API_CALLS,       limitValue: -1,  description: 'Chamadas API (ilimitado)' },
+      { limitKey: LimitKey.MAX_HOLIDAYS,        limitValue: 3,   description: 'Número máximo de listas de feriados' },
+      { limitKey: LimitKey.MAX_LICENSED_SEATS,  limitValue: 0,   description: 'Seats LICENSED incluídos no plano (BASIC = 0)' },
+      { limitKey: LimitKey.MAX_UPLOADS_COUNT,   limitValue: 100, description: 'Número máximo de ficheiros activos' },
+      { limitKey: LimitKey.MAX_UPLOAD_SIZE_MB,  limitValue: 25,  description: 'Tamanho máximo por upload (MB)' },
     ],
     pricing: [
       { billingCycle: 'MONTHLY', basePrice: 0, trialDays: 0, pricePerExtraSeat: null, currency: 'EUR' },
@@ -30,13 +36,13 @@ const PLANS = [
 
 const FEATURE_FLAGS = [
   {
-    key: 'gantt_view',
+    key: FeatureKey.GANTT_VIEW,
     label: 'Gráfico Gantt',
     description: 'Visualização do gráfico Gantt no planeamento de projetos',
     enabledGlobally: false,
   },
   {
-    key: 'multi_holiday',
+    key: FeatureKey.MULTI_HOLIDAY,
     label: 'Feriados por Projeto',
     description: 'Permite criar listas de feriados para associar aos projetos',
     enabledGlobally: false,
@@ -45,25 +51,25 @@ const FEATURE_FLAGS = [
   // Kanban / Aw-Kanban. Reintroduzir aqui quando o futuro componente Board
   // for adicionado (ver `docs/claude/future-board.md`).
   {
-    key: 'calendar_view',
+    key: FeatureKey.CALENDAR_VIEW,
     label: 'Calendário',
     description: 'Vista de calendário por projecto (eventos, reuniões, lembretes)',
     enabledGlobally: false,
   },
   {
-    key: 'timesheet_view',
+    key: FeatureKey.TIMESHEET_VIEW,
     label: 'Timesheet',
     description: 'Registo semanal de horas por membro (vista do projeto + área global)',
     enabledGlobally: false,
   },
   {
-    key: 'upload',
+    key: FeatureKey.UPLOAD,
     label: 'Uploads de Ficheiros',
     description: 'Permite anexar ficheiros a tarefas e ao projecto. Bytes guardados em bucket privado.',
     enabledGlobally: false,
   },
   {
-    key: 'upload_secured',
+    key: FeatureKey.UPLOAD_SECURED,
     label: 'Uploads Protegidos',
     description: 'Verifica novos uploads via AWS GuardDuty Malware Protection. Depende da flag upload.',
     enabledGlobally: false,
@@ -128,17 +134,17 @@ async function seed(prisma) {
     return;
   }
 
-  const usersWithoutSub = await prisma.user.findMany({
+  const workspacesWithoutSub = await prisma.workspace.findMany({
     where:  { subscription: null },
     select: { id: true },
   });
 
   const now = new Date();
   const farFuture = new Date(now.getTime() + 100 * 365 * 24 * 60 * 60 * 1000);
-  for (const user of usersWithoutSub) {
+  for (const ws of workspacesWithoutSub) {
     await prisma.subscription.create({
       data: {
-        userId: user.id,
+        workspaceId: ws.id,
         planId: defaultPlan.id,
         status: 'ACTIVE',
         billingCycle: 'MONTHLY',
@@ -149,10 +155,10 @@ async function seed(prisma) {
     });
   }
 
-  if (usersWithoutSub.length > 0) {
-    console.log(`✔ Subscription default criada para ${usersWithoutSub.length} utilizador(es) existente(s)`);
+  if (workspacesWithoutSub.length > 0) {
+    console.log(`✔ Subscription default criada para ${workspacesWithoutSub.length} workspace(s) existente(s)`);
   } else {
-    console.log('✔ Todos os utilizadores têm subscription');
+    console.log('✔ Todos os workspaces têm subscription');
   }
 
   // PlatformLimits singleton (id=1) — garante allowlists iniciais sensatas

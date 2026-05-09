@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { FilesService } from './files.service';
 import { FilesController } from './files.controller';
+import { FilesAdminController } from './files-admin.controller';
 import { GuardDutyWebhookController } from './guardduty-webhook.controller';
 import { ProjectsModule } from '../projects/projects.module';
 import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';
@@ -29,7 +30,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
     UsageModule,
     NotificationsModule,
   ],
-  controllers: [FilesController, GuardDutyWebhookController],
+  controllers: [FilesController, FilesAdminController, GuardDutyWebhookController],
   providers: [FilesService],
   exports: [FilesService],
 })

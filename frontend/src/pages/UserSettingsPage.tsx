@@ -79,7 +79,7 @@ export default function UserSettingsPage() {
   }, [user?.locale]);
 
   useEffect(() => {
-    fetch('/api/i18n/locales/active')
+    fetch('/api/v1/i18n/locales/active')
       .then((r) => r.json())
       .then((data) => { if (Array.isArray(data)) setLocales(data); })
       .catch(() => {});
@@ -348,7 +348,7 @@ export default function UserSettingsPage() {
             <nav aria-label="breadcrumb">
               <ol className="breadcrumb mb-0">
                 <li className="breadcrumb-item">
-                  <NavLink to="/dashboard">{tc('nav.dashboard')}</NavLink>
+                  <NavLink to="/">{tc('nav.dashboard')}</NavLink>
                 </li>
                 <li className="breadcrumb-item active" aria-current="page">
                   {t('page.title')}

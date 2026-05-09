@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useIsPlatformAdmin } from './useIsPlatformAdmin';
 import { getApiBase, apiFetch } from '../lib/api';
+import type { FeatureKey } from '../lib/entitlements';
 
 // Cache keyed by token suffix → flag key + projectPublicId → value.
 // Using the last 32 chars of the token as a session discriminator:
@@ -18,7 +20,7 @@ function getSessionCache(token: string): Record<string, boolean> {
   return cache[key];
 }
 
-function buildCacheKey(flagKey: string, projectPublicId?: string | null): string {
+function buildCacheKey(flagKey: FeatureKey, projectPublicId?: string | null): string {
   return `${flagKey}::${projectPublicId ?? ''}`;
 }
 
@@ -27,12 +29,18 @@ function buildCacheKey(flagKey: string, projectPublicId?: string | null): string
  * é LICENSED no workspace do owner desse projecto, a resolução usa o plano
  * do owner em vez do próprio. Pages globais sem contexto de projecto omitem
  * o segundo argumento — comportamento legado.
+ *
+ * PLATFORM_ADMIN bypass (via `useIsPlatformAdmin`): admins recebem sempre
+ * `{ enabled: true, loading: false }` sem chamada ao backend. Este hook é o
+ * único ponto de verdade para feature gating — componentes não devem
+ * combinar o resultado com verificações próprias de admin.
  */
 export function useFeatureFlag(
-  flagKey: string,
+  flagKey: FeatureKey,
   projectPublicId?: string | null,
 ): { enabled: boolean; loading: boolean } {
   const { token } = useAuth();
+  const isPlatformAdmin = useIsPlatformAdmin();
   const sessionCache = token ? getSessionCache(token) : {};
   const cacheKey = buildCacheKey(flagKey, projectPublicId);
 
@@ -41,6 +49,12 @@ export function useFeatureFlag(
 
   useEffect(() => {
     if (!token) return;
+    // PLATFORM_ADMIN bypassa sempre — não consultar o backend.
+    if (isPlatformAdmin) {
+      setEnabled(true);
+      setLoading(false);
+      return;
+    }
 
     // Always re-fetch when the component mounts — ensures flags enabled/disabled
     // mid-session are picked up on the next navigation without a full page reload.
@@ -60,7 +74,8 @@ export function useFeatureFlag(
         }
       })
       .finally(() => setLoading(false));
-  }, [token, flagKey, projectPublicId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [token, flagKey, projectPublicId, isPlatformAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  if (isPlatformAdmin) return { enabled: true, loading: false };
   return { enabled, loading };
 }

@@ -18,6 +18,7 @@ interface ApiRegisterUser {
   updatedAt: string;
   planCode: string | null;
   planName: string | null;
+  workspacePublicId: string | null;
   timezone: string | null;
   locale: string | null;
   phone: string | null;
@@ -47,7 +48,7 @@ export default function SignUpPage() {
   // Redirect if already authenticated
   useEffect(() => {
     if (user && ['PLATFORM_ADMIN', 'BASIC_USER'].includes(user.profileCode)) {
-      navigate('/dashboard', { replace: true });
+      navigate('/', { replace: true });
     }
   }, [user, navigate]);
 
@@ -115,6 +116,7 @@ export default function SignUpPage() {
         levelLabel: data.user.level?.label ?? null,
         planCode: data.user.planCode ?? null,
         planName: data.user.planName ?? null,
+        workspacePublicId: data.user.workspacePublicId ?? null,
         timezone: data.user.timezone ?? null,
         locale: data.user.locale ?? null,
         phone: data.user.phone ?? null,
@@ -125,7 +127,7 @@ export default function SignUpPage() {
       };
 
       login(authUser);
-      navigate('/dashboard', { replace: true });
+      navigate('/', { replace: true });
     } catch {
       setError(t('signup.errors.generic'));
     } finally {

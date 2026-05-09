@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
+import { useIsPlatformAdmin } from '../hooks/useIsPlatformAdmin';
 import { getApiBase, apiFetch } from '../lib/api';
 import { useToast } from '../contexts/ToastContext';
 import type {
@@ -331,13 +332,13 @@ function ConfigPanel({ config, onChange, scope }: ConfigPanelProps) {
 // ─── Página principal ─────────────────────────────────────────────────────────
 
 export default function GanttSettingsPage() {
-  const { token, user } = useAuth();
+  const { token } = useAuth();
   const api = getApiBase();
   const { showToast } = useToast();
   const { t } = useTranslation('gantt');
   const { t: tc } = useTranslation('common');
 
-  const isAdmin = user?.profileCode === 'PLATFORM_ADMIN';
+  const isAdmin = useIsPlatformAdmin();
 
   // ── Global config (admin only) ───────────────────────────────────────────────
   const [globalConfig, setGlobalConfig] = useState<GanttConfigData>(HARDCODED_DEFAULTS);

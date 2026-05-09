@@ -7,7 +7,7 @@
  */
 
 export function getApiBase(): string {
-  return '/api';
+  return '/api/v1';
 }
 
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
@@ -31,6 +31,17 @@ function shouldSkipRefresh(input: RequestInfo | URL): boolean {
   return AUTH_SKIP_REFRESH_PATHS.some((p) => url.includes(p));
 }
 
+function readAuthUserWorkspacePublicId(): string | null {
+  try {
+    const raw = localStorage.getItem('app_user');
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { workspacePublicId?: string | null };
+    return parsed.workspacePublicId ?? null;
+  } catch {
+    return null;
+  }
+}
+
 function buildRequestInit(init: RequestInit): RequestInit {
   const method = (init.method ?? 'GET').toUpperCase();
   const headers = new Headers(init.headers);
@@ -46,6 +57,14 @@ function buildRequestInit(init: RequestInit): RequestInit {
   // Default Content-Type para bodies JSON string
   if (init.body && typeof init.body === 'string' && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
+  }
+
+  // X-Workspace-Id header — informativo em V1 (backend resolve via JWT),
+  // future-ready para V2 (multi-workspace via header). Lê do localStorage do
+  // AuthContext para sobreviver a F5. Sem header se não há user autenticado.
+  if (!headers.has('X-Workspace-Id')) {
+    const wsPublicId = readAuthUserWorkspacePublicId();
+    if (wsPublicId) headers.set('X-Workspace-Id', wsPublicId);
   }
 
   return {
@@ -68,7 +87,7 @@ async function refreshSession(): Promise<boolean> {
       const headers: Record<string, string> = {};
       if (csrf) headers['X-CSRF-Token'] = csrf;
 
-      const res = await fetch('/api/auth/refresh', {
+      const res = await fetch('/api/v1/auth/refresh', {
         method: 'POST',
         credentials: 'include',
         headers,

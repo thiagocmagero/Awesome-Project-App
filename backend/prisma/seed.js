@@ -1,5 +1,7 @@
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcrypt');
+// Catálogo formal de chaves — ver `backend/src/common/entitlements.ts`.
+const { FeatureKey, LimitKey } = require('./seeds/entitlement-keys');
 
 const prisma = new PrismaClient();
 
@@ -43,14 +45,14 @@ const PLANS = [
     description: 'Plano gratuito por defeito para todos os novos utilizadores',
     isDefault: true,
     limits: [
-      { limitKey: 'max_projects',   limitValue: 3,   description: 'Número máximo de projetos' },
-      { limitKey: 'max_teams',      limitValue: 3,   description: 'Número máximo de equipas' },
-      { limitKey: 'max_members',    limitValue: 10,  description: 'Número máximo de pessoas' },
-      { limitKey: 'max_tasks',      limitValue: 50,  description: 'Número máximo de tarefas' },
-      { limitKey: 'max_storage_mb', limitValue: 500, description: 'Storage em MB' },
-      { limitKey: 'max_api_calls',  limitValue: -1,  description: 'Chamadas API (ilimitado)' },
-      { limitKey: 'max_holidays',   limitValue: 3,   description: 'Número máximo de listas de feriados' },
-      { limitKey: 'max_licensed_seats', limitValue: 0, description: 'Seats LICENSED incluídos no plano (BASIC = 0)' },
+      { limitKey: LimitKey.MAX_PROJECTS,       limitValue: 3,   description: 'Número máximo de projetos' },
+      { limitKey: LimitKey.MAX_TEAMS,          limitValue: 3,   description: 'Número máximo de equipas' },
+      { limitKey: LimitKey.MAX_MEMBERS,        limitValue: 10,  description: 'Número máximo de pessoas' },
+      { limitKey: LimitKey.MAX_TASKS,          limitValue: 50,  description: 'Número máximo de tarefas' },
+      { limitKey: LimitKey.MAX_STORAGE_MB,     limitValue: 500, description: 'Storage em MB' },
+      { limitKey: LimitKey.MAX_API_CALLS,      limitValue: -1,  description: 'Chamadas API (ilimitado)' },
+      { limitKey: LimitKey.MAX_HOLIDAYS,       limitValue: 3,   description: 'Número máximo de listas de feriados' },
+      { limitKey: LimitKey.MAX_LICENSED_SEATS, limitValue: 0,   description: 'Seats LICENSED incluídos no plano (BASIC = 0)' },
     ],
     pricing: [
       { billingCycle: 'MONTHLY', basePrice: 0, trialDays: 0, pricePerExtraSeat: null, currency: 'EUR' },
@@ -60,13 +62,13 @@ const PLANS = [
 
 const FEATURE_FLAGS = [
   {
-    key: 'gantt_view',
+    key: FeatureKey.GANTT_VIEW,
     label: 'Gráfico Gantt',
     description: 'Visualização do gráfico Gantt no planeamento de projetos',
     enabledGlobally: false,
   },
   {
-    key: 'multi_holiday',
+    key: FeatureKey.MULTI_HOLIDAY,
     label: 'Feriados por Projeto',
     description: 'Permite criar listas de feriados para associar aos projetos',
     enabledGlobally: false,
@@ -157,18 +159,18 @@ async function assignDefaultPlanToExistingUsers() {
     return;
   }
 
-  // Phase 7: usar Subscription em vez de UserPlan (removido).
-  const usersWithoutSub = await prisma.user.findMany({
+  // Subscription vive no Workspace (1 por workspace, V1: 1 workspace por user).
+  const workspacesWithoutSub = await prisma.workspace.findMany({
     where: { subscription: null },
     select: { id: true },
   });
 
   const now = new Date();
   const farFuture = new Date(now.getTime() + 100 * 365 * 24 * 60 * 60 * 1000);
-  for (const user of usersWithoutSub) {
+  for (const ws of workspacesWithoutSub) {
     await prisma.subscription.create({
       data: {
-        userId: user.id,
+        workspaceId: ws.id,
         planId: defaultPlan.id,
         status: 'ACTIVE',
         billingCycle: 'MONTHLY',
@@ -179,8 +181,8 @@ async function assignDefaultPlanToExistingUsers() {
     });
   }
 
-  if (usersWithoutSub.length > 0) {
-    console.log(`✔ Subscription default criada para ${usersWithoutSub.length} utilizador(es) existente(s)`);
+  if (workspacesWithoutSub.length > 0) {
+    console.log(`✔ Subscription default criada para ${workspacesWithoutSub.length} workspace(s) existente(s)`);
   } else {
     console.log('✔ Todos os utilizadores têm subscription');
   }
@@ -217,9 +219,19 @@ async function upsertAdmin() {
   }
 
   await prisma.user.create({
-    data: { email, name, passwordHash, profileId: platformAdminProfile.id, status: 'ACTIVE' },
+    data: {
+      email,
+      name,
+      passwordHash,
+      profileId: platformAdminProfile.id,
+      status: 'ACTIVE',
+      // Auto-cria 1 Workspace por User (V1 invariant: 1:1).
+      workspaces: {
+        create: { name: `${name}'s Workspace` },
+      },
+    },
   });
-  console.log(`✔ Admin criado: ${email}`);
+  console.log(`✔ Admin criado: ${email} (+ workspace)`);
 }
 
 // ─── i18n ─────────────────────────────────────────────────────────────────────

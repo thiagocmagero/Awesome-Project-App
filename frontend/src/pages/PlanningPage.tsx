@@ -2,8 +2,10 @@ import { useState, useEffect, useRef, useMemo, useCallback, type CSSProperties }
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
+import { useWorkspaceLink } from '../hooks/useWorkspaceLink';
 import { getApiBase, apiFetch } from '../lib/api';
 import { useFeatureFlag } from '../hooks/useFeatureFlag';
+import { FeatureKey } from '../lib/entitlements';
 import { useBootstrapOffcanvas } from '../hooks/useBootstrapOffcanvas';
 import { useGanttConfig, type GanttConfigColors, type GanttConfigData, type GanttConfigDefaults } from '../hooks/useGanttConfig';
 import { getCellPatternPreviewStyle, CELL_PATTERN_OPTIONS, CELL_STYLE_FIELDS } from '../lib/ganttPatterns';
@@ -68,6 +70,7 @@ export default function PlanningPage() {
   const { id: projectId, taskId: deepLinkTaskId } = useParams<{ id: string; taskId?: string }>();
   const { token, user } = useAuth();
   const navigate = useNavigate();
+  const wsLink = useWorkspaceLink();
   const api = getApiBase();
   const { showToast } = useToast();
   const { t } = useTranslation('planning');
@@ -161,14 +164,11 @@ export default function PlanningPage() {
   const [scriptsReady, setScriptsReady]       = useState(false);
   // Phase 5: passa projectId para resolução context-aware. Quando o user é
   // LICENSED no workspace do owner, herda as features do plano do owner.
-  const { enabled: ganttEnabled } = useFeatureFlag('gantt_view', projectId ?? null);
-  const showGantt = ganttEnabled || user?.profileCode === 'PLATFORM_ADMIN';
-  const { enabled: calendarEnabled } = useFeatureFlag('calendar_view', projectId ?? null);
-  const showCalendar = calendarEnabled || user?.profileCode === 'PLATFORM_ADMIN';
-  const { enabled: timesheetEnabled } = useFeatureFlag('timesheet_view', projectId ?? null);
-  const showTimesheet = timesheetEnabled || user?.profileCode === 'PLATFORM_ADMIN';
-  const { enabled: uploadsEnabled } = useFeatureFlag('upload', projectId ?? null);
-  const showFiles = uploadsEnabled || user?.profileCode === 'PLATFORM_ADMIN';
+  // PLATFORM_ADMIN bypass é tratado dentro do useFeatureFlag — não duplicar aqui.
+  const { enabled: showGantt } = useFeatureFlag(FeatureKey.GANTT_VIEW, projectId ?? null);
+  const { enabled: showCalendar } = useFeatureFlag(FeatureKey.CALENDAR_VIEW, projectId ?? null);
+  const { enabled: showTimesheet } = useFeatureFlag(FeatureKey.TIMESHEET_VIEW, projectId ?? null);
+  const { enabled: showFiles } = useFeatureFlag(FeatureKey.UPLOAD, projectId ?? null);
   // Timesheet UI state.
   // Default inicial 'mine' — depois um effect logo abaixo promove para 'team' se
   // o user tem TIMESHEET_APPROVE (gestor). Esta lógica corre uma vez quando as
@@ -1012,19 +1012,19 @@ export default function PlanningPage() {
         <nav aria-label="breadcrumb">
           <ol className="breadcrumb breadcrumb-style2 mb-0">
             <li className="breadcrumb-item">
-              <a href="#" onClick={(e) => { e.preventDefault(); navigate('/dashboard'); }}>
+              <a href="#" onClick={(e) => { e.preventDefault(); navigate('/'); }}>
                 <i className="ti ti-home-2 me-1 fs-15 d-inline-block" />{tc('nav.dashboard')}
               </a>
             </li>
             <li className="breadcrumb-item">
-              <a href="#" onClick={(e) => { e.preventDefault(); navigate('/projects'); }}>
+              <a href="#" onClick={(e) => { e.preventDefault(); navigate(wsLink('/projects')); }}>
                 <i className="ti ti-folder me-1 fs-15 d-inline-block" />{tc('nav.projects')}
               </a>
             </li>
             <li className="breadcrumb-item active" aria-current="page">{project?.name}</li>
           </ol>
         </nav>
-        <button className="btn btn-sm btn-secondary" onClick={() => navigate('/projects')}>
+        <button className="btn btn-sm btn-secondary" onClick={() => navigate(wsLink('/projects'))}>
           <i className="ri-arrow-left-line me-1" />{tc('nav.projects')}
         </button>
       </div>
@@ -1193,7 +1193,7 @@ export default function PlanningPage() {
                     <i className="ri-information-line fs-18 flex-shrink-0" />
                     <div>
                       {t('resource.no_teams_message')}{' '}
-                      <a href="#" className="alert-link" onClick={(e) => { e.preventDefault(); navigate('/projects'); }}>
+                      <a href="#" className="alert-link" onClick={(e) => { e.preventDefault(); navigate(wsLink('/projects')); }}>
                         {t('resource.no_teams_link')}
                       </a>{' '}
                       {t('resource.no_teams_suffix')}

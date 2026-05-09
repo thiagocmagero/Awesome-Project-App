@@ -104,14 +104,15 @@ em `/settings/limits`:
 
 ## Path conventions
 
-Bucket privado `awesomeproject-dev`. Key sempre **opaco** — UUID v4 random,
-sem qualquer informação que indique propriedade.
+Bucket privado `awesomeproject-dev`. **Leaf** sempre opaco — UUID v4 random
+sem informação que indique propriedade. **Hierarquia** espelha a do browser
+URL (`/<wsId>/projects/:id/...`) para audit + batch cleanup eficientes.
 
 ```
-Normal task-level:    uploads/projects/{projectPublicId}/tasks/{taskPublicId}/{uuid}.{ext}
-Normal project-level: uploads/projects/{projectPublicId}/_root/{uuid}.{ext}
-Secured task-level:   uploads/secured/projects/{projectPublicId}/tasks/{taskPublicId}/{uuid}.{ext}
-Secured project-level: uploads/secured/projects/{projectPublicId}/_root/{uuid}.{ext}
+Normal task-level:     uploads/workspaces/{workspacePublicId}/projects/{projectPublicId}/tasks/{taskPublicId}/{uuid}.{ext}
+Normal project-level:  uploads/workspaces/{workspacePublicId}/projects/{projectPublicId}/_root/{uuid}.{ext}
+Secured task-level:    uploads/secured/workspaces/{workspacePublicId}/projects/{projectPublicId}/tasks/{taskPublicId}/{uuid}.{ext}
+Secured project-level: uploads/secured/workspaces/{workspacePublicId}/projects/{projectPublicId}/_root/{uuid}.{ext}
 ```
 
 A escolha entre normal/secured é fixada **no momento do upload** com base
@@ -119,7 +120,17 @@ na flag `upload_secured` do owner. Replace mantém o path actual (não migra
 quando a flag muda).
 
 GuardDuty observa apenas o prefixo `uploads/secured/` — uploads normais
-não geram custos de scan.
+não geram custos de scan. O segmento `workspaces/{wsId}/` é interno a esse
+prefixo e não afecta a configuração SNS.
+
+**Files legacy** (uploads antes da introdução de workspace) mantêm o formato
+antigo `uploads/projects/{projectId}/...`. O `bucketKey` em DB é a fonte de
+verdade para downloads — não há migração de paths em massa. Replace de um
+ficheiro legacy preserva o formato antigo (apenas o leaf UUID muda).
+
+**Workspace orphan** (`Project.workspaceId === null`, raro): segmento
+`_unknown` substitui o `workspacePublicId` no path, preservando uniqueness e
+listing-friendliness.
 
 ## Permissões — `ProjectAction`
 

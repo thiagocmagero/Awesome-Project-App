@@ -11,20 +11,30 @@ type PrismaLike = PrismaClient | Prisma.TransactionClient;
 const ACTIVE_STATUSES: SubscriptionStatus[] = ['ACTIVE', 'TRIALING', 'PAST_DUE'];
 
 /**
- * Service central de subscrições. A partir da Phase 5 torna-se a fonte de
- * verdade para resolução de features/limits via `getResolvedPlanForOwner`.
- *
- * Em Phase 4, é introduzido em paralelo com o `UserPlan` (dual-write) — o
- * `assign` admin já actualiza ambos via `setSubscription`.
+ * Service central de subscrições. Após introdução do conceito explícito de
+ * Workspace, a subscrição passa a ser **per-workspace** (1:1 com Workspace
+ * em V1; mantém-se 1:1 em V2 quando users tiverem N workspaces, cada um com
+ * a sua subscrição independente).
  */
 @Injectable()
 export class SubscriptionsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** Subscrição activa do utilizador (ou null se nunca registada). */
+  /** Resolve o workspace default do user (V1: único; V2: o seleccionado no contexto). */
+  private async getDefaultWorkspaceIdForUser(userId: number): Promise<number | null> {
+    const ws = await this.prisma.workspace.findUnique({
+      where: { ownerId: userId },
+      select: { id: true },
+    });
+    return ws?.id ?? null;
+  }
+
+  /** Subscrição activa do workspace default do utilizador (ou null). */
   async getActiveSubscriptionForUser(userId: number) {
+    const workspaceId = await this.getDefaultWorkspaceIdForUser(userId);
+    if (!workspaceId) return null;
     return this.prisma.subscription.findUnique({
-      where: { userId },
+      where: { workspaceId },
       include: {
         plan: { select: { publicId: true, code: true, name: true } },
       },
@@ -32,7 +42,7 @@ export class SubscriptionsService {
   }
 
   /**
-   * Devolve o plano que define features/limits para um owner.
+   * Devolve o plano que define features/limits para um workspace.
    *
    * Regra:
    * - Se a subscrição existir e tiver acesso activo → usa o plano da subscrição.
@@ -40,9 +50,9 @@ export class SubscriptionsService {
    *   da plataforma. Garante que features básicas continuam disponíveis após
    *   expiração de trial sem cobrança.
    */
-  async getResolvedPlanForOwner(ownerId: number) {
+  async getResolvedPlanForWorkspace(workspaceId: number) {
     const sub = await this.prisma.subscription.findUnique({
-      where: { userId: ownerId },
+      where: { workspaceId },
       include: {
         plan: {
           include: {
@@ -66,16 +76,32 @@ export class SubscriptionsService {
     });
   }
 
+  /** Compat: resolve plano via workspace default do user. */
+  async getResolvedPlanForOwner(ownerId: number) {
+    const workspaceId = await this.getDefaultWorkspaceIdForUser(ownerId);
+    if (!workspaceId) {
+      return this.prisma.plan.findFirst({
+        where: { isDefault: true, planStatus: 'ACTIVE' },
+        include: {
+          limits: true,
+          featureFlags: { include: { featureFlag: true } },
+        },
+      });
+    }
+    return this.getResolvedPlanForWorkspace(workspaceId);
+  }
+
   /**
-   * Upsert da subscrição. Usado pelo `PlansService.assign` (admin atribui plano)
-   * para manter o write-through em conjunto com o legado `UserPlan`.
-   *
+   * Upsert da subscrição. Usado pelo `PlansService.assign` (admin atribui plano).
    * Aceita `client` para se inserir numa transacção existente.
+   *
+   * Aceita `userId` (resolve o workspace default) ou `workspaceId` directo.
    */
   async setSubscription(
     client: PrismaLike,
     args: {
-      userId: number;
+      userId?: number;
+      workspaceId?: number;
       planId: number;
       status?: SubscriptionStatus;
       currentPeriodEnd?: Date | null;
@@ -87,10 +113,25 @@ export class SubscriptionsService {
     const periodEnd = args.currentPeriodEnd ?? farFuture;
     const status = args.status ?? 'ACTIVE';
 
+    let workspaceId = args.workspaceId;
+    if (!workspaceId && args.userId) {
+      const ws = await client.workspace.findUnique({
+        where: { ownerId: args.userId },
+        select: { id: true },
+      });
+      if (!ws) {
+        throw new Error(`No workspace for user ${args.userId} when setting subscription`);
+      }
+      workspaceId = ws.id;
+    }
+    if (!workspaceId) {
+      throw new Error('setSubscription requires either userId or workspaceId');
+    }
+
     return client.subscription.upsert({
-      where: { userId: args.userId },
+      where: { workspaceId },
       create: {
-        userId: args.userId,
+        workspaceId,
         planId: args.planId,
         status,
         billingCycle: 'MONTHLY',
@@ -112,11 +153,6 @@ export class SubscriptionsService {
 
   /**
    * Helper canónico: esta subscrição confere acesso AGORA?
-   *
-   * Regra única usada em todos os pontos de resolução (Phase 5+):
-   * - `ACTIVE` / `TRIALING` / `PAST_DUE` → acesso.
-   * - `CANCELED` → acesso até `currentPeriodEnd` (grace period).
-   * - `EXPIRED` / `PAUSED` / `INCOMPLETE` → sem acesso.
    */
   hasActiveAccess(sub: {
     status: SubscriptionStatus;
@@ -128,33 +164,46 @@ export class SubscriptionsService {
   }
 
   /**
-   * Resolução context-aware do owner cujo plano se aplica ao requesting user.
+   * Resolução context-aware do workspace cujo plano se aplica ao requesting user.
    *
-   * Regra (Phase 5):
-   * - Sem `projectPublicId` → `requestingUserId` (plano próprio).
+   * Regra:
+   * - Sem `projectPublicId` → workspace default do user (V1: único).
    * - Com `projectPublicId`:
-   *   - Se requesting user é o owner → plano próprio.
-   *   - Se é `WorkspaceMember(LICENSED, ACCEPTED)` desse owner → plano do owner.
-   *   - Caso contrário (BASIC, ou não-membro) → plano próprio.
-   *
-   * Devolve `null` se o projectPublicId não resolver (project não existe).
+   *   - Se o projecto pertence ao workspace default do user → esse mesmo.
+   *   - Se requesting user é `WorkspaceMember(LICENSED, ACCEPTED)` desse workspace → o workspace do projecto.
+   *   - Caso contrário (BASIC, ou não-membro) → workspace default do user.
    */
-  async resolveEffectiveOwnerId(
+  async resolveEffectiveWorkspaceId(
     requestingUserId: number,
     ctx?: { projectPublicId?: string | null },
   ): Promise<number> {
-    if (!ctx?.projectPublicId) return requestingUserId;
+    const defaultWsId = await this.getDefaultWorkspaceIdForUser(requestingUserId);
+    if (!ctx?.projectPublicId) {
+      if (!defaultWsId) {
+        throw new Error(`User ${requestingUserId} has no default workspace`);
+      }
+      return defaultWsId;
+    }
 
     const project = await this.prisma.project.findUnique({
       where: { publicId: ctx.projectPublicId },
-      select: { ownerId: true },
+      select: { workspaceId: true, ownerId: true },
     });
-    if (!project?.ownerId) return requestingUserId;
-    if (project.ownerId === requestingUserId) return requestingUserId;
+    if (!project?.workspaceId) {
+      // Project sem workspace (orphan) → cai no default do user
+      if (!defaultWsId) {
+        throw new Error(`User ${requestingUserId} has no default workspace`);
+      }
+      return defaultWsId;
+    }
 
+    // É o owner do projecto? (= owner do workspace em V1)
+    if (project.ownerId === requestingUserId) return project.workspaceId;
+
+    // É membro LICENSED do workspace do projecto?
     const member = await this.prisma.workspaceMember.findFirst({
       where: {
-        ownerId: project.ownerId,
+        workspaceId: project.workspaceId,
         userId: requestingUserId,
         status: 'ACCEPTED',
         memberType: 'LICENSED',
@@ -162,24 +211,44 @@ export class SubscriptionsService {
       select: { id: true },
     });
 
-    return member ? project.ownerId : requestingUserId;
+    if (member) return project.workspaceId;
+
+    if (!defaultWsId) {
+      throw new Error(`User ${requestingUserId} has no default workspace`);
+    }
+    return defaultWsId;
+  }
+
+  /**
+   * Compat alias — código legado pode chamar este nome. Devolve o ownerId
+   * do workspace efectivo (em V1: o mesmo userId, ou o owner do projecto
+   * caso seja membro LICENSED).
+   */
+  async resolveEffectiveOwnerId(
+    requestingUserId: number,
+    ctx?: { projectPublicId?: string | null },
+  ): Promise<number> {
+    const wsId = await this.resolveEffectiveWorkspaceId(requestingUserId, ctx);
+    const ws = await this.prisma.workspace.findUnique({
+      where: { id: wsId },
+      select: { ownerId: true },
+    });
+    return ws?.ownerId ?? requestingUserId;
   }
 
   /**
    * Resolve o `planId` que define features/limits para um requesting user num
    * dado contexto. Encapsula resolução context-aware + fallback para o plano
    * default quando a subscrição não confere acesso.
-   *
-   * Devolve `null` se nem a subscrição nem o default plan estiverem disponíveis.
    */
   async resolvePlanIdForContext(
     requestingUserId: number,
     ctx?: { projectPublicId?: string | null },
   ): Promise<number | null> {
-    const effectiveOwnerId = await this.resolveEffectiveOwnerId(requestingUserId, ctx);
+    const effectiveWorkspaceId = await this.resolveEffectiveWorkspaceId(requestingUserId, ctx);
 
     const sub = await this.prisma.subscription.findUnique({
-      where: { userId: effectiveOwnerId },
+      where: { workspaceId: effectiveWorkspaceId },
       select: { planId: true, status: true, currentPeriodEnd: true },
     });
 

@@ -1,5 +1,6 @@
 import { SetMetadata } from '@nestjs/common';
 import type { ProjectIdSource } from './require-feature.decorator';
+import type { LimitKey } from '../../common/entitlements';
 
 export const PLAN_LIMIT_KEY = 'plan_limit_key';
 
@@ -8,7 +9,7 @@ export interface CheckPlanLimitOptions {
 }
 
 export interface CheckPlanLimitMetadata {
-  key: string;
+  key: LimitKey;
   projectIdFrom?: ProjectIdSource;
 }
 
@@ -17,11 +18,14 @@ export interface CheckPlanLimitMetadata {
  * `projectIdFrom` para resolver o plano do owner do projecto quando
  * apropriado (LICENSED workspace member).
  *
+ * `limitKey` é tipada via `LimitKey` em `common/entitlements.ts` — typos
+ * são apanhados em tempo de compilação.
+ *
  * @example
- *   @CheckPlanLimit('max_projects')                                  // sem contexto: caller's plan
- *   @CheckPlanLimit('max_tasks', { projectIdFrom: 'params.projectId' })  // contexto-aware
+ *   @CheckPlanLimit(LimitKey.MAX_PROJECTS)                                  // sem contexto: caller's plan
+ *   @CheckPlanLimit(LimitKey.MAX_TASKS, { projectIdFrom: 'params.projectId' })  // contexto-aware
  */
-export const CheckPlanLimit = (limitKey: string, options?: CheckPlanLimitOptions) =>
+export const CheckPlanLimit = (limitKey: LimitKey, options?: CheckPlanLimitOptions) =>
   SetMetadata(PLAN_LIMIT_KEY, {
     key: limitKey,
     projectIdFrom: options?.projectIdFrom,

@@ -31,6 +31,7 @@ import { AppException } from '../common/exceptions/app.exception';
 import { FilesService } from './files.service';
 import { UploadFileDto } from './dto/upload-file.dto';
 import { RenameFileDto } from './dto/rename-file.dto';
+import { FeatureKey, LimitKey } from '../common/entitlements';
 
 /**
  * Multer hard cap (em bytes). É um upper bound; o cap real é
@@ -44,7 +45,7 @@ const MULTER_MAX_BYTES = 2 * 1024 * 1024 * 1024;
 
 @Controller('projects/:id/files')
 @UseGuards(JwtAuthGuard, FeatureFlagGuard, ProjectPermissionGuard)
-@RequireFeature('upload', { projectIdFrom: 'params.id' })
+@RequireFeature(FeatureKey.UPLOAD, { projectIdFrom: 'params.id' })
 export class FilesController {
   constructor(private readonly service: FilesService) {}
 
@@ -68,7 +69,7 @@ export class FilesController {
 
   @Post()
   @UseGuards(PlanLimitGuard)
-  @CheckPlanLimit('max_uploads_count', { projectIdFrom: 'params.id' })
+  @CheckPlanLimit(LimitKey.MAX_UPLOADS_COUNT, { projectIdFrom: 'params.id' })
   @RequireProjectPermission(ProjectAction.FILE_UPLOAD)
   @UseInterceptors(
     FileInterceptor('file', {

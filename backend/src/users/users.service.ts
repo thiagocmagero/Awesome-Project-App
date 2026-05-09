@@ -40,12 +40,19 @@ const USER_SELECT = {
   profile: { select: { publicId: true, code: true, label: true } },
   userType: { select: { publicId: true, code: true, label: true } },
   level: { select: { publicId: true, code: true, label: true, order: true } },
-  // Phase 7: subscription substitui userPlans como fonte de plano para o
-  // payload do utilizador. UserPlan será removido na migration deste phase.
-  subscription: {
+  // Subscription vive no Workspace. Navegamos via workspaces[0].subscription
+  // (V1: 1 workspace por user) — o `toPublicResponse` transpõe para o shape
+  // legado `subscription: { status, plan: {...} }` que o frontend espera.
+  workspaces: {
+    take: 1,
     select: {
-      status: true,
-      plan: { select: { publicId: true, code: true, name: true } },
+      publicId: true,
+      subscription: {
+        select: {
+          status: true,
+          plan: { select: { publicId: true, code: true, name: true } },
+        },
+      },
     },
   },
   createdAt: true,
@@ -94,12 +101,20 @@ export class UsersService {
     user: T | null,
   ) {
     if (!user) return null;
-    const { avatarKey, ...rest } = user;
+    const { avatarKey, workspaces, ...rest } = user as any;
     const avatarUrl =
       avatarKey && this.storage.isReady()
         ? this.storage.buildPublicUrl(avatarKey)
         : null;
-    return { ...rest, avatarUrl };
+    // Transpõe workspaces[0].subscription → top-level subscription (compat
+    // com frontend que espera `user.subscription.plan.code`).
+    const subscription = Array.isArray(workspaces) && workspaces[0]?.subscription
+      ? workspaces[0].subscription
+      : null;
+    const workspacePublicId = Array.isArray(workspaces) && workspaces[0]?.publicId
+      ? workspaces[0].publicId
+      : null;
+    return { ...rest, avatarUrl, subscription, workspacePublicId };
   }
 
   /** Variante para arrays (findAll). */
@@ -209,11 +224,15 @@ export class UsersService {
         userTypeId,
         levelId,
         createdById: requestingUser.sub,
+        // Auto-cria 1 Workspace por User (V1 invariant: 1:1).
+        workspaces: {
+          create: { name: `${dto.name}'s Workspace` },
+        },
       },
       select: { id: true },
     });
 
-    // Assign default plan
+    // Assign default plan (cria Subscription no workspace).
     await this.assignDefaultPlan(user.id);
 
     // Re-fetch to include the plan
@@ -244,11 +263,15 @@ export class UsersService {
         passwordHash: data.passwordHash,
         profileId: basicUserProfile.id,
         selfRegistered: true,
+        // Auto-cria 1 Workspace por User (V1 invariant: 1:1).
+        workspaces: {
+          create: { name: `${data.name}'s Workspace` },
+        },
       },
       select: { id: true },
     });
 
-    // Assign default plan
+    // Assign default plan (cria Subscription no workspace).
     await this.assignDefaultPlan(user.id);
 
     // Re-fetch to include the plan — also include internal id for AuthService.
@@ -538,14 +561,24 @@ export class UsersService {
    * **Hard delete recursivo — apenas PLATFORM_ADMIN.**
    *
    * Apaga permanentemente o utilizador e tudo que lhe está associado:
-   * - Personal data (sessions, notifications, prefs, subscription, invoices,
-   *   timesheets próprias, comentários onde é mencionado/reagiu, etc.) →
-   *   Cascade automático via FK `onDelete: Cascade`.
-   * - Audit fields (createdBy, invitedBy, grantedBy, comment.author,
-   *   approvedBy, rejectedBy, actor) → SetNull, preserva histórico.
-   * - Owned entities (Project, Team, Holiday) → SetNull no `ownerId`,
-   *   sysadmin pode reassignar. Workspace memberships do user são apagadas.
-   * - Avatar S3 → eliminado após o DB delete confirmar.
+   *
+   * Cascade direto via FK (`onDelete: Cascade` em User):
+   * - Personal data: Sessions, Notifications, NotificationPreferences,
+   *   EmailTokens, ProjectMember (own), TimesheetWeek, TimesheetEntry,
+   *   CommentMention, CommentReaction, BoardConfig, CalendarConfig,
+   *   GanttConfig, ProjectMemberHours, BoardSwimlaneUserState, etc.
+   * - WorkspaceMember (membership do user em outros workspaces) — Cascade.
+   *
+   * Cascade transitivo via Workspace (User → Workspace → 9 tabelas):
+   * - User → Workspace (Cascade no Workspace.ownerId)
+   *   → Project, Team, Holiday, UserType (Cascade em workspaceId)
+   *   → WorkspaceMember (Cascade em workspaceId)
+   *   → Subscription, Invoice, UsageRecord, UserFeatureFlag (Cascade em workspaceId)
+   *
+   * Audit fields (createdBy, invitedBy, grantedBy, comment.author,
+   * approvedBy, rejectedBy, actor) → SetNull, preserva histórico.
+   *
+   * Avatar S3 → eliminado após o DB delete confirmar.
    *
    * Para garantir que dados de novas funcionalidades futuras são considerados,
    * o schema impõe `onDelete` explícito em todas as FKs para User. Ver

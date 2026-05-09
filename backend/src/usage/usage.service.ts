@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { SubscriptionsService } from '../plans/subscriptions.service';
+import { LimitKey } from '../common/entitlements';
 
 export interface LimitCheckResult {
   allowed: boolean;
@@ -24,24 +25,24 @@ export class UsageService {
     private readonly subscriptions: SubscriptionsService,
   ) {}
 
-  /** Atomically increment a usage counter */
-  async increment(userId: number, usageKey: string): Promise<void> {
+  /** Atomically increment a usage counter (workspace-scoped) */
+  async increment(workspaceId: number, usageKey: LimitKey): Promise<void> {
     await this.prisma.usageRecord.upsert({
-      where: { userId_usageKey: { userId, usageKey } },
+      where: { workspaceId_usageKey: { workspaceId, usageKey } },
       update: { currentValue: { increment: 1 } },
-      create: { userId, usageKey, currentValue: 1 },
+      create: { workspaceId, usageKey, currentValue: 1 },
     });
   }
 
   /** Atomically decrement a usage counter (min 0) */
-  async decrement(userId: number, usageKey: string): Promise<void> {
+  async decrement(workspaceId: number, usageKey: LimitKey): Promise<void> {
     const record = await this.prisma.usageRecord.findUnique({
-      where: { userId_usageKey: { userId, usageKey } },
+      where: { workspaceId_usageKey: { workspaceId, usageKey } },
     });
     if (!record || record.currentValue <= 0) return;
 
     await this.prisma.usageRecord.update({
-      where: { userId_usageKey: { userId, usageKey } },
+      where: { workspaceId_usageKey: { workspaceId, usageKey } },
       data: { currentValue: { decrement: 1 } },
     });
   }
@@ -51,12 +52,12 @@ export class UsageService {
    * ex.: `max_storage_mb` que adiciona MB de cada upload). Atómico via
    * Prisma update operator.
    */
-  async incrementBy(userId: number, usageKey: string, n: number): Promise<void> {
+  async incrementBy(workspaceId: number, usageKey: LimitKey, n: number): Promise<void> {
     if (n <= 0) return;
     await this.prisma.usageRecord.upsert({
-      where: { userId_usageKey: { userId, usageKey } },
+      where: { workspaceId_usageKey: { workspaceId, usageKey } },
       update: { currentValue: { increment: n } },
-      create: { userId, usageKey, currentValue: n },
+      create: { workspaceId, usageKey, currentValue: n },
     });
   }
 
@@ -64,15 +65,15 @@ export class UsageService {
    * Decrementa por `n`, clamp a zero. Não cria registo se ainda não existe
    * (não faz sentido decrementar antes do primeiro uso).
    */
-  async decrementBy(userId: number, usageKey: string, n: number): Promise<void> {
+  async decrementBy(workspaceId: number, usageKey: LimitKey, n: number): Promise<void> {
     if (n <= 0) return;
     const record = await this.prisma.usageRecord.findUnique({
-      where: { userId_usageKey: { userId, usageKey } },
+      where: { workspaceId_usageKey: { workspaceId, usageKey } },
     });
     if (!record || record.currentValue <= 0) return;
     const next = Math.max(0, record.currentValue - n);
     await this.prisma.usageRecord.update({
-      where: { userId_usageKey: { userId, usageKey } },
+      where: { workspaceId_usageKey: { workspaceId, usageKey } },
       data: { currentValue: next },
     });
   }
@@ -83,28 +84,28 @@ export class UsageService {
    * diminui (ex.: `FilesService.replaceContent` que pode trocar bytes
    * por mais ou menos do que tinha).
    */
-  async adjustBy(userId: number, usageKey: string, delta: number): Promise<void> {
-    if (delta > 0) await this.incrementBy(userId, usageKey, delta);
-    else if (delta < 0) await this.decrementBy(userId, usageKey, -delta);
+  async adjustBy(workspaceId: number, usageKey: LimitKey, delta: number): Promise<void> {
+    if (delta > 0) await this.incrementBy(workspaceId, usageKey, delta);
+    else if (delta < 0) await this.decrementBy(workspaceId, usageKey, -delta);
   }
 
   /**
-   * Check if a user can still create a resource (within plan limit).
+   * Check if a workspace can still create a resource (within plan limit).
    *
-   * Phase 5: aceita `ctx.projectPublicId` — quando presente E o requesting
-   * user é LICENSED no workspace do owner do projecto, conta contra os
-   * limites do owner em vez dos próprios. Sem contexto, comportamento legado.
+   * Aceita `ctx.projectPublicId` — quando presente E o requesting user é
+   * LICENSED no workspace do owner do projecto, conta contra o workspace
+   * desse owner em vez do default do user. Sem contexto, usa default workspace.
    */
   async checkLimit(
     userId: number,
-    usageKey: string,
+    usageKey: LimitKey,
     ctx?: { projectPublicId?: string | null },
   ): Promise<LimitCheckResult> {
-    // Resolve effective owner para contagem + limite
-    const effectiveOwnerId = await this.subscriptions.resolveEffectiveOwnerId(userId, ctx);
+    // Resolve effective workspace (LICENSED-aware)
+    const effectiveWorkspaceId = await this.subscriptions.resolveEffectiveWorkspaceId(userId, ctx);
 
-    // Count real resources from database (against effective owner)
-    const current = await this.countReal(effectiveOwnerId, usageKey);
+    // Count real resources from database (against effective workspace)
+    const current = await this.countReal(effectiveWorkspaceId, usageKey);
 
     // Get plan limit via Subscription (context-aware, com fallback)
     const planId = await this.subscriptions.resolvePlanIdForContext(userId, ctx);
@@ -132,29 +133,29 @@ export class UsageService {
     return { allowed: current < limit, current, limit, percentage };
   }
 
-  /** Count real resources from database for an owner (effective). */
-  private async countReal(ownerId: number, usageKey: string): Promise<number> {
+  /** Count real resources from database for a workspace. */
+  private async countReal(workspaceId: number, usageKey: string): Promise<number> {
     switch (usageKey) {
-      case 'max_projects':
-        return this.prisma.project.count({ where: { ownerId, status: 'ACTIVE' } });
-      case 'max_teams':
-        return this.prisma.team.count({ where: { ownerId, status: 'ACTIVE' } });
-      case 'max_members': {
-        // LICENSED workspace members consomem seats — Phase 5 conta isto.
+      case LimitKey.MAX_PROJECTS:
+        return this.prisma.project.count({ where: { workspaceId, status: 'ACTIVE' } });
+      case LimitKey.MAX_TEAMS:
+        return this.prisma.team.count({ where: { workspaceId, status: 'ACTIVE' } });
+      case LimitKey.MAX_MEMBERS: {
+        // LICENSED workspace members consomem seats.
         return this.prisma.workspaceMember.count({
-          where: { ownerId, memberType: 'LICENSED', status: 'ACCEPTED' },
+          where: { workspaceId, memberType: 'LICENSED', status: 'ACCEPTED' },
         });
       }
-      case 'max_licensed_seats': {
+      case LimitKey.MAX_LICENSED_SEATS: {
         // Idem ao max_members — chave nova canónica para o painel /settings/users.
         return this.prisma.workspaceMember.count({
-          where: { ownerId, memberType: 'LICENSED', status: 'ACCEPTED' },
+          where: { workspaceId, memberType: 'LICENSED', status: 'ACCEPTED' },
         });
       }
-      case 'max_tasks': {
-        // Tasks in projects owned by this owner
+      case LimitKey.MAX_TASKS: {
+        // Tasks in projects of this workspace
         const projects = await this.prisma.project.findMany({
-          where: { ownerId, status: 'ACTIVE' },
+          where: { workspaceId, status: 'ACTIVE' },
           select: { id: true },
         });
         if (projects.length === 0) return 0;
@@ -162,11 +163,11 @@ export class UsageService {
           where: { projectId: { in: projects.map(p => p.id) } },
         });
       }
-      case 'max_uploads_count': {
-        // Active files in projects owned by this owner. Indexed por
+      case LimitKey.MAX_UPLOADS_COUNT: {
+        // Active files in projects of this workspace. Indexed por
         // (projectId, status) — query rápida mesmo com muitos files.
         const projects = await this.prisma.project.findMany({
-          where: { ownerId, status: 'ACTIVE' },
+          where: { workspaceId, status: 'ACTIVE' },
           select: { id: true },
         });
         if (projects.length === 0) return 0;
@@ -179,19 +180,18 @@ export class UsageService {
       // crítico do upload. O counter é mantido em sync por
       // FilesService.upload/replace/delete via incrementBy/decrementBy.
       default:
-        // For storage, API calls etc. — use the stored counter (per-owner)
+        // For storage, API calls etc. — use the stored counter (per-workspace)
         const record = await this.prisma.usageRecord.findUnique({
-          where: { userId_usageKey: { userId: ownerId, usageKey } },
+          where: { workspaceId_usageKey: { workspaceId, usageKey } },
         });
         return record?.currentValue ?? 0;
     }
   }
 
   /** Get full usage summary for a user with all plan limits (real-time counts).
-   *  Phase 5: usa Subscription do próprio user (sem contexto) — para a página
-   *  "Meu plano" / dashboard. Para vista do workspace owner, ver alternativa
-   *  no SubscriptionsService. */
+   *  Usa Subscription do default workspace do user (sem contexto de projecto). */
   async getUsageSummary(userId: number): Promise<UsageSummaryItem[]> {
+    const workspaceId = await this.subscriptions.resolveEffectiveWorkspaceId(userId);
     const planId = await this.subscriptions.resolvePlanIdForContext(userId);
     if (!planId) return [];
 
@@ -199,7 +199,7 @@ export class UsageService {
     const results: UsageSummaryItem[] = [];
 
     for (const limit of limits) {
-      const current = await this.countReal(userId, limit.limitKey);
+      const current = await this.countReal(workspaceId, limit.limitKey);
       const limitValue = limit.limitValue;
       const percentage = limitValue > 0 && limitValue !== -1
         ? Math.round((current / limitValue) * 100)

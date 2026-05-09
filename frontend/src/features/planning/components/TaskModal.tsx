@@ -4,6 +4,7 @@ import CommentsPanel from '../../../components/CommentsPanel';
 import { TaskFilesPanel } from '../../files/components/TaskFilesPanel';
 import { useFiles } from '../../files/useFiles';
 import { useFeatureFlag } from '../../../hooks/useFeatureFlag';
+import { FeatureKey } from '../../../lib/entitlements';
 import {
   ProjectAction,
   useProjectPermissions,
@@ -77,7 +78,7 @@ export function TaskModal({
 
   // ── Permissões / feature flags ───────────────────────────────────────────
 
-  const { enabled: uploadFlagEnabled } = useFeatureFlag('upload', projectId ?? null);
+  const { enabled: uploadFlagEnabled } = useFeatureFlag(FeatureKey.UPLOAD, projectId ?? null);
   const { can: canDoProject } = useProjectPermissions(projectId);
   const showFilesTab = uploadFlagEnabled && canDoProject(ProjectAction.FILE_VIEW);
 

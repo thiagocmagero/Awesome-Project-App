@@ -1,6 +1,7 @@
 import { useState, useEffect, FormEvent } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useWorkspaceLink } from '../hooks/useWorkspaceLink';
 import { getApiBase, apiFetch } from '../lib/api';
 import { useToast } from '../contexts/ToastContext';
 import { useTranslation } from 'react-i18next';
@@ -142,6 +143,7 @@ export default function GanttPage() {
   const projectId = Number(id);
   const { token } = useAuth();
   const navigate = useNavigate();
+  const wsLink = useWorkspaceLink();
   const api = getApiBase();
   const { showToast } = useToast();
   const { t } = useTranslation('planning');
@@ -494,7 +496,7 @@ export default function GanttPage() {
     return (
       <div className="container-xl py-4">
         <div className="alert alert-danger">{pageError}</div>
-        <button className="btn btn-secondary" onClick={() => navigate('/projects')}>
+        <button className="btn btn-secondary" onClick={() => navigate(wsLink('/projects'))}>
           {t('page.back_btn')}
         </button>
       </div>
@@ -510,7 +512,7 @@ export default function GanttPage() {
           <nav aria-label="breadcrumb">
             <ol className="breadcrumb mb-0">
               <li className="breadcrumb-item">
-                <a href="#" onClick={(e) => { e.preventDefault(); navigate('/projects'); }}>
+                <a href="#" onClick={(e) => { e.preventDefault(); navigate(wsLink('/projects')); }}>
                   {t('nav.projects')}
                 </a>
               </li>
@@ -519,7 +521,7 @@ export default function GanttPage() {
             </ol>
           </nav>
         </div>
-        <button className="btn btn-sm btn-secondary" onClick={() => navigate('/projects')}>
+        <button className="btn btn-sm btn-secondary" onClick={() => navigate(wsLink('/projects'))}>
           <i className="ri-arrow-left-line me-1" />{t('nav.projects')}
         </button>
       </div>

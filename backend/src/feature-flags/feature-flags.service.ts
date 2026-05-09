@@ -8,6 +8,7 @@ import { CreateFeatureFlagDto } from './dto/create-feature-flag.dto';
 import { UpdateFeatureFlagDto } from './dto/update-feature-flag.dto';
 import { SetUserOverrideDto } from './dto/set-user-override.dto';
 import { SubscriptionsService } from '../plans/subscriptions.service';
+import type { FeatureKey } from '../common/entitlements';
 
 // Selects sem `id` numérico nem FKs internos. Resposta API usa só publicId.
 const FEATURE_FLAG_SELECT = {
@@ -37,9 +38,41 @@ const USER_FEATURE_FLAG_SELECT = {
   enabled: true,
   createdAt: true,
   updatedAt: true,
-  user:        { select: { publicId: true, name: true, email: true } },
+  workspace: {
+    select: {
+      publicId: true,
+      name: true,
+      owner: { select: { publicId: true, name: true, email: true } },
+    },
+  },
   featureFlag: { select: { publicId: true, key: true, label: true } },
 } as const;
+
+/** Reformata override para expor o owner do workspace como `user` (compat com UI legada). */
+type RawOverride = {
+  publicId: string;
+  enabled: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+  workspace: {
+    publicId: string;
+    name: string;
+    owner: { publicId: string; name: string; email: string } | null;
+  };
+  featureFlag: { publicId: string; key: string; label: string };
+};
+
+function shapeOverrideForApi(raw: RawOverride) {
+  return {
+    publicId: raw.publicId,
+    enabled: raw.enabled,
+    createdAt: raw.createdAt,
+    updatedAt: raw.updatedAt,
+    user: raw.workspace.owner,
+    workspace: { publicId: raw.workspace.publicId, name: raw.workspace.name },
+    featureFlag: raw.featureFlag,
+  };
+}
 
 @Injectable()
 export class FeatureFlagsService {
@@ -72,6 +105,16 @@ export class FeatureFlagsService {
     });
     if (!user) throw new NotFoundException(`Utilizador '${publicId}' não encontrado.`);
     return user.id;
+  }
+
+  /** Resolve workspace default do user (V1: único). Lança se não existir. */
+  private async resolveDefaultWorkspaceIdForUser(userId: number): Promise<number> {
+    const ws = await this.prisma.workspace.findUnique({
+      where: { ownerId: userId },
+      select: { id: true },
+    });
+    if (!ws) throw new NotFoundException(`Workspace para user ${userId} não encontrado.`);
+    return ws.id;
   }
 
   private async resolveUserOverrideId(publicId: string): Promise<number> {
@@ -128,18 +171,20 @@ export class FeatureFlagsService {
     return { deleted: publicId };
   }
 
-  // ── User Overrides ──────────────────────────────────────────────────────
+  // ── User Overrides (workspace-scoped under the hood) ────────────────────
 
   async setUserOverride(dto: SetUserOverrideDto) {
     const featureFlagId = await this.resolveFlagId(dto.featureFlagId);
     const userId = await this.resolveUserId(dto.userId);
+    const workspaceId = await this.resolveDefaultWorkspaceIdForUser(userId);
 
-    return this.prisma.userFeatureFlag.upsert({
-      where: { userId_featureFlagId: { userId, featureFlagId } },
+    const raw = await this.prisma.userFeatureFlag.upsert({
+      where: { workspaceId_featureFlagId: { workspaceId, featureFlagId } },
       update: { enabled: dto.enabled },
-      create: { userId, featureFlagId, enabled: dto.enabled },
+      create: { workspaceId, featureFlagId, enabled: dto.enabled },
       select: USER_FEATURE_FLAG_SELECT,
     });
+    return shapeOverrideForApi(raw as RawOverride);
   }
 
   async removeUserOverride(publicId: string) {
@@ -152,15 +197,15 @@ export class FeatureFlagsService {
 
   /**
    * Resolve if a feature is enabled for a specific user.
-   * Priority: enabledGlobally → user override → plan flag (context-aware) → false
+   * Priority: enabledGlobally → workspace override → plan flag (context-aware) → false
    *
-   * Phase 5: aceita `ctx.projectPublicId` para resolução context-aware.
-   * Quando o requesting user é LICENSED no workspace do owner, o plano
-   * resolve via Subscription do owner em vez do próprio.
+   * Aceita `ctx.projectPublicId` para resolução context-aware. Quando o
+   * requesting user é LICENSED no workspace do owner, o plano resolve via
+   * Subscription desse workspace.
    */
   async isEnabled(
     userId: number,
-    flagKey: string,
+    flagKey: FeatureKey,
     ctx?: { projectPublicId?: string | null },
   ): Promise<boolean> {
     const flag = await this.prisma.featureFlag.findUnique({ where: { key: flagKey } });
@@ -169,11 +214,17 @@ export class FeatureFlagsService {
     // 1. Global switch
     if (flag.enabledGlobally) return true;
 
-    // 2. Per-user override (sempre do requesting user, não do owner)
-    const userOverride = await this.prisma.userFeatureFlag.findUnique({
-      where: { userId_featureFlagId: { userId, featureFlagId: flag.id } },
+    // 2. Per-workspace override (do default workspace do requesting user)
+    const ws = await this.prisma.workspace.findUnique({
+      where: { ownerId: userId },
+      select: { id: true },
     });
-    if (userOverride) return userOverride.enabled;
+    if (ws) {
+      const override = await this.prisma.userFeatureFlag.findUnique({
+        where: { workspaceId_featureFlagId: { workspaceId: ws.id, featureFlagId: flag.id } },
+      });
+      if (override) return override.enabled;
+    }
 
     // 3. Plan-level flag (context-aware via Subscription)
     const planId = await this.subscriptions.resolvePlanIdForContext(userId, ctx);
@@ -189,19 +240,15 @@ export class FeatureFlagsService {
   }
 
   /**
-   * Resolve a feature como se `targetUserId` fosse o próprio user pedinte
-   * — isto é, verifica `enabledGlobally → override do target → plano do target`.
+   * Resolve a feature como se `targetUserId` fosse o próprio user pedinte —
+   * verifica `enabledGlobally → override do workspace do target → plano do target`.
    *
    * Usado quando o **plano do dono** dita capabilities (ex.: uploads
-   * project-scoped — o `FilesService` resolve `project.ownerId` e chama esta
-   * função para decidir o path normal vs secured). Diferente de `isEnabled`
-   * com `ctx.projectPublicId` (esse resolve via workspace/seats; este é
-   * directo).
-   *
-   * Sem ctx (pass-through para `isEnabled` sem projectPublicId) → cai no
-   * próprio plano do `targetUserId`.
+   * project-scoped — o `FilesService` resolve `project.workspace.ownerId` e
+   * chama esta função). Diferente de `isEnabled` com `ctx.projectPublicId`
+   * (esse resolve via workspace/seats; este é directo).
    */
-  async isEnabledForUser(targetUserId: number, flagKey: string): Promise<boolean> {
+  async isEnabledForUser(targetUserId: number, flagKey: FeatureKey): Promise<boolean> {
     return this.isEnabled(targetUserId, flagKey);
   }
 
@@ -214,7 +261,10 @@ export class FeatureFlagsService {
     const results: Array<{ key: string; label: string; enabled: boolean }> = [];
 
     for (const flag of flags) {
-      const enabled = await this.isEnabled(userId, flag.key);
+      // flag.key vem da BD (string); chaves persistidas devem corresponder ao
+      // catálogo `FeatureKey`. Cast é seguro porque a tabela só ganha entradas
+      // via seed (que usa o catálogo). Chaves órfãs simplesmente não match em runtime.
+      const enabled = await this.isEnabled(userId, flag.key as FeatureKey);
       results.push({ key: flag.key, label: flag.label, enabled });
     }
 

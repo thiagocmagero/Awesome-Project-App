@@ -104,7 +104,7 @@ export default function NotificationPreferencesPage() {
           <nav aria-label="breadcrumb">
             <ol className="breadcrumb mb-1 breadcrumb-style2">
               <li className="breadcrumb-item">
-                <NavLink to="/dashboard">{tc('nav.dashboard')}</NavLink>
+                <NavLink to="/">{tc('nav.dashboard')}</NavLink>
               </li>
               <li className="breadcrumb-item active" aria-current="page">
                 {t('page.title')}

@@ -9,6 +9,7 @@ import { CreateHolidayDto } from './dto/create-holiday.dto';
 import { UpdateHolidayDto } from './dto/update-holiday.dto';
 import { CreateHolidayDateDto } from './dto/create-holiday-date.dto';
 import { UpdateHolidayDateDto } from './dto/update-holiday-date.dto';
+import { LimitKey } from '../common/entitlements';
 
 interface HolCtx {
   userId: number;
@@ -132,7 +133,7 @@ export class HolidaysService {
       },
       include: { _count: { select: { dates: true } } },
     });
-    await this.usageService.increment(ctx.userId, 'max_holidays');
+    await this.usageService.increment(ctx.userId, LimitKey.MAX_HOLIDAYS);
     return this.serializeHoliday(h);
   }
 
@@ -164,7 +165,7 @@ export class HolidaysService {
 
     // Decrement usage for the owner
     if (h.ownerId !== null) {
-      await this.usageService.decrement(h.ownerId, 'max_holidays');
+      await this.usageService.decrement(h.ownerId, LimitKey.MAX_HOLIDAYS);
     }
 
     return { deleted: publicId };

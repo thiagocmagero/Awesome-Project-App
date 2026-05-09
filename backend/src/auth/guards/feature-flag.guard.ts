@@ -61,9 +61,13 @@ export class FeatureFlagGuard implements CanActivate {
     if (user.profileCode === 'PLATFORM_ADMIN') return true;
 
     const projectPublicId = extractProjectPublicId(req, projectIdFrom);
-    const enabled = await this.featureFlagsService.isEnabled(user.sub, featureKey, {
-      projectPublicId,
-    });
+    // Cast: o decorator garante FeatureKey, mas o reflector aceita string em
+    // legacy mode. Runtime trata strings desconhecidas como flag inexistente.
+    const enabled = await this.featureFlagsService.isEnabled(
+      user.sub,
+      featureKey as import('../../common/entitlements').FeatureKey,
+      { projectPublicId },
+    );
 
     if (!enabled) {
       throw new ForbiddenException({

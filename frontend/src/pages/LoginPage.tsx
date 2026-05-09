@@ -23,7 +23,7 @@ export default function LoginPage() {
   // Redirect if already authenticated
   useEffect(() => {
     if (user && ['PLATFORM_ADMIN', 'BASIC_USER'].includes(user.profileCode)) {
-      navigate('/dashboard', { replace: true });
+      navigate('/', { replace: true });
     }
   }, [user, navigate]);
 
@@ -75,7 +75,7 @@ export default function LoginPage() {
       }
 
       login(toAuthUser(data.user));
-      navigate('/dashboard', { replace: true });
+      navigate('/', { replace: true });
     } catch {
       setError(t('errors.network_error'));
     } finally {

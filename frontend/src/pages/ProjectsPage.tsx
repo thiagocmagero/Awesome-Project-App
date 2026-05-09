@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo, FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { useWorkspaceLink } from '../hooks/useWorkspaceLink';
 import { getApiBase, apiFetch } from '../lib/api';
 import { useToast } from '../contexts/ToastContext';
 import { PermissionsModal } from './ProjectPermissionsPage';
@@ -134,6 +135,7 @@ const formatDate = (iso: string | null | undefined): string => fmtDate(iso);
 export default function ProjectsPage() {
   const { token, user: authUser } = useAuth();
   const navigate = useNavigate();
+  const wsLink = useWorkspaceLink();
   const api = getApiBase();
   const { showToast } = useToast();
   const { t } = useTranslation('projects');
@@ -636,7 +638,7 @@ export default function ProjectsPage() {
           <h1 className="page-title fw-medium fs-18 mb-2">{t('page.title')}</h1>
           <nav>
             <ol className="breadcrumb mb-0">
-              <li className="breadcrumb-item"><a href="/dashboard" className="text-primary">{tc('nav.dashboard')}</a></li>
+              <li className="breadcrumb-item"><a href="/" className="text-primary">{tc('nav.dashboard')}</a></li>
               <li className="breadcrumb-item active">{t('page.title')}</li>
             </ol>
           </nav>
@@ -760,13 +762,13 @@ export default function ProjectsPage() {
                             <a
                               className="dropdown-item d-flex align-items-center gap-2"
                               href="#"
-                              onClick={(e) => { e.preventDefault(); navigate(`/projects/${p.publicId}/planning`); }}
+                              onClick={(e) => { e.preventDefault(); navigate(wsLink(`/projects/${p.publicId}/planning`)); }}
                             >
                               <i className="ri-bar-chart-grouped-line text-primary"></i>
                               {t('action.planning')}
                             </a>
                           </li>
-                          {/* "Membros" removido — gestão de membros migrou para /workspace/users (Phase 6 Workspace Members). */}
+                          {/* "Membros" removido — gestão de membros migrou para /<wsId>/users (Workspace Members). */}
                           <li>
                             <a
                               className="dropdown-item d-flex align-items-center gap-2"
@@ -1435,7 +1437,7 @@ export default function ProjectsPage() {
         </>
       )}
 
-      {/* Members Modal removido — gestão centralizada em /workspace/users (Phase 6). */}
+      {/* Members Modal removido — gestão centralizada em /<wsId>/users (Workspace Members). */}
 
       {/* Permissions modal */}
       {showPermissions && permissionsProject && (

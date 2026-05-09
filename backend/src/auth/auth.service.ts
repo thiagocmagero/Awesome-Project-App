@@ -144,11 +144,15 @@ export class AuthService {
         selfRegistered: true,
         status: 'PENDING',
         emailVerified: false,
+        // Auto-cria 1 Workspace por User (V1 invariant: 1:1).
+        workspaces: {
+          create: { name: `${input.name}'s Workspace` },
+        },
       },
       select: { id: true, email: true, name: true, locale: true },
     });
 
-    // Phase 3 dual-write: UserPlan + Subscription
+    // Cria Subscription default no workspace recém-criado.
     await createDefaultBilling(this.prisma, pendingUser.id);
 
     const token = await this.emailTokens.createToken(TokenType.EMAIL_CONFIRMATION, {
@@ -386,11 +390,15 @@ export class AuthService {
         selfRegistered: true,
         status: 'ACTIVE',
         emailVerified: true,
+        // Auto-cria 1 Workspace por User (V1 invariant: 1:1).
+        workspaces: {
+          create: { name: `${input.name}'s Workspace` },
+        },
       },
       select: { id: true, email: true, name: true, locale: true },
     });
 
-    // Phase 3 dual-write: UserPlan + Subscription
+    // Cria Subscription default no workspace recém-criado.
     await createDefaultBilling(this.prisma, newUser.id);
 
     // Link pending ProjectMember records with this email
@@ -438,20 +446,24 @@ export class AuthService {
       where: { id: newUser.id },
       include: {
         profile: true,
-        subscription: { include: { plan: true } },
+        workspaces: {
+          take: 1,
+          include: { subscription: { include: { plan: true } } },
+        },
       },
     });
 
     await this.issueSessionAndCookies(newUser.id, newUser.email, fullUser.profile.code, req, res);
 
-    const { passwordHash: _ph, id: _id, ...rest } = fullUser as any;
+    const subscription = fullUser.workspaces[0]?.subscription ?? null;
+    const { passwordHash: _ph, id: _id, workspaces: _ws, ...rest } = fullUser as any;
     // Converte `avatarKey` interno em `avatarUrl` público.
     const safeUser = this.usersService.toPublicResponse(rest as Record<string, unknown>) as any;
     return {
       user: {
         ...safeUser,
-        planCode: safeUser.subscription?.plan?.code ?? null,
-        planName: safeUser.subscription?.plan?.name ?? null,
+        planCode: subscription?.plan?.code ?? null,
+        planName: subscription?.plan?.name ?? null,
       },
     };
   }

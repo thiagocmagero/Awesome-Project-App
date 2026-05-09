@@ -47,9 +47,26 @@
 
 Ordem: `enabledGlobally` → `UserFeatureFlag` → `PlanFeatureFlag` → `false`
 
-Flags activas:
-- `gantt_view` — controla acesso ao Gantt (UI + endpoint backend)
-- `multi_holiday` — controla criação de listas de feriados
+> **Catálogo formal**: chaves vivem em
+> [`backend/src/common/entitlements.ts`](backend/src/common/entitlements.ts)
+> (`FeatureKey`/`LimitKey`). Espelhos: `backend/prisma/seeds/entitlement-keys.js`
+> (CJS, para seeds) e `frontend/src/lib/entitlements.ts` (frontend).
+> Strings literais (`'gantt_view'`, `'max_projects'`, etc.) **proibidas** em
+> code novo — usar sempre `FeatureKey.X` / `LimitKey.X`. Detalhes em
+> CLAUDE.md "Catálogo formal de entitlement keys".
+
+> **PLATFORM_ADMIN bypass**: o hook frontend `useFeatureFlag` e os guards
+> backend tratam o bypass automaticamente. Componentes não devem combinar
+> `enabled || profileCode === 'PLATFORM_ADMIN'`. Detalhes em CLAUDE.md
+> "PLATFORM_ADMIN bypass das feature flags".
+
+Flags activas (lista canónica em `FeatureKey` no catálogo):
+- `gantt_view` — Gantt (UI + endpoint backend)
+- `calendar_view` — calendário do projecto
+- `timesheet_view` — registo semanal de horas
+- `multi_holiday` — listas de feriados
+- `upload` — uploads de ficheiros project-scoped
+- `upload_secured` — scan AWS GuardDuty (depende de `upload`)
 
 ## Planos — regras
 

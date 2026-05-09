@@ -12,10 +12,11 @@ import { ProjectPermissionGuard } from '../projects/guards/project-permission.gu
 import { RequireProjectPermission } from '../projects/decorators/require-project-permission.decorator';
 import { ProjectAction } from '../projects/project-permissions';
 import { GanttService } from './gantt.service';
+import { FeatureKey } from '../common/entitlements';
 
 @Controller('projects/:projectId/planning')
 @UseGuards(JwtAuthGuard, FeatureFlagGuard, ProjectPermissionGuard)
-@RequireFeature('gantt_view')
+@RequireFeature(FeatureKey.GANTT_VIEW)
 export class GanttController {
   constructor(private readonly ganttService: GanttService) {}
 

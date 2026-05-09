@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
+import { useIsPlatformAdmin } from '../hooks/useIsPlatformAdmin';
 import { getApiBase, apiFetch } from '../lib/api';
 import { useToast } from '../contexts/ToastContext';
 import { formatDate as fmtDate, toFlatpickrFormat } from '../lib/dateFormatting';
@@ -58,12 +59,12 @@ function parseApiError(data: { message?: string | string[] }, fallback: string):
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function HolidaysPage() {
-  const { token, user } = useAuth();
+  const { token } = useAuth();
   const api = getApiBase();
   const { showToast } = useToast();
   const { t } = useTranslation('holidays');
   const { t: tc } = useTranslation('common');
-  const isAdmin = user?.profileCode === 'PLATFORM_ADMIN';
+  const isAdmin = useIsPlatformAdmin();
 
   // ── Feature flag
   const [canCreate, setCanCreate] = useState(false);

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { ITimesheetMyRow } from '../types';
 import { TimesheetStatusPill } from './TimesheetStatusPill';
 import { formatHours, formatWeekRange } from '../dateUtils';
+import { useWorkspaceLink } from '../../../hooks/useWorkspaceLink';
 
 interface Props {
   rows:    ITimesheetMyRow[];
@@ -16,6 +17,7 @@ interface Props {
 export function TimesheetMyTable({ rows, loading }: Props) {
   const { t }  = useTranslation('timesheet');
   const { t: tc } = useTranslation('common');
+  const wsLink = useWorkspaceLink();
 
   if (loading) return <div className="text-center text-muted py-4">{tc('messages.loading')}</div>;
   if (rows.length === 0) return <div className="text-center text-muted py-4">{t('global.empty.no_my')}</div>;
@@ -42,7 +44,7 @@ export function TimesheetMyTable({ rows, loading }: Props) {
               <td className="actions">
                 <Link
                   className="btn btn-sm btn-outline-secondary"
-                  to={`/projects/${encodeURIComponent(r.project.publicId)}/planning?tab=timesheet&week=${encodeURIComponent(r.weekStart)}`}
+                  to={wsLink(`/projects/${encodeURIComponent(r.project.publicId)}/planning?tab=timesheet&week=${encodeURIComponent(r.weekStart)}`)}
                 >
                   {t('global.action.open')}
                 </Link>

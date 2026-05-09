@@ -15,6 +15,7 @@ import { UpdatePlatformLimitsDto } from './dto/update-platform-limits.dto';
 import { EmailService } from '../emails/email.service';
 import { StorageService } from '../storage/storage.service';
 import { FeatureFlagsService } from '../feature-flags/feature-flags.service';
+import { FeatureKey } from '../common/entitlements';
 
 /** Garante que apenas PLATFORM_ADMIN acede a estes endpoints */
 function assertAdmin(user: JwtPayload) {
@@ -128,7 +129,7 @@ export class PlatformConfigController {
   @Get('uploads/availability')
   async getUploadsAvailability(@CurrentUser() user: JwtPayload) {
     if (!this.storageService.isReady()) return { available: false };
-    const enabled = await this.featureFlags.isEnabled(user.sub, 'upload');
+    const enabled = await this.featureFlags.isEnabled(user.sub, FeatureKey.UPLOAD);
     return { available: enabled };
   }
 }

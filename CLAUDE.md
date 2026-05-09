@@ -98,6 +98,109 @@ Política:
 Tabela completa por modelo + checklist em @docs/claude/db.md secção
 "User cascade rule".
 
+## Regra obrigatória — Catálogo formal de entitlement keys
+
+Todas as chaves de **feature flags** (ex.: `gantt_view`, `upload`) e **limites
+de plano** (ex.: `max_projects`, `max_storage_mb`) vêm de um catálogo único
+tipado. Strings literais espalhadas (typos silenciosos) são **proibidas**.
+
+**Backend** — fonte de verdade: [`backend/src/common/entitlements.ts`](backend/src/common/entitlements.ts).
+Exporta `FeatureKey` e `LimitKey` como `as const`. Usar sempre:
+
+```typescript
+@RequireFeature(FeatureKey.GANTT_VIEW)
+@CheckPlanLimit(LimitKey.MAX_PROJECTS, { projectIdFrom: 'params.id' })
+await this.featureFlags.isEnabled(userId, FeatureKey.UPLOAD_SECURED);
+await this.usage.increment(workspaceId, LimitKey.MAX_HOLIDAYS);
+```
+
+Os decorators `@RequireFeature` e `@CheckPlanLimit` são tipados — TypeScript
+rejeita strings que não estão no enum em tempo de compilação. Os métodos
+`FeatureFlagsService.isEnabled/isEnabledForUser` e
+`UsageService.increment/decrement/incrementBy/decrementBy/adjustBy/checkLimit`
+aceitam só o tipo correto.
+
+**Seeds** — [`backend/prisma/seeds/entitlement-keys.js`](backend/prisma/seeds/entitlement-keys.js)
+é o espelho CommonJS do catálogo, importado por `seed.js` e
+`seeds/02-plans.seed.js`. Tem de ser **mantido em sincronia manual** com o
+`.ts` (qualquer chave nova vai aos dois ficheiros). Razão: o seed corre via
+`node`, não tem ts-node para importar do `.ts`.
+
+**Frontend** — espelho em [`frontend/src/lib/entitlements.ts`](frontend/src/lib/entitlements.ts).
+Mesmos valores, mesmos nomes. `useFeatureFlag` aceita `FeatureKey`;
+`PlansPage.LIMIT_KEYS` é `ALL_LIMIT_KEYS` exportado do catálogo.
+
+**Adicionar uma nova chave:**
+1. Acrescentar a `backend/src/common/entitlements.ts` (TS, fonte primária).
+2. Acrescentar a `backend/prisma/seeds/entitlement-keys.js` (CJS, mesmo valor).
+3. Acrescentar a `frontend/src/lib/entitlements.ts` (TS frontend).
+4. Acrescentar à seed (`02-plans.seed.js`) usando `FeatureKey.X` ou
+   `LimitKey.X`.
+
+**Anti-padrões:**
+- ❌ `@RequireFeature('gantt_view')` — string literal, perde verificação de tipo.
+- ❌ `usage.increment(id, 'max_projects')` — idem.
+- ❌ Hardcodar `['max_projects', 'max_teams', ...]` em UI ou serviços — usar
+  `ALL_LIMIT_KEYS` ou `ALL_FEATURE_KEYS` do catálogo.
+- ❌ Adicionar uma chave a um dos catálogos sem actualizar os outros — drift
+  silencioso entre seeds/backend/frontend.
+
+## Regra obrigatória — PLATFORM_ADMIN bypass das feature flags
+
+O hook `useFeatureFlag` (frontend) e os guards `FeatureFlagGuard` /
+`PlanLimitGuard` (backend) **já tratam internamente** o bypass para
+utilizadores com perfil `PLATFORM_ADMIN`. Componentes/handlers não devem
+duplicar a verificação.
+
+**Padrão correcto:**
+
+```tsx
+// Frontend — apenas o hook decide se a feature está disponível.
+const { enabled: showGantt } = useFeatureFlag(FeatureKey.GANTT_VIEW, projectId);
+if (showGantt) { /* render */ }
+```
+
+**Anti-padrões:**
+- ❌ `enabled || isAdmin` (qualquer combinação com check de admin) — duplica
+  lógica que já existe no hook. PLATFORM_ADMIN passa a `true` no hook, sem
+  chamada ao backend.
+- ❌ Verificar admin antes de usar `useFeatureFlag` para "saltar" a resposta
+  do backend — desnecessário, o hook curto-circuita.
+
+## Regra obrigatória — Verificação de PLATFORM_ADMIN fora de feature flags
+
+Para verificações de admin que **não** envolvem feature flags (ex.: edição de
+comentários de qualquer autor, gating de páginas admin-only, mostrar acções
+extra na UI), usar sempre o hook
+[`useIsPlatformAdmin`](frontend/src/hooks/useIsPlatformAdmin.ts):
+
+```tsx
+import { useIsPlatformAdmin } from '../hooks/useIsPlatformAdmin';
+
+const isAdmin = useIsPlatformAdmin();
+if (isAdmin) { /* render acção exclusiva */ }
+```
+
+**A string literal `'PLATFORM_ADMIN'` deve existir apenas dentro de
+`useIsPlatformAdmin.ts`.** Qualquer comparação inline com `user?.profileCode`
+está proibida em código novo.
+
+**Anti-padrões:**
+- ❌ `user?.profileCode === 'PLATFORM_ADMIN'` inline — usar o hook.
+- ❌ `user.profileCode !== 'PLATFORM_ADMIN'` em redirect guards — usar
+  `if (user && !isAdmin)` para preservar a semântica de "espera o user
+  carregar antes de redirecionar".
+- ❌ Combinar `useIsPlatformAdmin()` com `useFeatureFlag()` para fazer bypass
+  duplo — o `useFeatureFlag` já chama o `useIsPlatformAdmin` internamente.
+
+**Excepções legítimas (não usar este hook):**
+- Whitelist multi-perfil tipo `['PLATFORM_ADMIN', 'BASIC_USER'].includes(...)`
+  (ex.: `ProtectedRoute`, redirect pós-login) — semântica diferente, é "user
+  pertence a este conjunto", não "user é admin".
+- Comparação contra um campo `role` de payload de API que não é o
+  `profileCode` do user (ex.: `useProjectPermissions` compara contra a role
+  retornada por `/projects/:id/my-permissions`).
+
 ## Regra obrigatória — Actualização do CLAUDE.md
 
 SEMPRE que uma regra for criada ou alterada, reflectir obrigatoriamente neste `CLAUDE.md` e no ficheiro modular relevante em `docs/claude/`. O `CLAUDE.md` é a fonte de verdade das instruções do projecto.
@@ -436,6 +539,48 @@ O campo legado `Task.status` foi renomeado para `legacyStatus` e será removido.
 - Hook frontend: `usePlanningStates(projectId)` (`features/planning/usePlanningStates.ts`).
 - Tipos partilhados: `ITaskState`, `ITaskSwimlane` em `features/planning/states-types.ts`.
 
+## Regra obrigatória — Workspace (entidade explícita)
+
+Toda a aplicação é **workspace-scoped**. Cada utilizador tem 1 workspace
+auto-criado no registo (V1 invariant: `@@unique([ownerId])`); V2 vai relaxar
+para N workspaces por user.
+
+**Premissas máximas:**
+- 9 tabelas têm `workspaceId` como chave de scope: Project, Team, Holiday,
+  UserType, WorkspaceMember, Subscription, Invoice, UsageRecord, UserFeatureFlag.
+- Em queries novas, filtrar por `workspaceId` em vez de `ownerId`. `ownerId` é
+  audit field (preservado em Project/Team/Holiday/UserType).
+- `User.delete` (PLATFORM_ADMIN hard delete) cascades para Workspace e daí para
+  todas as 9 tabelas — ver `User cascade rule` em @docs/claude/db.md.
+- Auto-criação obrigatória nos 4 hooks de criação de User
+  (`auth.register`, `createAccountFromInvite`, `users.service.create`, seed).
+  Pattern: `prisma.user.create({ data: { ..., workspaces: { create: { name } } } })`.
+
+**Resolução de workspace em runtime**:
+- `WorkspacesService.getDefaultForUser(userId)` — V1: 1:1 com User.
+- `SubscriptionsService.resolveEffectiveWorkspaceId(userId, ctx)` — context-aware
+  com LICENSED seats. Usado por UsageService, FeatureFlagsService, PlanLimitGuard.
+
+**API URLs versionadas sob `/api/v1`** (estilo Asana). Browser URLs ficam
+inalterados em V1 (V2 introduz `/<workspacePublicId>/...`). Frontend envia
+header `X-Workspace-Id` via apiFetch (informativo em V1; future-ready V2).
+
+Detalhes completos em @docs/claude/workspaces.md.
+
+## Regra obrigatória — API global prefix `/api/v1`
+
+Todas as rotas da API vivem sob `/api/v1`. Configurado em
+`backend/src/main.ts` via `app.setGlobalPrefix('api/v1')`. Frontend resolve via
+`getApiBase()` que devolve `/api/v1`.
+
+Webhook GuardDuty também vive sob este prefixo (`/api/v1/webhooks/guardduty`)
+— re-subscribe SNS em dev se aplicável. Cookies de auth: `access_token` com
+`Path=/api` (catches `/api/v1/*` por prefix-match), `refresh_token` com
+`Path=/api/v1/auth/refresh` (alinhado com endpoint).
+
+Versionar via path (em vez de header) é explícito, future-proof para API
+pública e permite coexistência V1/V2 quando necessário.
+
 ## Regra obrigatória — Upload de ficheiros
 
 Funcionalidade de upload e gestão de ficheiros project-scoped, gated por
@@ -510,6 +655,7 @@ npm run build
 @docs/claude/notifications.md            (mecanismo de notificações: modelo, endpoints, hook, dropdown, gaps)
 @docs/claude/email.md                    (envio de emails transacionais: SMTP Brevo, React Email, locale-aware, 10 tipos)
 @docs/claude/storage.md                  (wrapper AWS S3: env vars, StorageService, pipeline genérico de validação, avatares no bucket público)
+@docs/claude/workspaces.md               (workspace explícito: modelo, auto-criação, runtime helpers, V1/V2 path, anti-padrões)
 @docs/claude/uploads.md                  (upload de ficheiros project-scoped: File model, flags upload/upload_secured, GuardDuty, permissões FILE_*, presigned download, UI)
 @docs/claude/tools/gantt/overview.md     (Gantt — ponto de entrada obrigatório)
 @docs/claude/tools/gantt/data-model.md   (modelos Prisma Gantt, holidays, GanttConfig)

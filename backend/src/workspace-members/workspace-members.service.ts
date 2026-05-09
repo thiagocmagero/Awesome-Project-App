@@ -8,6 +8,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { InviteWorkspaceMemberDto } from './dto/invite-workspace-member.dto';
 import { UpdateWorkspaceMemberDto } from './dto/update-workspace-member.dto';
 import { SetWorkspaceMemberProjectsDto } from './dto/set-projects.dto';
+import { LimitKey } from '../common/entitlements';
 
 const INVITE_TOKEN_MS = 72 * 60 * 60_000;
 
@@ -20,11 +21,24 @@ export class WorkspaceMembersService {
     private readonly notifications: NotificationsService,
   ) {}
 
+  /** Resolve o workspaceId default do owner (V1: 1:1 com User). */
+  private async resolveOwnerWorkspaceId(ownerId: number): Promise<number> {
+    const ws = await this.prisma.workspace.findUnique({
+      where: { ownerId },
+      select: { id: true },
+    });
+    if (!ws) {
+      throw new AppException('WORKSPACE_NOT_FOUND', HttpStatus.NOT_FOUND);
+    }
+    return ws.id;
+  }
+
   // ── Listing ──────────────────────────────────────────────────────────────
 
   async listMembers(ownerId: number) {
+    const workspaceId = await this.resolveOwnerWorkspaceId(ownerId);
     const rows = await this.prisma.workspaceMember.findMany({
-      where: { ownerId },
+      where: { workspaceId },
       orderBy: [{ memberType: 'desc' }, { createdAt: 'asc' }],
       include: {
         user: { select: { publicId: true, name: true, email: true, avatarKey: true } },
@@ -34,18 +48,19 @@ export class WorkspaceMembersService {
   }
 
   async listSeatsSummary(ownerId: number) {
+    const workspaceId = await this.resolveOwnerWorkspaceId(ownerId);
     const sub = await this.prisma.subscription.findUnique({
-      where: { userId: ownerId },
+      where: { workspaceId },
       include: { plan: { select: { publicId: true, code: true, name: true, limits: true } } },
     });
     if (!sub) {
       return { used: 0, total: 0, plan: null };
     }
-    const seatLimit = sub.plan.limits.find((l) => l.limitKey === 'max_licensed_seats');
+    const seatLimit = sub.plan.limits.find((l) => l.limitKey === LimitKey.MAX_LICENSED_SEATS);
     const base = seatLimit?.limitValue ?? 0;
     const total = base < 0 ? -1 : base + sub.extraSeats;
     const used = await this.prisma.workspaceMember.count({
-      where: { ownerId, memberType: 'LICENSED', status: 'ACCEPTED' },
+      where: { workspaceId, memberType: 'LICENSED', status: 'ACCEPTED' },
     });
     return {
       used,
@@ -59,6 +74,8 @@ export class WorkspaceMembersService {
   // ── Invite ───────────────────────────────────────────────────────────────
 
   async inviteMember(ownerId: number, dto: InviteWorkspaceMemberDto) {
+    const workspaceId = await this.resolveOwnerWorkspaceId(ownerId);
+
     if (dto.memberType === 'LICENSED') {
       await this.assertCanLicense(ownerId);
     }
@@ -74,16 +91,16 @@ export class WorkspaceMembersService {
     }
 
     const existing = await this.prisma.workspaceMember.findUnique({
-      where: { ownerId_email: { ownerId, email: dto.email } },
+      where: { workspaceId_email: { workspaceId, email: dto.email } },
     });
     if (existing && existing.status === 'ACCEPTED') {
       throw new AppException('ALREADY_MEMBER', HttpStatus.CONFLICT);
     }
 
     const member = await this.prisma.workspaceMember.upsert({
-      where: { ownerId_email: { ownerId, email: dto.email } },
+      where: { workspaceId_email: { workspaceId, email: dto.email } },
       create: {
-        ownerId,
+        workspaceId,
         userId: existingUser?.id ?? null,
         email: dto.email,
         name: dto.name ?? existingUser?.name ?? null,
@@ -148,9 +165,6 @@ export class WorkspaceMembersService {
 
     if (existingUser) {
       // Notify in-app + email via NotificationsService.
-      // Reusing INVITATION_RECEIVED — workspace invites share semantics with
-      // project invites at the user-facing level. The invitation publicId
-      // identifies the WorkspaceMember (used by frontend to fetch context).
       this.notifications
         .createInvitationReceivedNotification(
           existingUser.id,
@@ -310,14 +324,12 @@ export class WorkspaceMembersService {
 
   /**
    * Lança SEAT_LIMIT_REACHED se já não houver seats LICENSED disponíveis.
-   * Resolve plano via Subscription do owner; usa `max_licensed_seats` + extraSeats.
+   * Resolve plano via Subscription do workspace; usa `max_licensed_seats` + extraSeats.
    */
   private async assertCanLicense(ownerId: number) {
     const summary = await this.listSeatsSummary(ownerId);
     if (summary.total === -1) return; // unlimited
     if (summary.used >= summary.total) {
-      // Throw HttpException directly (richer payload than AppException):
-      // frontend renderiza CTA "Adquirir seats" baseado em `code` + `used/total`.
       throw new HttpException(
         {
           error_code: 'SEAT_LIMIT_REACHED',
@@ -331,8 +343,9 @@ export class WorkspaceMembersService {
   }
 
   private async findOwnedMember(ownerId: number, publicId: string) {
+    const workspaceId = await this.resolveOwnerWorkspaceId(ownerId);
     const member = await this.prisma.workspaceMember.findUnique({ where: { publicId } });
-    if (!member || member.ownerId !== ownerId) {
+    if (!member || member.workspaceId !== workspaceId) {
       throw new AppException('NOT_FOUND', HttpStatus.NOT_FOUND);
     }
     return member;
@@ -375,7 +388,6 @@ export class WorkspaceMembersService {
             publicId: row.user.publicId,
             name: row.user.name,
             email: row.user.email,
-            // avatarKey kept here but caller (controller) can re-resolve via StorageService
             avatarKey: row.user.avatarKey,
           }
         : null,

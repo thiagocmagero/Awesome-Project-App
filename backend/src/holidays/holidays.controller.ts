@@ -21,6 +21,7 @@ import { CreateHolidayDto } from './dto/create-holiday.dto';
 import { UpdateHolidayDto } from './dto/update-holiday.dto';
 import { CreateHolidayDateDto } from './dto/create-holiday-date.dto';
 import { UpdateHolidayDateDto } from './dto/update-holiday-date.dto';
+import { FeatureKey, LimitKey } from '../common/entitlements';
 
 @Controller('holidays')
 @UseGuards(JwtAuthGuard)
@@ -46,8 +47,8 @@ export class HolidaysController {
 
   @Post()
   @UseGuards(FeatureFlagGuard, PlanLimitGuard)
-  @RequireFeature('multi_holiday')
-  @CheckPlanLimit('max_holidays')
+  @RequireFeature(FeatureKey.MULTI_HOLIDAY)
+  @CheckPlanLimit(LimitKey.MAX_HOLIDAYS)
   create(
     @Body() dto: CreateHolidayDto,
     @CurrentUser() user: JwtPayload,

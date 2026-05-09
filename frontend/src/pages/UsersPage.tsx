@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useIsPlatformAdmin } from '../hooks/useIsPlatformAdmin';
 import { getApiBase, apiFetch } from '../lib/api';
 import { useToast } from '../contexts/ToastContext';
 
@@ -43,12 +44,14 @@ export default function UsersPage() {
   const { token, user: authUser } = useAuth();
   const api = getApiBase();
   const isBasicUser = authUser?.profileCode === 'BASIC_USER';
+  const isPlatformAdmin = useIsPlatformAdmin();
   const { showToast } = useToast();
 
   // Página de gestão de plataforma — apenas PLATFORM_ADMIN.
   // Outros utilizadores são redireccionados para a vista do seu workspace.
-  if (authUser && authUser.profileCode !== 'PLATFORM_ADMIN') {
-    return <Navigate to="/workspace/users" replace />;
+  if (authUser && !isPlatformAdmin) {
+    const wsId = authUser.workspacePublicId;
+    return <Navigate to={wsId ? `/${wsId}/users` : '/'} replace />;
   }
 
   const [users, setUsers] = useState<UserItem[]>([]);
@@ -74,7 +77,6 @@ export default function UsersPage() {
   const [deleteLoading, setDeleteLoading] = useState(false);
 
   // Subscription tab (only for PLATFORM_ADMIN editing existing user)
-  const isPlatformAdmin = authUser?.profileCode === 'PLATFORM_ADMIN';
   const [modalTab, setModalTab] = useState<'account' | 'subscription'>('account');
   const [availablePlans, setAvailablePlans] = useState<Array<{ publicId: string; code: string; name: string; planStatus: string }>>([]);
   const [selectedPlanId, setSelectedPlanId] = useState('');
@@ -481,7 +483,7 @@ export default function UsersPage() {
                             <i className="ri-user-forbid-line"></i>
                           </button>
                           {/* Remover — hard delete recursivo, irreversível (PLATFORM_ADMIN only) */}
-                          {authUser?.profileCode === 'PLATFORM_ADMIN' && (
+                          {isPlatformAdmin && (
                             <button
                               className="btn btn-sm btn-danger-light"
                               title={t('delete.title')}

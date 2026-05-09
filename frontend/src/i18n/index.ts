@@ -34,7 +34,7 @@ i18n
       'files',
     ],
     backend: {
-      loadPath: '/api/i18n/{{lng}}/{{ns}}',
+      loadPath: '/api/v1/i18n/{{lng}}/{{ns}}',
     },
     interpolation: {
       escapeValue: false,
@@ -53,7 +53,7 @@ i18n
       const locale = Array.isArray(lngs) ? lngs[0] : lngs;
       const csrfMatch = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/);
       const csrf = csrfMatch ? decodeURIComponent(csrfMatch[1]) : '';
-      fetch('/api/i18n/missing', {
+      fetch('/api/v1/i18n/missing', {
         method: 'POST',
         credentials: 'include',
         headers: {

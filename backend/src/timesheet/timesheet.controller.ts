@@ -29,6 +29,7 @@ import { ApproveWeekDto } from './dto/approve-week.dto';
 import { ApproveMonthDto } from './dto/approve-month.dto';
 import { RejectDayDto } from './dto/reject-day.dto';
 import { CopyWeekDto } from './dto/copy-week.dto';
+import { FeatureKey } from '../common/entitlements';
 
 /**
  * TimesheetController — endpoints project-scoped do Timesheet.
@@ -39,7 +40,7 @@ import { CopyWeekDto } from './dto/copy-week.dto';
  */
 @Controller('projects/:id/timesheets')
 @UseGuards(JwtAuthGuard, FeatureFlagGuard, ProjectPermissionGuard)
-@RequireFeature('timesheet_view')
+@RequireFeature(FeatureKey.TIMESHEET_VIEW)
 export class TimesheetController {
   constructor(private readonly service: TimesheetService) {}
 

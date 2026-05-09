@@ -11,6 +11,7 @@ import { UpdateTeamDto } from './dto/update-team.dto';
 import { AddMemberDto } from './dto/add-member.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
 import { UsageService } from '../usage/usage.service';
+import { LimitKey } from '../common/entitlements';
 
 /** Nested include shared by all team queries — includes full member + user details */
 const MEMBERS_INCLUDE = {
@@ -115,7 +116,7 @@ export class TeamsService {
       select: TEAM_SELECT,
     });
 
-    await this.usageService.increment(requestingUser.sub, 'max_teams');
+    await this.usageService.increment(requestingUser.sub, LimitKey.MAX_TEAMS);
     return team;
   }
 
@@ -137,7 +138,7 @@ export class TeamsService {
       select: TEAM_SELECT,
     });
 
-    await this.usageService.decrement(requestingUser.sub, 'max_teams');
+    await this.usageService.decrement(requestingUser.sub, LimitKey.MAX_TEAMS);
     return updated;
   }
 

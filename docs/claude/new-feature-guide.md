@@ -44,8 +44,8 @@ Avaliar **cada regra** abaixo para cada nova funcionalidade. Marcar as que se ap
 | | |
 |---|---|
 | **Aplica-se quando** | A funcionalidade é opcional e deve poder ser activada/desactivada por plano ou por utilizador |
-| **Documentação** | @docs/claude/auth.md (secção Feature Flags) |
-| **Acções** | Criar flag no seed. Backend: `FeatureFlagGuard` + `@RequireFeature('key')`. Frontend: `useFeatureFlag('key')`. PLATFORM_ADMIN bypassa sempre. |
+| **Documentação** | @docs/claude/auth.md (secção Feature Flags) + CLAUDE.md "Catálogo formal de entitlement keys" |
+| **Acções** | **1)** Adicionar a chave a `backend/src/common/entitlements.ts` (`FeatureKey`), `backend/prisma/seeds/entitlement-keys.js` (espelho CJS) e `frontend/src/lib/entitlements.ts` (espelho frontend). **2)** Criar entrada na seed (`02-plans.seed.js`) usando `FeatureKey.X`. **3)** Backend: `FeatureFlagGuard` + `@RequireFeature(FeatureKey.X)`. **4)** Frontend: `useFeatureFlag(FeatureKey.X)` — PLATFORM_ADMIN bypassa internamente, **não** combinar com `profileCode === 'PLATFORM_ADMIN'`. |
 | **Perguntar** | "Esta funcionalidade deve ser controlada por feature flag (activação selectiva por plano/utilizador)?" |
 
 ### 4. Limites de plano
@@ -53,8 +53,8 @@ Avaliar **cada regra** abaixo para cada nova funcionalidade. Marcar as que se ap
 | | |
 |---|---|
 | **Aplica-se quando** | A funcionalidade tem um recurso contável que deve ser limitado por plano (ex: max_projects, max_tasks) |
-| **Documentação** | @docs/claude/auth.md (secção Planos) |
-| **Acções** | Criar `PlanLimit` com `limitKey`. Backend: `PlanLimitGuard` + `@CheckPlanLimit('key')`. Actualizar `LIMIT_KEYS` no frontend. Valor `-1` = ilimitado. |
+| **Documentação** | @docs/claude/auth.md (secção Planos) + CLAUDE.md "Catálogo formal de entitlement keys" |
+| **Acções** | **1)** Adicionar a chave a `backend/src/common/entitlements.ts` (`LimitKey`), espelho CJS dos seeds e espelho frontend. **2)** Adicionar entrada `PlanLimit` na seed usando `LimitKey.X`. **3)** Backend: `PlanLimitGuard` + `@CheckPlanLimit(LimitKey.X)`. **4)** `usage.increment(workspaceId, LimitKey.X)` no service que cria/apaga o recurso. Valor `-1` = ilimitado. |
 | **Perguntar** | "Esta funcionalidade tem um limite associado ao plano do utilizador (ex: max_X)?" |
 
 ### 5. Base de dados / Modelos Prisma

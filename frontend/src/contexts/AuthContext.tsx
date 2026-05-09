@@ -14,6 +14,11 @@ export interface AuthUser {
   levelLabel: string | null;
   planCode: string | null;
   planName: string | null;
+  /** Workspace default do user (V1: único). publicId UUID v7.
+   *  Frontend usa este valor para futuro V2 (URL workspace prefix); em V1 o
+   *  backend resolve workspace via JWT e o header X-Workspace-Id é apenas
+   *  informativo (não enforçado). */
+  workspacePublicId: string | null;
   /** IANA timezone identifier — null antes da detecção do browser na primeira sessão. */
   timezone: string | null;
   /** Locale preferido (ex.: 'pt-PT', 'en'). null antes do sync com o i18next. */
@@ -65,6 +70,7 @@ export interface ApiAuthUser {
   level: { publicId: string; code: string; label: string; order: number } | null;
   planCode: string | null;
   planName: string | null;
+  workspacePublicId: string | null;
   timezone: string | null;
   locale: string | null;
   phone: string | null;
@@ -89,6 +95,7 @@ export function toAuthUser(raw: ApiAuthUser): AuthUser {
     levelLabel: raw.level?.label ?? null,
     planCode: raw.planCode ?? null,
     planName: raw.planName ?? null,
+    workspacePublicId: raw.workspacePublicId ?? null,
     timezone: raw.timezone ?? null,
     locale: raw.locale ?? null,
     phone: raw.phone ?? null,
@@ -118,7 +125,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
     (async () => {
       try {
-        const res = await apiFetch('/api/auth/me');
+        const res = await apiFetch('/api/v1/auth/me');
         if (cancelled) return;
         if (res.ok) {
           const raw = (await res.json()) as ApiAuthUser;
@@ -149,7 +156,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function logout() {
     try {
       const csrf = readCsrfCookie();
-      await fetch('/api/auth/logout', {
+      await fetch('/api/v1/auth/logout', {
         method: 'POST',
         credentials: 'include',
         headers: csrf ? { 'X-CSRF-Token': csrf } : {},
@@ -164,7 +171,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function refreshUser() {
     try {
-      const res = await fetch('/api/auth/me', { credentials: 'include' });
+      const res = await fetch('/api/v1/auth/me', { credentials: 'include' });
       if (res.ok) {
         const raw = (await res.json()) as ApiAuthUser;
         const data = toAuthUser(raw);

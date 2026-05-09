@@ -19,6 +19,7 @@ import { CreateTeamDto } from './dto/create-team.dto';
 import { UpdateTeamDto } from './dto/update-team.dto';
 import { AddMemberDto } from './dto/add-member.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
+import { LimitKey } from '../common/entitlements';
 
 @Controller('teams')
 @UseGuards(JwtAuthGuard)
@@ -45,7 +46,7 @@ export class TeamsController {
   /** Cria equipa — autenticados; ownerId definido no service */
   @Post()
   @UseGuards(PlanLimitGuard)
-  @CheckPlanLimit('max_teams')
+  @CheckPlanLimit(LimitKey.MAX_TEAMS)
   create(
     @Body() dto: CreateTeamDto,
     @CurrentUser() currentUser: JwtPayload,

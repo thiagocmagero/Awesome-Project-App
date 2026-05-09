@@ -18,6 +18,7 @@ import type {
   FileDownloadResponseDto,
   FileResponseDto,
 } from './dto/file-response.dto';
+import { FeatureKey, LimitKey } from '../common/entitlements';
 
 /** Prefixo do bucket para uploads seguros (alvo do AWS GuardDuty Malware Protection). */
 const SECURED_PREFIX = 'uploads/secured/';
@@ -30,6 +31,7 @@ interface ProjectContext {
   id: number;
   publicId: string;
   ownerId: number | null;
+  workspacePublicId: string | null;
 }
 
 interface TaskContext {
@@ -122,12 +124,15 @@ export class FilesService {
     //    Sem owner (deveria ser raro — Project.ownerId = SetNull em delete do user)
     //    ⇒ trata como inactivo (path normal).
     const isSecured = project.ownerId
-      ? await this.featureFlags.isEnabledForUser(project.ownerId, 'upload_secured')
+      ? await this.featureFlags.isEnabledForUser(project.ownerId, FeatureKey.UPLOAD_SECURED)
       : false;
 
-    // 5. Build bucket key — UUID v4 aleatório, sem informação que indique propriedade.
+    // 5. Build bucket key — leaf é UUID v4 aleatório (opaco). Path inclui
+    //    workspacePublicId/projectPublicId/(tasks/taskPublicId|_root) para
+    //    facilitar audit + batch ops em V2 (cleanup por workspace).
     const bucketKey = this.buildBucketKey({
       isSecured,
+      workspacePublicId: project.workspacePublicId,
       projectPublicId: project.publicId,
       taskPublicId: task?.publicId ?? null,
       ext: detected.ext,
@@ -160,9 +165,9 @@ export class FilesService {
 
     // 7. Usage tracking — sempre no plano do dono do projecto.
     if (project.ownerId) {
-      await this.usage.increment(project.ownerId, 'max_uploads_count');
+      await this.usage.increment(project.ownerId, LimitKey.MAX_UPLOADS_COUNT);
       const sizeMb = Math.max(1, Math.ceil(file.size / 1024 / 1024));
-      await this.usage.incrementBy(project.ownerId, 'max_storage_mb', sizeMb);
+      await this.usage.incrementBy(project.ownerId, LimitKey.MAX_STORAGE_MB, sizeMb);
     }
 
     return this.refreshAndMap(created.id);
@@ -229,7 +234,7 @@ export class FilesService {
       const deltaMb = Math.ceil(Math.abs(sizeDelta) / 1024 / 1024);
       await this.usage.adjustBy(
         project.ownerId,
-        'max_storage_mb',
+        LimitKey.MAX_STORAGE_MB,
         sizeDelta > 0 ? deltaMb : -deltaMb,
       );
     }
@@ -295,9 +300,9 @@ export class FilesService {
     });
 
     if (project.ownerId) {
-      await this.usage.decrement(project.ownerId, 'max_uploads_count');
+      await this.usage.decrement(project.ownerId, LimitKey.MAX_UPLOADS_COUNT);
       const sizeMb = Math.max(1, Math.ceil(file.sizeBytes / 1024 / 1024));
-      await this.usage.decrementBy(project.ownerId, 'max_storage_mb', sizeMb);
+      await this.usage.decrementBy(project.ownerId, LimitKey.MAX_STORAGE_MB, sizeMb);
     }
 
     return { deleted: file.publicId };
@@ -386,12 +391,23 @@ export class FilesService {
   private async resolveProject(publicId: string): Promise<ProjectContext> {
     const project = await this.prisma.project.findUnique({
       where: { publicId },
-      select: { id: true, publicId: true, ownerId: true, status: true },
+      select: {
+        id: true,
+        publicId: true,
+        ownerId: true,
+        status: true,
+        workspace: { select: { publicId: true } },
+      },
     });
     if (!project || project.status !== 'ACTIVE') {
       throw new AppException('PROJECT_NOT_FOUND', HttpStatus.NOT_FOUND);
     }
-    return { id: project.id, publicId: project.publicId, ownerId: project.ownerId };
+    return {
+      id: project.id,
+      publicId: project.publicId,
+      ownerId: project.ownerId,
+      workspacePublicId: project.workspace?.publicId ?? null,
+    };
   }
 
   private async resolveTaskInProject(
@@ -457,18 +473,32 @@ export class FilesService {
     return { mime: detected.mime, ext: detected.ext };
   }
 
+  /**
+   * Constrói o key opaco do bucket. Estrutura:
+   *
+   *   uploads/[secured/]workspaces/{wsId}/projects/{projectId}/tasks/{taskId}/{uuid}.{ext}
+   *   uploads/[secured/]workspaces/{wsId}/projects/{projectId}/_root/{uuid}.{ext}
+   *
+   * O prefix `uploads/secured/` é mantido inalterado para que GuardDuty Malware
+   * Protection (configurado para esse prefix) continue a fazer scan.
+   *
+   * Quando `workspacePublicId` é null (orphan pré-migração), cai num bucket
+   * `_unknown` para manter consistência. V2 não deve ter orphans.
+   */
   private buildBucketKey(args: {
     isSecured: boolean;
+    workspacePublicId: string | null;
     projectPublicId: string;
     taskPublicId: string | null;
     ext: string;
   }): string {
-    const segments: string[] = [];
-    segments.push(args.isSecured ? `${SECURED_PREFIX}projects` : `${NORMAL_PREFIX}projects`);
-    // Acima já começou com "uploads/" — strip the trailing slash via raw concat.
-    // Reconstruímos de forma limpa abaixo:
+    const root = args.isSecured ? 'uploads/secured' : 'uploads';
+    const wsSegment = args.workspacePublicId ?? '_unknown';
     return [
-      args.isSecured ? 'uploads/secured/projects' : 'uploads/projects',
+      root,
+      'workspaces',
+      wsSegment,
+      'projects',
       args.projectPublicId,
       ...(args.taskPublicId ? ['tasks', args.taskPublicId] : ['_root']),
       `${randomUUID()}.${args.ext}`,
@@ -477,21 +507,19 @@ export class FilesService {
 
   /**
    * Replica a estrutura do `bucketKey` existente (mesmo prefix secured/normal,
-   * mesmo project, mesmo `_root`/`tasks/{taskPublicId}`), mas com novo UUID
-   * e possivelmente nova extensão.
+   * mesmo workspace/project/task), mas com novo UUID e possivelmente nova
+   * extensão. Funciona tanto para keys novos (com workspace) como legacy
+   * (sem workspace) — apenas substitui o leaf, preservando todo o prefix.
    *
-   * Importante: parsing do path antigo em vez de inferir do `taskId`/projectId
-   * actuais — uma task que mudou de projecto-para-projecto teria deixado o
-   * path antigo desalinhado, mas não suportamos esse caso. O ficheiro é
-   * imutável quanto a project/task; só `bucketKey` muda.
+   * Files legacy permanecem com formato antigo após replace, evitando
+   * migrações em massa. Files criados após a introdução de workspace usam o
+   * novo formato consistentemente.
    */
   private buildBucketKeyLike(file: PrismaFile, ext: string): string {
-    // O path antigo é "uploads/[secured/]projects/{publicId}/(tasks/{publicId}|_root)/{uuid}.{ext}"
-    // Reconstruir tudo até ao último segmento e substituir o leaf.
     const lastSlash = file.bucketKey.lastIndexOf('/');
     if (lastSlash === -1) {
-      // Não devia acontecer — fallback defensivo: começa de novo no normal _root.
-      return `uploads/projects/_unknown/_root/${randomUUID()}.${ext}`;
+      // Defensivo: key sem `/` é inesperado. Cai num bucket _unknown.
+      return `uploads/workspaces/_unknown/projects/_unknown/_root/${randomUUID()}.${ext}`;
     }
     const prefix = file.bucketKey.slice(0, lastSlash);
     return `${prefix}/${randomUUID()}.${ext}`;

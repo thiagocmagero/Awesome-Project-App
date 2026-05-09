@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { getApiBase, apiFetch } from '../lib/api';
 import { useProjectPermissions } from '../hooks/useProjectPermissions';
+import { useWorkspaceLink } from '../hooks/useWorkspaceLink';
 
 // ── Types (shared) ───────────────────────────────────────────────────────────
 
@@ -496,6 +497,7 @@ export function PermissionsModal({ projectId, projectName, onClose }: Permission
 export default function ProjectPermissionsPage() {
   const { id: projectId } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const wsLink = useWorkspaceLink();
   const { t } = useTranslation('permissions');
   const { t: tc } = useTranslation('common');
   const { loading: permLoading } = useProjectPermissions(projectId);
@@ -513,19 +515,19 @@ export default function ProjectPermissionsPage() {
         <nav aria-label="breadcrumb">
           <ol className="breadcrumb breadcrumb-style2 mb-0">
             <li className="breadcrumb-item">
-              <a href="#" onClick={(e) => { e.preventDefault(); navigate('/dashboard'); }}>
+              <a href="#" onClick={(e) => { e.preventDefault(); navigate('/'); }}>
                 <i className="ti ti-home-2 me-1 fs-15 d-inline-block" />{tc('nav.dashboard')}
               </a>
             </li>
             <li className="breadcrumb-item">
-              <a href="#" onClick={(e) => { e.preventDefault(); navigate('/projects'); }}>
+              <a href="#" onClick={(e) => { e.preventDefault(); navigate(wsLink('/projects')); }}>
                 <i className="ti ti-folder me-1 fs-15 d-inline-block" />{tc('nav.projects')}
               </a>
             </li>
             <li className="breadcrumb-item active" aria-current="page">{t('page.title')}</li>
           </ol>
         </nav>
-        <button className="btn btn-sm btn-secondary" onClick={() => navigate(`/projects/${projectId}/planning`)}>
+        <button className="btn btn-sm btn-secondary" onClick={() => navigate(wsLink(`/projects/${projectId}/planning`))}>
           <i className="ri-arrow-left-line me-1" />{tc('actions.back')}
         </button>
       </div>

@@ -1,8 +1,10 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { ToastProvider } from './contexts/ToastContext';
+import { WorkspaceProvider } from './contexts/WorkspaceContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import AppLayout from './components/AppLayout';
+import RedirectToDefaultWorkspace from './components/RedirectToDefaultWorkspace';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import UsersPage from './pages/UsersPage';
@@ -36,7 +38,7 @@ export default function App() {
     <AuthProvider>
       <ToastProvider>
       <Routes>
-        {/* Public */}
+        {/* ── Públicas / auth — sem workspace ───────────────────────────── */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignUpPage />} />
         <Route path="/confirm-email" element={<ConfirmEmailPage />} />
@@ -46,35 +48,49 @@ export default function App() {
         <Route path="/error/token-expired" element={<TokenExpiredPage />} />
         <Route path="/error/token-used" element={<TokenUsedPage />} />
 
-        {/* Protected – PLATFORM_ADMIN only */}
+        {/* ── Protegidas workspace-agnostic (platform admin / user-self) ─ */}
         <Route element={<ProtectedRoute />}>
           <Route element={<AppLayout />}>
-            <Route index element={<Navigate to="/dashboard" replace />} />
-            <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/users" element={<UsersPage />} />
-            <Route path="/user-types" element={<UserTypesPage />} />
-            <Route path="/teams" element={<TeamsPage />} />
-            <Route path="/projects" element={<ProjectsPage />} />
-            <Route path="/projects/:id/planning" element={<PlanningPage />} />
-            <Route path="/projects/:id/planning/tasks/:taskId" element={<PlanningPage />} />
-            <Route path="/projects/:id/permissions" element={<ProjectPermissionsPage />} />
             <Route path="/plans" element={<PlansPage />} />
-            <Route path="/holidays" element={<HolidaysPage />} />
-            <Route path="/timesheets" element={<TimesheetsPage />} />
-            <Route path="/settings/gantt" element={<GanttSettingsPage />} />
-            <Route path="/settings/calendar" element={<CalendarSettingsPage />} />
-            <Route path="/settings/email" element={<EmailSettingsPage />} />
+            <Route path="/translations" element={<TranslationsPage />} />
             <Route path="/settings/limits" element={<PlatformLimitsPage />} />
+            <Route path="/settings/email" element={<EmailSettingsPage />} />
             <Route path="/settings/account" element={<UserSettingsPage />} />
             <Route path="/settings/sessions" element={<SessionsPage />} />
             <Route path="/settings/notifications" element={<NotificationPreferencesPage />} />
-            <Route path="/workspace/users" element={<WorkspaceUsersPage />} />
-            <Route path="/translations" element={<TranslationsPage />} />
           </Route>
         </Route>
 
-        {/* Fallback */}
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        {/* ── Protegidas workspace-scoped — todas sob /:workspacePublicId/* */}
+        <Route element={<ProtectedRoute />}>
+          <Route
+            path="/:workspacePublicId"
+            element={
+              <WorkspaceProvider>
+                <AppLayout />
+              </WorkspaceProvider>
+            }
+          >
+            <Route index element={<Navigate to="dashboard" replace />} />
+            <Route path="dashboard" element={<DashboardPage />} />
+            <Route path="user-types" element={<UserTypesPage />} />
+            <Route path="teams" element={<TeamsPage />} />
+            <Route path="projects" element={<ProjectsPage />} />
+            <Route path="projects/:id/planning" element={<PlanningPage />} />
+            <Route path="projects/:id/planning/tasks/:taskId" element={<PlanningPage />} />
+            <Route path="projects/:id/permissions" element={<ProjectPermissionsPage />} />
+            <Route path="holidays" element={<HolidaysPage />} />
+            <Route path="timesheets" element={<TimesheetsPage />} />
+            <Route path="settings/gantt" element={<GanttSettingsPage />} />
+            <Route path="settings/calendar" element={<CalendarSettingsPage />} />
+            <Route path="users" element={<WorkspaceUsersPage />} />
+          </Route>
+        </Route>
+
+        {/* ── Raiz e fallback — redirect para o workspace default ───────── */}
+        <Route path="/" element={<RedirectToDefaultWorkspace />} />
+        <Route path="*" element={<RedirectToDefaultWorkspace />} />
       </Routes>
       </ToastProvider>
     </AuthProvider>

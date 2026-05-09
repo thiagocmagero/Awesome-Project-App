@@ -1,25 +1,29 @@
 import type { Prisma, PrismaClient } from '@prisma/client';
 
 /**
- * Phase 7 — agora só escreve Subscription (UserPlan removido do schema).
- *
- * Aceita tanto `PrismaService` como `Prisma.TransactionClient` — usar dentro
+ * Helpers para criar dados billing/workspace-member após criação de User.
+ * Aceitam tanto `PrismaService` como `Prisma.TransactionClient` — usar dentro
  * da mesma transacção que cria o User para garantir atomicidade.
  */
 
 export type PrismaLike = PrismaClient | Prisma.TransactionClient;
 
 /**
- * Cria Subscription default (status=ACTIVE, plano `isDefault=true`) para um
- * utilizador recém-criado. Idempotente via upsert — se já existir (ex.:
- * backfill ou re-registo), mantém-se intacto.
+ * Cria Subscription default (status=ACTIVE, plano `isDefault=true`) para o
+ * workspace default de um utilizador recém-criado. Idempotente via upsert.
  *
- * Não faz nada se não existir plano default activo (sistema mal seedado).
+ * Pré-requisito: o Workspace já tem que existir (criar antes de chamar).
  */
 export async function createDefaultBilling(
   client: PrismaLike,
   userId: number,
 ): Promise<void> {
+  const workspace = await client.workspace.findUnique({
+    where: { ownerId: userId },
+    select: { id: true },
+  });
+  if (!workspace) return;
+
   const defaultPlan = await client.plan.findFirst({
     where: { isDefault: true, planStatus: 'ACTIVE' },
     select: { id: true },
@@ -29,9 +33,9 @@ export async function createDefaultBilling(
   const now = new Date();
   const farFuture = new Date(now.getTime() + 100 * 365 * 24 * 60 * 60 * 1000); // ~100y
   await client.subscription.upsert({
-    where: { userId },
+    where: { workspaceId: workspace.id },
     create: {
-      userId,
+      workspaceId: workspace.id,
       planId: defaultPlan.id,
       status: 'ACTIVE',
       billingCycle: 'MONTHLY',
@@ -45,13 +49,12 @@ export async function createDefaultBilling(
 
 /**
  * Cria/actualiza WorkspaceMember(BASIC, ACCEPTED) quando um utilizador aceita
- * um convite project-level (fluxo legado). Garantia: a partir da Phase 3,
- * cada ProjectMember(ACCEPTED) tem o seu WorkspaceMember espelho, sem o owner
- * ter de tomar acção explícita na nova UI.
+ * um convite project-level. Garantia: cada ProjectMember(ACCEPTED) tem o seu
+ * WorkspaceMember espelho.
  *
  * Skip:
  * - self-ownership (owner não é membro do próprio workspace).
- * - (ownerId, email) já existente — preserva estado prévio (ex.: backfill).
+ * - (workspace, email) já existente — preserva estado prévio (ex.: backfill).
  */
 export async function upsertWorkspaceMemberFromProjectAccept(
   client: PrismaLike,
@@ -66,14 +69,20 @@ export async function upsertWorkspaceMemberFromProjectAccept(
 ): Promise<void> {
   if (args.ownerId === args.userId) return;
 
+  const ownerWorkspace = await client.workspace.findUnique({
+    where: { ownerId: args.ownerId },
+    select: { id: true },
+  });
+  if (!ownerWorkspace) return;
+
   // invitedById é nullable em WorkspaceMember (cascade-safety). Quando o
   // inviter já não existe, recai-se para o ownerId como autor da membership.
   const invitedById = args.invitedById ?? args.ownerId;
 
   await client.workspaceMember.upsert({
-    where: { ownerId_email: { ownerId: args.ownerId, email: args.email } },
+    where: { workspaceId_email: { workspaceId: ownerWorkspace.id, email: args.email } },
     create: {
-      ownerId: args.ownerId,
+      workspaceId: ownerWorkspace.id,
       userId: args.userId,
       email: args.email,
       name: args.name,

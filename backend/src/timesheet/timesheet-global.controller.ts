@@ -15,6 +15,7 @@ import type { JwtPayload } from '../auth/jwt.strategy';
 import { TimesheetService } from './timesheet.service';
 import { GlobalApproveWeekDto } from './dto/global-approve-week.dto';
 import { GlobalRejectWeekDto } from './dto/global-reject-week.dto';
+import { FeatureKey } from '../common/entitlements';
 
 /**
  * TimesheetGlobalController — endpoints cross-project para a página global
@@ -28,7 +29,7 @@ import { GlobalRejectWeekDto } from './dto/global-reject-week.dto';
  */
 @Controller('timesheets')
 @UseGuards(JwtAuthGuard, FeatureFlagGuard)
-@RequireFeature('timesheet_view')
+@RequireFeature(FeatureKey.TIMESHEET_VIEW)
 export class TimesheetGlobalController {
   constructor(private readonly service: TimesheetService) {}
 

@@ -24,6 +24,7 @@ import { AddTeamDto } from './dto/add-team.dto';
 import { InviteMemberDto } from './dto/invite-member.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
 import { AddHolidayDto } from './dto/add-holiday.dto';
+import { LimitKey } from '../common/entitlements';
 
 @Controller('projects')
 @UseGuards(JwtAuthGuard)
@@ -50,7 +51,7 @@ export class ProjectsController {
   /** Cria projeto — autenticados; ownerId definido no service */
   @Post()
   @UseGuards(PlanLimitGuard)
-  @CheckPlanLimit('max_projects')
+  @CheckPlanLimit(LimitKey.MAX_PROJECTS)
   create(
     @Body() dto: CreateProjectDto,
     @CurrentUser() currentUser: JwtPayload,

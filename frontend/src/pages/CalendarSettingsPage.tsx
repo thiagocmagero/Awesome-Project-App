@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
+import { useIsPlatformAdmin } from '../hooks/useIsPlatformAdmin';
 import { getApiBase, apiFetch } from '../lib/api';
 import { useToast } from '../contexts/ToastContext';
 import { CALENDAR_CONFIG_DEFAULTS, type CalendarConfigData, type CalendarView } from '../features/calendar/types';
@@ -65,11 +66,11 @@ function ConfigPanel({ scope, config, onChange }: ConfigPanelProps) {
 }
 
 export default function CalendarSettingsPage() {
-  const { token, user } = useAuth();
+  const { token } = useAuth();
   const { showToast } = useToast();
   const { t: tCal } = useTranslation('calendar');
   const { t: tc }   = useTranslation('common');
-  const isAdmin = user?.profileCode === 'PLATFORM_ADMIN';
+  const isAdmin = useIsPlatformAdmin();
 
   const [tab, setTab] = useState<Tab>(isAdmin ? 'global' : 'user');
   const [globalConfig, setGlobalConfig] = useState<CalendarConfigData>({});

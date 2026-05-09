@@ -16,7 +16,7 @@ function parseOrigins(raw: string): string[] {
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
-  app.setGlobalPrefix('api');
+  app.setGlobalPrefix('api/v1');
   app.use(helmet());
   app.use(cookieParser());
 
@@ -50,7 +50,7 @@ async function bootstrap(): Promise<void> {
 
   const port = Number(process.env.PORT ?? 3000);
   await app.listen(port);
-  console.log(`Backend a correr em http://localhost:${port}/api`);
+  console.log(`Backend a correr em http://localhost:${port}/api/v1`);
   console.log(`CORS allowed origins: ${allowedOrigins.join(', ')}`);
 }
 

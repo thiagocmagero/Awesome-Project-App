@@ -32,6 +32,7 @@ import { CommentsModule } from './comments/comments.module';
 import { EmailsModule } from './emails/emails.module';
 import { StorageModule } from './storage/storage.module';
 import { I18nModule } from './i18n/i18n.module';
+import { WorkspacesModule } from './workspaces/workspaces.module';
 import { WorkspaceMembersModule } from './workspace-members/workspace-members.module';
 import { BillingModule } from './billing/billing.module';
 import { FilesModule } from './files/files.module';
@@ -70,6 +71,7 @@ import { FilesModule } from './files/files.module';
     EmailsModule,
     StorageModule,
     I18nModule,
+    WorkspacesModule,
     WorkspaceMembersModule,
     BillingModule,
     FilesModule,

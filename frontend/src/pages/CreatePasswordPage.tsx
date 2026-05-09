@@ -80,7 +80,7 @@ export default function CreatePasswordPage() {
         if (data.user) {
           login(toAuthUser(data.user));
         }
-        navigate('/dashboard', { replace: true });
+        navigate('/', { replace: true });
       } else {
         const data = await res.json().catch(() => ({})) as { error_code?: string };
         if (data.error_code === 'TOKEN_ALREADY_USED') {

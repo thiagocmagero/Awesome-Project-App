@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import { getApiBase, apiFetch } from '../lib/api';
 import { useToast } from '../contexts/ToastContext';
+import { ALL_LIMIT_KEYS } from '../lib/entitlements';
 
 /* ── Types ────────────────────────────────────────────────────────────────── */
 
@@ -26,16 +27,10 @@ function PlanStatusBadge({ status }: { status: string }) {
   return <span className="badge bg-warning-transparent text-warning">{t('status.discontinued')}</span>;
 }
 
-const LIMIT_KEYS = [
-  'max_projects',
-  'max_teams',
-  'max_members',
-  'max_tasks',
-  'max_holidays',
-  'max_storage_mb',
-  'max_api_calls',
-  'max_licensed_seats',
-];
+// Catálogo formal — fonte: `frontend/src/lib/entitlements.ts`. Antes vivia
+// hardcoded aqui; mantém-se a constante local com o mesmo nome para evitar
+// alterar a lógica que itera por LIMIT_KEYS.
+const LIMIT_KEYS = ALL_LIMIT_KEYS;
 
 const BILLING_CYCLES = ['MONTHLY', 'ANNUAL', 'ONE_TIME'];
 

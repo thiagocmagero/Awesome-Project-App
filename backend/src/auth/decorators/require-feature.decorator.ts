@@ -1,4 +1,5 @@
 import { SetMetadata } from '@nestjs/common';
+import type { FeatureKey } from '../../common/entitlements';
 
 export const FEATURE_FLAG_KEY = 'required_feature';
 
@@ -19,7 +20,7 @@ export interface RequireFeatureOptions {
 }
 
 export interface RequireFeatureMetadata {
-  key: string;
+  key: FeatureKey;
   projectIdFrom?: ProjectIdSource;
 }
 
@@ -27,12 +28,15 @@ export interface RequireFeatureMetadata {
  * Marca uma rota como dependente de feature flag.
  * Deve ser usado com `JwtAuthGuard + FeatureFlagGuard`.
  *
+ * `featureKey` é tipada via `FeatureKey` em `common/entitlements.ts` —
+ * typos são apanhados em tempo de compilação.
+ *
  * @example
- *   @RequireFeature('gantt_view')                                     // default: tenta params.projectId → params.id → body.projectPublicId
- *   @RequireFeature('gantt_view', { projectIdFrom: 'params.projectId' })  // explícito
- *   @RequireFeature('multi_holiday', { projectIdFrom: 'none' })       // global, sem contexto
+ *   @RequireFeature(FeatureKey.GANTT_VIEW)                                    // default: tenta params.projectId → params.id → body.projectPublicId
+ *   @RequireFeature(FeatureKey.GANTT_VIEW, { projectIdFrom: 'params.projectId' })  // explícito
+ *   @RequireFeature(FeatureKey.MULTI_HOLIDAY, { projectIdFrom: 'none' })      // global, sem contexto
  */
-export const RequireFeature = (featureKey: string, options?: RequireFeatureOptions) =>
+export const RequireFeature = (featureKey: FeatureKey, options?: RequireFeatureOptions) =>
   SetMetadata(FEATURE_FLAG_KEY, {
     key: featureKey,
     projectIdFrom: options?.projectIdFrom,

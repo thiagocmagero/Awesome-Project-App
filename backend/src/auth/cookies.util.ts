@@ -53,7 +53,7 @@ export function setAuthCookies(
     httpOnly: true,
     secure,
     sameSite: 'lax',
-    path: '/api/auth/refresh',
+    path: '/api/v1/auth/refresh',
     maxAge: payload.refreshMaxAgeMs,
     domain,
   });

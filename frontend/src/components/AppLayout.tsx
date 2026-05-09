@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useIsPlatformAdmin } from '../hooks/useIsPlatformAdmin';
 import { usePendingInvitations } from '../hooks/usePendingInvitations';
 import { useNotifications } from '../hooks/useNotifications';
 import { useToast } from '../contexts/ToastContext';
+import { useWorkspaceLink } from '../hooks/useWorkspaceLink';
 import { getApiBase, apiFetch } from '../lib/api';
 import i18nInstance from '../i18n';
 import { useTranslation } from 'react-i18next';
@@ -50,7 +52,7 @@ function LanguageSelector() {
   const [locales, setLocales] = useState<ActiveLocale[]>([]);
 
   useEffect(() => {
-    fetch('/api/i18n/locales/active')
+    fetch('/api/v1/i18n/locales/active')
       .then((r) => r.json())
       .then((data) => { if (Array.isArray(data)) setLocales(data); })
       .catch(() => {});
@@ -140,6 +142,7 @@ function AppLayoutInner() {
   const api = getApiBase();
   const { showToast } = useToast();
   const { t } = useTranslation('common');
+  const wsLink = useWorkspaceLink();
 
   const { notifications, unreadCount, markAsRead, markAllAsRead, refetch: refetchNotifications } = useNotifications();
 
@@ -154,7 +157,7 @@ function AppLayoutInner() {
     refetchNotifications().catch(() => {});
   });
 
-  const isPlatformAdmin = user?.profileCode === 'PLATFORM_ADMIN';
+  const isPlatformAdmin = useIsPlatformAdmin();
   const [inviteActionLoading, setInviteActionLoading] = useState<string | null>(null);
 
   async function handleInviteAction(
@@ -203,12 +206,12 @@ function AppLayoutInner() {
     document.querySelector('.notifications-dropdown .dropdown-toggle')?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     if (projectPublicId && (notifType === 'TASK_ASSIGNED' || notifType === 'MENTION' || notifType === 'COMMENT_REACTION')) {
       if (entityPublicId) {
-        navigate(`/projects/${projectPublicId}/planning/tasks/${entityPublicId}`);
+        navigate(wsLink(`/projects/${projectPublicId}/planning/tasks/${entityPublicId}`));
       } else {
-        navigate(`/projects/${projectPublicId}/planning`);
+        navigate(wsLink(`/projects/${projectPublicId}/planning`));
       }
     } else if (projectPublicId && (notifType === 'INVITATION_ACCEPTED' || notifType === 'INVITATION_DECLINED')) {
-      navigate('/projects');
+      navigate(wsLink('/projects'));
     }
   }
 
@@ -271,7 +274,7 @@ function AppLayoutInner() {
           <div className="header-content-left">
             <div className="header-element">
               <div className="horizontal-logo">
-                <NavLink to="/dashboard" className="header-logo">
+                <NavLink to={wsLink('/dashboard')} className="header-logo">
                   <img src="/assets/images/brand-logos/desktop-logo.png" alt="logo" className="desktop-logo" />
                   <img src="/assets/images/brand-logos/toggle-logo.png" alt="logo" className="toggle-logo" />
                   <img src="/assets/images/brand-logos/desktop-dark.png" alt="logo" className="desktop-dark" />
@@ -603,14 +606,14 @@ function AppLayoutInner() {
                   </div>
                 </li>
                 <li>
-                  <NavLink to="/dashboard" className="dropdown-item d-flex align-items-center gap-2 py-2">
+                  <NavLink to={wsLink('/dashboard')} className="dropdown-item d-flex align-items-center gap-2 py-2">
                     <i className="ri-dashboard-line fs-16 text-muted"></i>
                     {t('nav.dashboard')}
                   </NavLink>
                 </li>
                 <li>
                   <NavLink
-                    to={isPlatformAdmin ? '/users' : '/workspace/users'}
+                    to={isPlatformAdmin ? '/users' : wsLink('/users')}
                     className="dropdown-item d-flex align-items-center gap-2 py-2"
                   >
                     <i className="ri-group-line fs-16 text-muted"></i>
@@ -666,7 +669,7 @@ function AppLayoutInner() {
       <aside className="app-sidebar sticky" id="sidebar">
 
         <div className="main-sidebar-header">
-          <NavLink to="/dashboard" className="header-logo">
+          <NavLink to={wsLink('/dashboard')} className="header-logo">
             <img src="/assets/images/brand-logos/desktop-logo.png" alt="logo" className="desktop-logo" />
             <img src="/assets/images/brand-logos/toggle-dark.png" alt="logo" className="toggle-dark" />
             <img src="/assets/images/brand-logos/desktop-dark.png" alt="logo" className="desktop-dark" />
@@ -688,7 +691,7 @@ function AppLayoutInner() {
               <li className="slide__category"><span className="category-name">{t('nav.section.main')}</span></li>
 
               <li className="slide">
-                <NavLink to="/dashboard" className={({ isActive }) => `side-menu__item${isActive ? ' active' : ''}`}>
+                <NavLink to={wsLink('/dashboard')} className={({ isActive }) => `side-menu__item${isActive ? ' active' : ''}`}>
                   <svg xmlns="http://www.w3.org/2000/svg" className="side-menu__icon" viewBox="0 0 256 256">
                     <rect width="256" height="256" fill="none" />
                     <rect x="16" y="16" width="88" height="88" rx="8" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
@@ -703,11 +706,11 @@ function AppLayoutInner() {
               {/* ─ Gestão ─ */}
               <li className="slide__category"><span className="category-name">{t('nav.section.management')}</span></li>
 
-              {/* Utilizadores: PLATFORM_ADMIN vê gestão global (/users);
-                  outros utilizadores vêem membros do seu workspace (/workspace/users). */}
+              {/* Utilizadores: PLATFORM_ADMIN vê gestão global (/users, workspace-agnostic);
+                  outros utilizadores vêem membros do seu workspace (/<wsId>/users). */}
               <li className="slide">
                 <NavLink
-                  to={isPlatformAdmin ? '/users' : '/workspace/users'}
+                  to={isPlatformAdmin ? '/users' : wsLink('/users')}
                   className={({ isActive }) => `side-menu__item${isActive ? ' active' : ''}`}
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" className="side-menu__icon" viewBox="0 0 256 256">
@@ -724,7 +727,7 @@ function AppLayoutInner() {
               </li>
 
               <li className="slide">
-                <NavLink to="/teams" className={({ isActive }) => `side-menu__item${isActive ? ' active' : ''}`}>
+                <NavLink to={wsLink('/teams')} className={({ isActive }) => `side-menu__item${isActive ? ' active' : ''}`}>
                   <svg xmlns="http://www.w3.org/2000/svg" className="side-menu__icon" viewBox="0 0 256 256">
                     <rect width="256" height="256" fill="none" />
                     <circle cx="80" cy="80" r="48" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
@@ -737,7 +740,7 @@ function AppLayoutInner() {
               </li>
 
               <li className="slide">
-                <NavLink to="/projects" className={({ isActive }) => `side-menu__item${isActive ? ' active' : ''}`}>
+                <NavLink to={wsLink('/projects')} className={({ isActive }) => `side-menu__item${isActive ? ' active' : ''}`}>
                   <svg xmlns="http://www.w3.org/2000/svg" className="side-menu__icon" viewBox="0 0 256 256">
                     <rect width="256" height="256" fill="none" />
                     <path d="M216,72H131.31L104,44.69A16,16,0,0,0,92.69,40H40A16,16,0,0,0,24,56V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V88A16,16,0,0,0,216,72Z" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
@@ -747,7 +750,7 @@ function AppLayoutInner() {
               </li>
 
               <li className="slide">
-                <NavLink to="/holidays" className={({ isActive }) => `side-menu__item${isActive ? ' active' : ''}`}>
+                <NavLink to={wsLink('/holidays')} className={({ isActive }) => `side-menu__item${isActive ? ' active' : ''}`}>
                   <svg xmlns="http://www.w3.org/2000/svg" className="side-menu__icon" viewBox="0 0 256 256">
                     <rect width="256" height="256" fill="none"/>
                     <rect x="40" y="40" width="176" height="176" rx="8" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16"/>
@@ -760,14 +763,14 @@ function AppLayoutInner() {
               </li>
 
               <li className="slide">
-                <NavLink to="/timesheets" className={({ isActive }) => `side-menu__item${isActive ? ' active' : ''}`}>
+                <NavLink to={wsLink('/timesheets')} className={({ isActive }) => `side-menu__item${isActive ? ' active' : ''}`}>
                   <i className="side-menu__icon ri-time-line" />
                   <span className="side-menu__label">{t('nav.timesheets')}</span>
                 </NavLink>
               </li>
 
               <li className="slide">
-                <NavLink to="/user-types" className={({ isActive }) => `side-menu__item${isActive ? ' active' : ''}`}>
+                <NavLink to={wsLink('/user-types')} className={({ isActive }) => `side-menu__item${isActive ? ' active' : ''}`}>
                   <svg xmlns="http://www.w3.org/2000/svg" className="side-menu__icon" viewBox="0 0 256 256">
                     <rect width="256" height="256" fill="none" />
                     <rect x="32" y="48" width="192" height="160" rx="8" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
@@ -831,7 +834,7 @@ function AppLayoutInner() {
                     <ul className="slide-menu child2">
                       <li className="slide">
                         <NavLink
-                          to="/settings/gantt"
+                          to={wsLink('/settings/gantt')}
                           className={({ isActive }) => `side-menu__item${isActive ? ' active' : ''}`}
                         >
                           {t('nav.gantt_settings')}
@@ -839,7 +842,7 @@ function AppLayoutInner() {
                       </li>
                       <li className="slide">
                         <NavLink
-                          to="/settings/calendar"
+                          to={wsLink('/settings/calendar')}
                           className={({ isActive }) => `side-menu__item${isActive ? ' active' : ''}`}
                         >
                           {t('nav.calendar_settings')}
