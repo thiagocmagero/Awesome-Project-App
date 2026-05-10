@@ -14,16 +14,21 @@ import { FileUploadButton } from './FileUploadButton';
 import { ScanStatusBadge } from './ScanStatusBadge';
 import { parseErrorContext, formatUploadError } from '../errors';
 import type { AppFile } from '../types';
+import '../files-list.css';
 
 interface Props {
   projectPublicId: string;
-  taskPublicId: string;
+  /** `null` ⇒ tab "Ficheiros do Projeto" (lista project-level apenas).
+   *  String ⇒ tab "Ficheiros" do TaskModal (lista da task específica). */
+  taskPublicId: string | null;
   enabled?: boolean;
 }
 
 type ChipKey = 'all' | 'pdf' | 'docs' | 'sheets' | 'images' | 'others';
 type SortKey = 'name' | 'size' | 'uploader' | 'date';
 type SortDir = 'asc' | 'desc';
+const PAGE_SIZE_OPTIONS = [5, 10, 25, 50, 100] as const;
+const DEFAULT_PAGE_SIZE = 5;
 
 const IMAGE_EXTS = new Set([
   'png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'tiff', 'tif',
@@ -53,15 +58,33 @@ function formatBytes(bytes: number): string {
   return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
 }
 
+/** Lista de páginas estilo "1 ... 4 5 6 ... 21" — alinhado com `TaskTable`. */
+function buildPageList(current: number, total: number): Array<number | 'ellipsis-left' | 'ellipsis-right'> {
+  if (total <= 7) {
+    return Array.from({ length: total }, (_, i) => i + 1);
+  }
+  const pages: Array<number | 'ellipsis-left' | 'ellipsis-right'> = [1];
+  if (current > 3) pages.push('ellipsis-left');
+  const start = Math.max(2, current - 1);
+  const end   = Math.min(total - 1, current + 1);
+  for (let p = start; p <= end; p++) pages.push(p);
+  if (current < total - 2) pages.push('ellipsis-right');
+  pages.push(total);
+  return pages;
+}
+
 /**
- * Painel de ficheiros redesenhado para a tab "Arquivos" do TaskModal.
+ * Lista unificada de ficheiros — usada na tab "Ficheiros do Projeto"
+ * da PlanningPage e na tab "Ficheiros" do TaskModal.
  *
- * Card com: cabeçalho (título + contagem + CTA), toolbar (busca + chips),
- * tabela com colunas ordenáveis, kebab por linha (download/replace/rename/
- * delete). Apenas para o conteúdo da tab — `FilesPanel` continua a servir
- * a tab project-level da PlanningPage.
+ * Card com header (título + contagem + CTA), toolbar (busca + chips),
+ * tabela ordenável, kebab menu por linha, paginação client-side.
+ *
+ * Scoping crítico:
+ *   - taskPublicId === null  ⇒ project-level (scope='project')
+ *   - taskPublicId === string ⇒ ficheiros da task (filtro `?taskPublicId=`)
  */
-export function TaskFilesPanel({
+export function FilesListView({
   projectPublicId,
   taskPublicId,
   enabled = true,
@@ -81,7 +104,7 @@ export function TaskFilesPanel({
   const { files, loading, upload, replace, rename, remove, getDownloadUrl } = useFiles({
     projectPublicId,
     taskPublicId,
-    scope: 'all',
+    scope: taskPublicId ? 'all' : 'project',
     enabled: enabled && canView,
   });
 
@@ -93,6 +116,9 @@ export function TaskFilesPanel({
   const [renameTarget, setRenameTarget] = useState<AppFile | null>(null);
   const [replaceTarget, setReplaceTarget] = useState<AppFile | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AppFile | null>(null);
+
+  const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
+  const [page, setPage] = useState(1);
 
   const counts = useMemo<Record<ChipKey, number>>(() => {
     const c: Record<ChipKey, number> = { all: files.length, pdf: 0, docs: 0, sheets: 0, images: 0, others: 0 };
@@ -119,6 +145,17 @@ export function TaskFilesPanel({
     };
     return [...arr].sort(cmp);
   }, [files, chip, search, sortKey, sortDir]);
+
+  // Paginação derivada
+  const totalPages = Math.max(1, Math.ceil(visible.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const pageItems = useMemo(
+    () => visible.slice((safePage - 1) * pageSize, safePage * pageSize),
+    [visible, safePage, pageSize],
+  );
+
+  // Repor para a 1ª página quando filtros/sort/tamanho mudam.
+  useEffect(() => { setPage(1); }, [chip, search, sortKey, sortDir, pageSize]);
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) {
@@ -218,6 +255,9 @@ export function TaskFilesPanel({
     return sortDir === 'asc' ? 'ri-arrow-up-line' : 'ri-arrow-down-line';
   };
 
+  const filtersActive = chip !== 'all' || search.trim().length > 0;
+  const pageList = buildPageList(safePage, totalPages);
+
   return (
     <div className="tfiles-wrap" ref={wrapRef}>
         {/* Header */}
@@ -263,7 +303,7 @@ export function TaskFilesPanel({
           </div>
         </div>
 
-        {/* Empty state */}
+        {/* Empty state — sem ficheiros de todo */}
         {!loading && files.length === 0 && (
           <div className="tfiles-empty">
             {canUpload ? t('list.empty_uploadable') : t('list.empty_readonly')}
@@ -273,6 +313,27 @@ export function TaskFilesPanel({
         {/* Table */}
         {files.length > 0 && (
           <div className="tfiles-table">
+            {/* Page-size selector — topo da tabela (formato Planning) */}
+            <div className="d-flex align-items-center gap-2 px-1 pt-1 pb-2">
+              <label className="text-muted fs-13 mb-0" htmlFor="files-list-page-size">
+                {t('pager.page_size')}
+              </label>
+              <select
+                id="files-list-page-size"
+                className="form-select form-select-sm"
+                style={{ width: 'auto' }}
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setPage(1);
+                }}
+              >
+                {PAGE_SIZE_OPTIONS.map((size) => (
+                  <option key={size} value={size}>{size}</option>
+                ))}
+              </select>
+            </div>
+
             <div className="tfiles-thead">
               <div className="tfiles-th tfiles-col-icon" aria-hidden="true" />
               <button type="button" className="tfiles-th tfiles-col-name" onClick={() => toggleSort('name')}>
@@ -295,9 +356,16 @@ export function TaskFilesPanel({
             </div>
 
             {visible.length === 0 ? (
-              <div className="tfiles-empty">{t('task_files.search_empty')}</div>
+              <div className="tfiles-empty tfiles-empty--filtered">
+                <i className="ri-filter-3-line" aria-hidden="true" />
+                <span>
+                  {filtersActive
+                    ? t('list.empty_filtered')
+                    : t('task_files.search_empty')}
+                </span>
+              </div>
             ) : (
-              visible.map((f) => {
+              pageItems.map((f) => {
                 const ext = extOf(f.originalName);
                 const blocked = f.scanStatus === 'INFECTED' || f.scanStatus === 'PENDING';
                 const uploaderName = f.uploadedBy?.name ?? '—';
@@ -327,13 +395,21 @@ export function TaskFilesPanel({
                     <div className="tfiles-col-uploader">
                       {f.uploadedBy ? (
                         <>
-                          <span
-                            className="tfiles-avatar"
-                            style={{ background: avatarColorFor(uploaderName) }}
-                            aria-hidden="true"
-                          >
-                            {initialsOf(uploaderName)}
-                          </span>
+                          {f.uploadedBy.avatarUrl ? (
+                            <img
+                              className="tfiles-avatar tfiles-avatar--img"
+                              src={`${f.uploadedBy.avatarUrl}${f.uploadedBy.avatarUpdatedAt ? `?v=${encodeURIComponent(f.uploadedBy.avatarUpdatedAt)}` : ''}`}
+                              alt={uploaderName}
+                            />
+                          ) : (
+                            <span
+                              className="tfiles-avatar"
+                              style={{ background: avatarColorFor(uploaderName) }}
+                              aria-hidden="true"
+                            >
+                              {initialsOf(uploaderName)}
+                            </span>
+                          )}
                           <span className="tfiles-uploader-name">{uploaderName}</span>
                         </>
                       ) : (
@@ -399,6 +475,63 @@ export function TaskFilesPanel({
                 );
               })
             )}
+          </div>
+        )}
+
+        {/* Paginação Style-1 — fundo direito (formato Planning) */}
+        {totalPages > 1 && (
+          <div className="d-flex justify-content-end px-1 py-2">
+            <nav aria-label="Page navigation" className="pagination-style-1">
+              <ul className="pagination mb-0 flex-wrap">
+                <li className={`page-item${safePage <= 1 ? ' disabled' : ''}`}>
+                  <a
+                    className="page-link"
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      if (safePage > 1) setPage(safePage - 1);
+                    }}
+                  >
+                    <i className="ri-arrow-left-s-line align-middle" />
+                  </a>
+                </li>
+                {pageList.map((p, idx) => {
+                  if (p === 'ellipsis-left' || p === 'ellipsis-right') {
+                    return (
+                      <li key={`${p}-${idx}`} className="page-item disabled">
+                        <a className="page-link" href="#" onClick={(e) => e.preventDefault()}>
+                          <i className="bi bi-three-dots" />
+                        </a>
+                      </li>
+                    );
+                  }
+                  const active = p === safePage;
+                  return (
+                    <li key={p} className={`page-item${active ? ' active' : ''}`}>
+                      <a
+                        className="page-link"
+                        href="#"
+                        onClick={(e) => { e.preventDefault(); setPage(p); }}
+                      >
+                        {p}
+                      </a>
+                    </li>
+                  );
+                })}
+                <li className={`page-item${safePage >= totalPages ? ' disabled' : ''}`}>
+                  <a
+                    className="page-link"
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      if (safePage < totalPages) setPage(safePage + 1);
+                    }}
+                  >
+                    <i className="ri-arrow-right-s-line align-middle" />
+                  </a>
+                </li>
+              </ul>
+            </nav>
           </div>
         )}
 

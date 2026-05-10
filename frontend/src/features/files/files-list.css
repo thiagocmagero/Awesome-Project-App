@@ -1,0 +1,334 @@
+/* ─── FilesListView ──────────────────────────────────────────
+ * Lista unificada de ficheiros — usada na tab "Ficheiros do
+ * Projeto" da PlanningPage e na tab "Ficheiros" do TaskModal.
+ * Header + toolbar (busca + chips) + tabela ordenável + pager.
+ * ─────────────────────────────────────────────────────────── */
+
+.tfiles-wrap {
+  position: relative;
+}
+
+/* Header */
+.tfiles-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.tfiles-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--task-text);
+}
+.tfiles-title > i { color: var(--task-purple-600); font-size: 16px; }
+.tfiles-count-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--task-purple-100, #ece6fb);
+  color: var(--task-purple-700);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.tfiles-btn-upload { white-space: nowrap; }
+
+/* Toolbar */
+.tfiles-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.tfiles-search {
+  position: relative;
+  flex: 1 1 240px;
+  min-width: 200px;
+}
+.tfiles-search > i {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--task-muted);
+  font-size: 16px;
+  pointer-events: none;
+}
+.tfiles-search input {
+  width: 100%;
+  height: 36px;
+  padding: 0 12px 0 36px;
+  border: 1px solid var(--task-border);
+  border-radius: 8px;
+  font-size: 13px;
+  background: #fff;
+  color: var(--task-text);
+  outline: none;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+.tfiles-search input::placeholder { color: var(--task-muted); }
+.tfiles-search input:focus {
+  border-color: var(--task-purple-500);
+  box-shadow: 0 0 0 3px rgba(132, 90, 223, 0.15);
+}
+
+.tfiles-chips { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.tfiles-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: #fff;
+  border: 1px solid var(--task-border);
+  font-size: 12.5px;
+  color: var(--task-text);
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+.tfiles-chip:hover { border-color: var(--task-purple-300, #c8b8ee); }
+.tfiles-chip.is-active {
+  background: var(--task-purple-50);
+  border-color: var(--task-purple-300, #c8b8ee);
+  color: var(--task-purple-700);
+}
+.tfiles-chip-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--task-bg-soft, #f1eefb);
+  color: var(--task-muted);
+  font-size: 10.5px;
+  font-weight: 600;
+}
+.tfiles-chip.is-active .tfiles-chip-count {
+  background: var(--task-purple-100, #ddd0f5);
+  color: var(--task-purple-700);
+}
+
+/* Empty */
+.tfiles-empty {
+  padding: 28px 12px;
+  text-align: center;
+  color: var(--task-muted);
+  font-size: 13px;
+}
+.tfiles-empty--filtered {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 32px 16px;
+}
+.tfiles-empty--filtered > i {
+  font-size: 24px;
+  opacity: 0.6;
+}
+
+/* Table — CSS grid */
+.tfiles-table {
+  display: flex;
+  flex-direction: column;
+}
+.tfiles-thead,
+.tfiles-row {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) 90px 180px 130px 36px;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 8px;
+}
+.tfiles-thead {
+  border-bottom: 1px solid var(--task-border);
+  padding-top: 6px;
+  padding-bottom: 8px;
+}
+.tfiles-th {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  padding: 0;
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--task-muted);
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.tfiles-th[aria-hidden="true"] { cursor: default; }
+.tfiles-th:hover:not([aria-hidden="true"]) { color: var(--task-purple-700); }
+.tfiles-th > i { font-size: 12px; opacity: 0.7; }
+
+.tfiles-row {
+  border-bottom: 1px solid var(--task-border-soft, #efeaf7);
+  position: relative;
+  transition: background 120ms ease;
+}
+.tfiles-row:last-child { border-bottom: none; }
+.tfiles-row:hover { background: var(--task-purple-50); }
+
+.tfiles-col-icon {
+  width: 28px;
+}
+.tfiles-col-icon > * { width: 100% !important; }
+
+.tfiles-col-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.tfiles-name {
+  background: transparent;
+  border: none;
+  padding: 0;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--task-text);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.tfiles-name:hover { color: var(--task-purple-700); }
+.tfiles-name.is-blocked { cursor: not-allowed; opacity: 0.6; }
+
+.tfiles-col-size,
+.tfiles-col-date {
+  font-size: 12.5px;
+  color: var(--task-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.tfiles-col-uploader {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.tfiles-avatar {
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.tfiles-avatar--img {
+  object-fit: cover;
+  background: transparent;
+}
+.tfiles-uploader-name {
+  font-size: 12.5px;
+  color: var(--task-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Kebab */
+.tfiles-col-actions {
+  position: relative;
+  display: flex;
+  justify-content: flex-end;
+}
+.tfiles-kebab-btn {
+  width: 28px; height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  color: var(--task-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms ease, background 120ms ease, color 120ms ease;
+}
+.tfiles-row:hover .tfiles-kebab-btn,
+.tfiles-kebab-btn[aria-expanded="true"] { opacity: 1; }
+.tfiles-kebab-btn:hover {
+  background: var(--task-purple-100, #e8dffa);
+  color: var(--task-purple-700);
+}
+
+.tfiles-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 30;
+  min-width: 168px;
+  padding: 6px;
+  background: #fff;
+  border: 1px solid var(--task-border);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(15, 18, 33, 0.12), 0 2px 8px rgba(15, 18, 33, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.tfiles-menu-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--task-text);
+  cursor: pointer;
+  text-align: left;
+  transition: background 100ms ease, color 100ms ease;
+}
+.tfiles-menu-item > i { font-size: 15px; color: var(--task-muted); }
+.tfiles-menu-item:hover {
+  background: var(--task-purple-50);
+  color: var(--task-purple-700);
+}
+.tfiles-menu-item:hover > i { color: var(--task-purple-700); }
+.tfiles-menu-item:disabled { opacity: 0.5; cursor: not-allowed; }
+.tfiles-menu-item:disabled:hover { background: transparent; color: var(--task-text); }
+
+.tfiles-menu-item.is-danger { color: #c33b2c; margin-top: 4px; border-top: 1px solid var(--task-border-soft, #efeaf7); padding-top: 10px; border-radius: 0 0 6px 6px; }
+.tfiles-menu-item.is-danger > i { color: #c33b2c; }
+.tfiles-menu-item.is-danger:hover {
+  background: #fdeceb;
+  color: #a32d20;
+}
+.tfiles-menu-item.is-danger:hover > i { color: #a32d20; }
+
+/* Paginação: usa estilos Zynix Bootstrap (`pagination-style-1`) — sem CSS local. */
+
+/* Responsividade — esconder colunas opcionais em larguras menores */
+@media (max-width: 720px) {
+  .tfiles-thead,
+  .tfiles-row {
+    grid-template-columns: 32px minmax(0, 1fr) 90px 36px;
+  }
+  .tfiles-col-uploader,
+  .tfiles-col-date { display: none; }
+}

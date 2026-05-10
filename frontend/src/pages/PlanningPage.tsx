@@ -57,7 +57,7 @@ import type { ICalendarEvent, FullCalendarApi, CalendarView } from '../features/
 // Timesheet feature
 import { TimesheetView } from '../features/timesheet/components/TimesheetView';
 // Files feature (Maio 2026 — uploads project-scoped)
-import { FilesPanel } from '../features/files/components/FilesPanel';
+import { FilesListView } from '../features/files/components/FilesListView';
 import {
   addDaysISO,
   currentWeekStart as currentTimesheetWeekStart,
@@ -1686,7 +1686,7 @@ export default function PlanningPage() {
       {showFiles && projectId && (
         <div style={viewFrameStyle(pageTab === 'files')}>
           <div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: 16 }}>
-            <FilesPanel
+            <FilesListView
               projectPublicId={projectId}
               taskPublicId={null}
               enabled={pageTab === 'files'}

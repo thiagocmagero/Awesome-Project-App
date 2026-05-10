@@ -78,7 +78,9 @@ export class FilesService {
     const records = await this.prisma.file.findMany({
       where,
       include: {
-        uploadedBy: { select: { publicId: true, name: true } },
+        uploadedBy: {
+          select: { publicId: true, name: true, avatarKey: true, avatarUpdatedAt: true },
+        },
         task: { select: { publicId: true } },
       },
       orderBy: { createdAt: 'desc' },
@@ -529,7 +531,9 @@ export class FilesService {
     const file = await this.prisma.file.findUnique({
       where: { id },
       include: {
-        uploadedBy: { select: { publicId: true, name: true } },
+        uploadedBy: {
+          select: { publicId: true, name: true, avatarKey: true, avatarUpdatedAt: true },
+        },
         task: { select: { publicId: true } },
       },
     });
@@ -539,10 +543,31 @@ export class FilesService {
 
   private toResponse(
     file: PrismaFile & {
-      uploadedBy: { publicId: string; name: string } | null;
+      uploadedBy: {
+        publicId: string;
+        name: string;
+        avatarKey: string | null;
+        avatarUpdatedAt: Date | null;
+      } | null;
       task: { publicId: string } | null;
     },
   ): FileResponseDto {
+    // Mesmo padrão do `attachAvatarUrl` em UsersService — converte `avatarKey`
+    // → URL pública completa, devolve null se sem foto ou storage off.
+    const uploader = file.uploadedBy;
+    let uploadedBy: FileResponseDto['uploadedBy'] = null;
+    if (uploader) {
+      const avatarUrl =
+        uploader.avatarKey && this.storage.isReady()
+          ? this.storage.buildPublicUrl(uploader.avatarKey)
+          : null;
+      uploadedBy = {
+        publicId: uploader.publicId,
+        name: uploader.name,
+        avatarUrl,
+        avatarUpdatedAt: uploader.avatarUpdatedAt?.toISOString() ?? null,
+      };
+    }
     return {
       publicId: file.publicId,
       originalName: file.originalName,
@@ -550,7 +575,7 @@ export class FilesService {
       sizeBytes: file.sizeBytes,
       scanStatus: file.scanStatus,
       isSecured: file.isSecuredPath,
-      uploadedBy: file.uploadedBy,
+      uploadedBy,
       uploadedAt: file.createdAt.toISOString(),
       updatedAt: file.updatedAt.toISOString(),
       task: file.task,

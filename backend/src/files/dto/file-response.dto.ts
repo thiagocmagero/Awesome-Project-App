@@ -18,7 +18,14 @@ export interface FileResponseDto {
   scanStatus: FileScanStatus | null;
   /** True se o `bucketKey` está sob `uploads/secured/`. Frontend usa para escudo. */
   isSecured: boolean;
-  uploadedBy: { publicId: string; name: string } | null;
+  uploadedBy: {
+    publicId: string;
+    name: string;
+    /** URL pública completa do avatar (S3 bucket público) ou null se sem foto. */
+    avatarUrl: string | null;
+    /** ISO 8601 — usado pelo frontend para cache-busting via `?v=`. */
+    avatarUpdatedAt: string | null;
+  } | null;
   uploadedAt: string; // ISO 8601
   updatedAt: string; // ISO 8601
   task: { publicId: string } | null;

@@ -11,9 +11,15 @@
     "list.empty": "Nenhum ficheiro carregado.",
     "list.empty_uploadable": "Nenhum ficheiro carregado. Arrasta para aqui ou clica em Carregar.",
     "list.empty_readonly": "Nenhum ficheiro carregado.",
+    "list.empty_filtered": "Nenhum ficheiro nesta categoria.",
     "list.uploaded_by": "Carregado por {{name}}",
     "list.uploaded_at": "em {{date}}",
     "list.size": "{{size}}",
+
+    "pager.showing": "A mostrar {{from}}–{{to}} de {{total}}",
+    "pager.page_size": "Por página",
+    "pager.prev": "Anterior",
+    "pager.next": "Próximo",
 
     "scan.shield_clean": "Verificado",
     "scan.shield_pending": "A verificar...",
@@ -75,9 +81,15 @@
     "list.empty": "Nenhum arquivo enviado.",
     "list.empty_uploadable": "Nenhum arquivo enviado. Arraste aqui ou clique em Enviar.",
     "list.empty_readonly": "Nenhum arquivo enviado.",
+    "list.empty_filtered": "Nenhum arquivo nesta categoria.",
     "list.uploaded_by": "Enviado por {{name}}",
     "list.uploaded_at": "em {{date}}",
     "list.size": "{{size}}",
+
+    "pager.showing": "Mostrando {{from}}–{{to}} de {{total}}",
+    "pager.page_size": "Por página",
+    "pager.prev": "Anterior",
+    "pager.next": "Próximo",
 
     "scan.shield_clean": "Verificado",
     "scan.shield_pending": "Verificando...",
@@ -139,9 +151,15 @@
     "list.empty": "No files uploaded yet.",
     "list.empty_uploadable": "No files uploaded yet. Drag here or click Upload.",
     "list.empty_readonly": "No files uploaded yet.",
+    "list.empty_filtered": "No files in this category.",
     "list.uploaded_by": "Uploaded by {{name}}",
     "list.uploaded_at": "on {{date}}",
     "list.size": "{{size}}",
+
+    "pager.showing": "Showing {{from}}–{{to}} of {{total}}",
+    "pager.page_size": "Per page",
+    "pager.prev": "Previous",
+    "pager.next": "Next",
 
     "scan.shield_clean": "Verified",
     "scan.shield_pending": "Scanning...",
@@ -203,9 +221,15 @@
     "list.empty": "Aún no hay archivos.",
     "list.empty_uploadable": "Aún no hay archivos. Arrastra aquí o pulsa Subir.",
     "list.empty_readonly": "Aún no hay archivos.",
+    "list.empty_filtered": "Ningún archivo en esta categoría.",
     "list.uploaded_by": "Subido por {{name}}",
     "list.uploaded_at": "el {{date}}",
     "list.size": "{{size}}",
+
+    "pager.showing": "Mostrando {{from}}–{{to}} de {{total}}",
+    "pager.page_size": "Por página",
+    "pager.prev": "Anterior",
+    "pager.next": "Siguiente",
 
     "scan.shield_clean": "Verificado",
     "scan.shield_pending": "Verificando...",
