@@ -198,6 +198,15 @@ enum BillingCycle {
   ONE_TIME
 }
 
+/// Status agregado de uma entrada de audit log.
+/// SUCCESS = statusCode < 400. FORBIDDEN = 401/403. ERROR = restantes >= 400.
+/// Ver docs/claude/audit-logs.md.
+enum AuditLogStatus {
+  SUCCESS
+  ERROR
+  FORBIDDEN
+}
+
 // ─── Reference tables (managed by seed / Platform Admin) ─────────────────────
 
 /// Perfis de acesso — controlam permissões
@@ -445,6 +454,9 @@ model User {
 
   /// Convites de workspace enviados por este utilizador
   invitedWorkspaceMembers WorkspaceMember[] @relation("WorkspaceMember_InvitedBy")
+
+  /// Audit logs onde este utilizador é o actor (audit field — SetNull preserva história).
+  auditLogs AuditLog[]
 
   createdAt DateTime @default(now()) @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @db.Timestamptz(6)
@@ -1823,8 +1835,72 @@ model Session {
   replacedBy   Session?  @relation("SessionReplacement", fields: [replacedById], references: [id])
   replaces     Session[] @relation("SessionReplacement")
 
+  /// Audit logs registados durante esta sessão.
+  auditLogs AuditLog[]
+
   @@index([userId, revokedAt])
   @@index([expiresAt])
+}
+
+// ─── Audit Logs ──────────────────────────────────────────────────────────────
+
+/// Log técnico/segurança de chamadas HTTP. Populado automaticamente pelo
+/// `AuditLogInterceptor` global. Visível apenas a PLATFORM_ADMIN em /audit
+/// e na tab "Audit" do detalhe de cliente em /clients.
+///
+/// Detalhes (decorator @Audit, exclusões, paginação, frontend) em
+/// docs/claude/audit-logs.md.
+model AuditLog {
+  id       Int    @id @default(autoincrement())
+  publicId String @unique @default(uuid(7))
+
+  /// Actor da chamada. SetNull = audit field preserva história após delete do user.
+  userId Int?
+  user   User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  /// Sessão JWT activa na altura da chamada. SetNull para tolerar revogação/expiração.
+  sessionId Int?
+  session   Session? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+
+  /// Método HTTP (GET, POST, PUT, PATCH, DELETE).
+  method String @db.VarChar(10)
+
+  /// URL completa do request (sanitizada — query strings com `token`/`password`/`secret` mascaradas).
+  url String @db.VarChar(2000)
+
+  statusCode Int
+
+  /// Tempo de execução em milissegundos (entrada do interceptor → tap/catchError).
+  duration Int
+
+  /// IP do cliente (extraído de `x-forwarded-for` se disponível, fallback `req.ip`).
+  ip String? @db.VarChar(45)
+
+  userAgent String? @db.VarChar(500)
+
+  /// Acção semântica fornecida pelo decorator @Audit (ex: PROJECT_DELETED).
+  action String? @db.VarChar(100)
+
+  /// Tipo de recurso fornecido pelo decorator @Audit (ex: project, task, user).
+  resourceType String? @db.VarChar(50)
+
+  /// PublicId UUID v7 do recurso (resolvido do request via decorator @Audit).
+  resourceId String? @db.VarChar(100)
+
+  status AuditLogStatus
+
+  /// Mensagem de erro truncada a 1000 chars. Apenas populada se status != SUCCESS.
+  errorMessage String? @db.VarChar(1000)
+
+  /// MOMENTO REAL — instante exacto da chamada. Display tz-aware no frontend.
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([userId, createdAt])
+  @@index([createdAt])
+  @@index([action])
+  @@index([resourceType, resourceId])
+  @@index([statusCode])
+  @@index([status])
 }
 
 // ─── Timesheet ───────────────────────────────────────────────────────────────

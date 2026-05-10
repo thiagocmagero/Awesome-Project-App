@@ -6,6 +6,7 @@ import { useIsPlatformAdmin } from '../hooks/useIsPlatformAdmin';
 import { getApiBase, apiFetch } from '../lib/api';
 import { formatDate } from '../lib/dateFormatting';
 import { useToast } from '../contexts/ToastContext';
+import { AuditLogTable } from '../features/audit/components/AuditLogTable';
 
 declare const Choices: new (el: HTMLElement, opts?: object) => { destroy(): void };
 
@@ -91,6 +92,7 @@ function SubscriptionStatusBadge({ status }: { status: string | null | undefined
 export default function ClientsPage() {
   const { t } = useTranslation('users');
   const { t: tc } = useTranslation('common');
+  const { t: tAudit } = useTranslation('audit');
   const { token, user: authUser } = useAuth();
   const api = getApiBase();
   const isPlatformAdmin = useIsPlatformAdmin();
@@ -128,6 +130,8 @@ export default function ClientsPage() {
   const [detailClient, setDetailClient] = useState<ClientItem | null>(null);
   const [detailStats, setDetailStats] = useState<ClientStats | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  // Tabs do modal de detalhe: 'summary' (stats) | 'audit' (logs do cliente)
+  const [detailTab, setDetailTab] = useState<'summary' | 'audit'>('summary');
 
   // Soft delete
   const [showDeactivateModal, setShowDeactivateModal] = useState(false);
@@ -224,6 +228,7 @@ export default function ClientsPage() {
   function openDetail(c: ClientItem) {
     setDetailClient(c);
     setDetailStats(null);
+    setDetailTab('summary');
     setShowDetailModal(true);
     setDetailLoading(true);
     apiFetch(`${api}/users/${c.publicId}/stats`, { headers: authHeaders() })
@@ -237,6 +242,7 @@ export default function ClientsPage() {
     setShowDetailModal(false);
     setDetailClient(null);
     setDetailStats(null);
+    setDetailTab('summary');
   }
 
   function formatBytes(bytes: number): string {
@@ -1065,7 +1071,7 @@ export default function ClientsPage() {
                   <button type="button" className="btn-close" onClick={closeDetail} aria-label={tc('actions.close')}></button>
                 </div>
                 <div className="modal-body">
-                  {/* Resumo de conta — chips */}
+                  {/* Resumo de conta — chips (sempre visíveis, identificam o cliente) */}
                   <div className="d-flex flex-wrap gap-2 mb-4">
                     <AccessLevelBadge profileCode={detailClient.profile.code} />
                     {detailClient.subscription?.plan && (
@@ -1081,34 +1087,72 @@ export default function ClientsPage() {
                     </span>
                   </div>
 
-                  <h6 className="fw-semibold mb-3 fs-14 text-muted text-uppercase" style={{ letterSpacing: '0.05em' }}>
-                    <i className="ri-bar-chart-2-line me-2"></i>
-                    {t('detail.usage_title')}
-                  </h6>
+                  {/* Tabs: Resumo (stats) vs Audit (logs do cliente) */}
+                  <ul className="nav nav-tabs mb-3" role="tablist">
+                    <li className="nav-item">
+                      <button
+                        type="button"
+                        className={`nav-link ${detailTab === 'summary' ? 'active' : ''}`}
+                        onClick={() => setDetailTab('summary')}
+                      >
+                        <i className="ri-bar-chart-2-line me-1"></i>
+                        {tAudit('tab.summary')}
+                      </button>
+                    </li>
+                    <li className="nav-item">
+                      <button
+                        type="button"
+                        className={`nav-link ${detailTab === 'audit' ? 'active' : ''}`}
+                        onClick={() => setDetailTab('audit')}
+                      >
+                        <i className="ri-shield-check-line me-1"></i>
+                        {tAudit('tab.audit')}
+                      </button>
+                    </li>
+                  </ul>
 
-                  {detailLoading ? (
-                    <div className="text-center py-5">
-                      <div className="spinner-border text-primary" role="status">
-                        <span className="visually-hidden">{tc('messages.loading')}</span>
-                      </div>
-                    </div>
-                  ) : !detailStats ? (
-                    <div className="alert alert-danger d-flex align-items-center gap-2">
-                      <i className="ri-error-warning-line"></i>
-                      {tc('messages.network_error')}
-                    </div>
-                  ) : (
-                    <div className="row g-3">
-                      <StatCard icon="ri-folder-2-line"      tone="primary"   label={t('detail.stat.projects')}          value={detailStats.projects} />
-                      <StatCard icon="ri-team-line"          tone="info"      label={t('detail.stat.teams')}             value={detailStats.teams} />
-                      <StatCard icon="ri-group-line"         tone="success"   label={t('detail.stat.workspace_members')} value={detailStats.workspaceMembers} />
-                      <StatCard icon="ri-user-add-line"      tone="success"   label={t('detail.stat.team_members')}      value={detailStats.teamMembers} />
-                      <StatCard icon="ri-task-line"          tone="warning"   label={t('detail.stat.tasks')}             value={detailStats.tasks} />
-                      <StatCard icon="ri-list-indefinite"    tone="warning"   label={t('detail.stat.subtasks')}          value={detailStats.subtasks} />
-                      <StatCard icon="ri-file-line"          tone="secondary" label={t('detail.stat.files')}             value={detailStats.files} />
-                      <StatCard icon="ri-calendar-event-line" tone="secondary" label={t('detail.stat.holidays')}          value={detailStats.holidays} />
-                      <StatCard icon="ri-hard-drive-2-line"  tone="dark"      label={t('detail.stat.storage')}           value={formatBytes(detailStats.storageBytes)} />
-                    </div>
+                  {detailTab === 'summary' && (
+                    <>
+                      <h6 className="fw-semibold mb-3 fs-14 text-muted text-uppercase" style={{ letterSpacing: '0.05em' }}>
+                        <i className="ri-bar-chart-2-line me-2"></i>
+                        {t('detail.usage_title')}
+                      </h6>
+
+                      {detailLoading ? (
+                        <div className="text-center py-5">
+                          <div className="spinner-border text-primary" role="status">
+                            <span className="visually-hidden">{tc('messages.loading')}</span>
+                          </div>
+                        </div>
+                      ) : !detailStats ? (
+                        <div className="alert alert-danger d-flex align-items-center gap-2">
+                          <i className="ri-error-warning-line"></i>
+                          {tc('messages.network_error')}
+                        </div>
+                      ) : (
+                        <div className="row g-3">
+                          <StatCard icon="ri-folder-2-line"      tone="primary"   label={t('detail.stat.projects')}          value={detailStats.projects} />
+                          <StatCard icon="ri-team-line"          tone="info"      label={t('detail.stat.teams')}             value={detailStats.teams} />
+                          <StatCard icon="ri-group-line"         tone="success"   label={t('detail.stat.workspace_members')} value={detailStats.workspaceMembers} />
+                          <StatCard icon="ri-user-add-line"      tone="success"   label={t('detail.stat.team_members')}      value={detailStats.teamMembers} />
+                          <StatCard icon="ri-task-line"          tone="warning"   label={t('detail.stat.tasks')}             value={detailStats.tasks} />
+                          <StatCard icon="ri-list-indefinite"    tone="warning"   label={t('detail.stat.subtasks')}          value={detailStats.subtasks} />
+                          <StatCard icon="ri-file-line"          tone="secondary" label={t('detail.stat.files')}             value={detailStats.files} />
+                          <StatCard icon="ri-calendar-event-line" tone="secondary" label={t('detail.stat.holidays')}          value={detailStats.holidays} />
+                          <StatCard icon="ri-hard-drive-2-line"  tone="dark"      label={t('detail.stat.storage')}           value={formatBytes(detailStats.storageBytes)} />
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {detailTab === 'audit' && (
+                    <AuditLogTable
+                      key={detailClient.publicId}
+                      endpoint={`/audit-logs/by-client/${detailClient.publicId}`}
+                      pageSizeOptions={[10, 20, 30]}
+                      hideUserFilter
+                      hideFiltersTitle
+                    />
                   )}
                 </div>
                 <div className="modal-footer">

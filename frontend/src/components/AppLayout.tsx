@@ -806,6 +806,12 @@ function AppLayoutInner() {
                     </NavLink>
                   </li>
                   <li className="slide">
+                    <NavLink to="/audit" className={({ isActive }) => `side-menu__item${isActive ? ' active' : ''}`}>
+                      <i className="ri-shield-check-line side-menu__icon" />
+                      <span className="side-menu__label">{t('nav.audit')}</span>
+                    </NavLink>
+                  </li>
+                  <li className="slide">
                     <NavLink to="/translations" className={({ isActive }) => `side-menu__item${isActive ? ' active' : ''}`}>
                       <i className="ti ti-language side-menu__icon" />
                       <span className="side-menu__label">{t('nav.translations')}</span>

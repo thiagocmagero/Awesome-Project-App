@@ -23,6 +23,7 @@ import SignUpPage from './pages/SignUpPage';
 import TranslationsPage from './pages/TranslationsPage';
 import ProjectPermissionsPage from './pages/ProjectPermissionsPage';
 import SessionsPage from './pages/SessionsPage';
+import AuditPage from './pages/AuditPage';
 import NotificationPreferencesPage from './pages/NotificationPreferencesPage';
 import UserSettingsPage from './pages/UserSettingsPage';
 import WorkspaceUsersPage from './pages/WorkspaceUsersPage';
@@ -52,6 +53,7 @@ export default function App() {
         <Route element={<ProtectedRoute />}>
           <Route element={<AppLayout />}>
             <Route path="/clients" element={<ClientsPage />} />
+            <Route path="/audit" element={<AuditPage />} />
             <Route path="/plans" element={<PlansPage />} />
             <Route path="/translations" element={<TranslationsPage />} />
             <Route path="/settings/limits" element={<PlatformLimitsPage />} />

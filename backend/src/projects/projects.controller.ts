@@ -27,6 +27,7 @@ import { InviteMemberDto } from './dto/invite-member.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
 import { AddHolidayDto } from './dto/add-holiday.dto';
 import { LimitKey } from '../common/entitlements';
+import { Audit } from '../audit-log/decorators/audit.decorator';
 
 @Controller('projects')
 @UseGuards(JwtAuthGuard, BlockProfilesGuard)
@@ -55,6 +56,7 @@ export class ProjectsController {
   @Post()
   @UseGuards(PlanLimitGuard)
   @CheckPlanLimit(LimitKey.MAX_PROJECTS)
+  @Audit({ action: 'PROJECT_CREATED', resourceType: 'project' })
   create(
     @Body() dto: CreateProjectDto,
     @CurrentUser() currentUser: JwtPayload,
@@ -66,6 +68,11 @@ export class ProjectsController {
   @Patch(':id')
   @UseGuards(ProjectPermissionGuard)
   @RequireProjectPermission(ProjectAction.PROJECT_UPDATE)
+  @Audit({
+    action: 'PROJECT_UPDATED',
+    resourceType: 'project',
+    resourceId: (req) => req.params.id,
+  })
   update(
     @Param('id', ParseUUIDPipe) publicId: string,
     @Body() dto: UpdateProjectDto,
@@ -78,6 +85,11 @@ export class ProjectsController {
   @Delete(':id')
   @UseGuards(ProjectPermissionGuard)
   @RequireProjectPermission(ProjectAction.PROJECT_DELETE)
+  @Audit({
+    action: 'PROJECT_DELETED',
+    resourceType: 'project',
+    resourceId: (req) => req.params.id,
+  })
   remove(
     @Param('id', ParseUUIDPipe) publicId: string,
     @CurrentUser() currentUser: JwtPayload,

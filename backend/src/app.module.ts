@@ -36,6 +36,8 @@ import { WorkspacesModule } from './workspaces/workspaces.module';
 import { WorkspaceMembersModule } from './workspace-members/workspace-members.module';
 import { BillingModule } from './billing/billing.module';
 import { FilesModule } from './files/files.module';
+import { AuditLogModule } from './audit-log/audit-log.module';
+import { AuditLogInterceptor } from './audit-log/audit-log.interceptor';
 
 @Module({
   imports: [
@@ -75,12 +77,16 @@ import { FilesModule } from './files/files.module';
     WorkspaceMembersModule,
     BillingModule,
     FilesModule,
+    AuditLogModule,
   ],
   controllers: [AppController],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: CsrfGuard },
     { provide: APP_INTERCEPTOR, useClass: SessionActivityInterceptor },
+    // AuditLog corre por último — `req.user` já está populado pelo JwtAuthGuard
+    // e o SessionActivityInterceptor já fez o seu touch.
+    { provide: APP_INTERCEPTOR, useClass: AuditLogInterceptor },
   ],
 })
 export class AppModule {}

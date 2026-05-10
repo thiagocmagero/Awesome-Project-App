@@ -23,6 +23,7 @@ import { AppException } from '../common/exceptions/app.exception';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { Audit } from '../audit-log/decorators/audit.decorator';
 import { UpdateMyTimezoneDto } from './dto/update-my-timezone.dto';
 import { UpdateMyLocaleDto } from './dto/update-my-locale.dto';
 import { UpdateMyProfileDto } from './dto/update-my-profile.dto';
@@ -89,6 +90,7 @@ export class UsersController {
 
   /** Cria utilizador — autenticados; BASIC_USER cria no seu workspace */
   @Post()
+  @Audit({ action: 'USER_CREATED', resourceType: 'user' })
   create(
     @Body() dto: CreateUserDto,
     @CurrentUser() currentUser: JwtPayload,
@@ -188,6 +190,11 @@ export class UsersController {
 
   /** Atualiza utilizador — validação de ownership no service */
   @Patch(':id')
+  @Audit({
+    action: 'USER_UPDATED',
+    resourceType: 'user',
+    resourceId: (req) => req.params.id,
+  })
   update(
     @Param('id', ParseUUIDPipe) publicId: string,
     @Body() dto: UpdateUserDto,
@@ -204,6 +211,11 @@ export class UsersController {
    *   Acção irreversível.
    */
   @Delete(':id')
+  @Audit({
+    action: 'USER_DELETED',
+    resourceType: 'user',
+    resourceId: (req) => req.params.id,
+  })
   remove(
     @Param('id', ParseUUIDPipe) publicId: string,
     @CurrentUser() currentUser: JwtPayload,

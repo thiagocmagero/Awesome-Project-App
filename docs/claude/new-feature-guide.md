@@ -120,7 +120,16 @@ Avaliar **cada regra** abaixo para cada nova funcionalidade. Marcar as que se ap
 | **Acções** | **Antes de implementar**, classificar o campo como **DATA PURA** (label de calendário, sem hora) ou **MOMENTO REAL** (instante exacto). DATA PURA → `timestamp(3)` sem tz, UTC midnight, `formatDate(d, dateFormat)` tz-agnostic. MOMENTO REAL → `@db.Timestamptz(6)`, `formatMoment(d, tz)` ou `relativeTimeInTimezone(d, tz, t)` com `tz` de `useTimezone()`. Nunca misturar. Validação backend via `@Validate(IsValidTimezone)` em DTOs. |
 | **Perguntar** | "Este campo de data/hora é uma DATA PURA (rótulo de calendário, dia X) ou um MOMENTO REAL (instante exacto, com hora)? Em caso de dúvida, há hora real no domínio do problema?" |
 
-### 12. Deploy
+### 12. Audit Logs
+
+| | |
+|---|---|
+| **Aplica-se sempre** | Toda nova rota da API (auto via interceptor) |
+| **Documentação** | @docs/claude/audit-logs.md |
+| **Acções** | Auto-log via `AuditLogInterceptor` global cobre tudo. Endpoints `@Post`/`@Patch`/`@Put`/`@Delete` **devem** adicionar `@Audit({ action, resourceType, resourceId })` para enriquecer com semântica. `action` em `SCREAMING_SNAKE_CASE` no passado; `resourceType` substantivo singular minúsculo; `resourceId` sempre `publicId` UUID v7 (resolver `(req) => req.params.id`). Não logar passwords/tokens — `sanitizeUrl` mascara `?token=`/`?password=`/`?secret=`/`?api_key=`; alargar a regex em `audit-log.interceptor.ts` se introduzires novos params sensíveis. |
+| **Perguntar** | "É um endpoint mutating? Qual o `action` semântico (verbo no passado), `resourceType` (substantivo singular) e `resourceId` (publicId UUID)?" |
+
+### 13. Deploy
 
 | | |
 |---|---|
@@ -147,4 +156,7 @@ Avaliar **cada regra** abaixo para cada nova funcionalidade. Marcar as que se ap
 - ❌ Usar `@db.Timestamptz` para datas puras (workDate, weekStart, project.startDate, etc.)
 - ❌ Usar `formatMoment` para datas puras ou `formatDate` para momentos reais
 - ❌ `new Date()` em cálculos de "hoje" sem tz explícita — usar `currentWeekStart(tz)`, `currentMonthIso(tz)`, `isTodayISO(iso, tz)`
+- ❌ Endpoint mutating (`@Post`/`@Patch`/`@Put`/`@Delete`) sem `@Audit({ action, resourceType, resourceId })` — perde-se semântica no audit trail
+- ❌ `await this.auditLogService.create(...)` em código novo — auditing tem que ser fire-and-forget (`.catch(() => {})`)
+- ❌ Logar ou expor `id` numérico interno em `resourceId` do `@Audit` — usar `publicId` UUID v7
 - ❌ Não indicar comandos de deploy no final da resposta

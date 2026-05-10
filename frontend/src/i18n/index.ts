@@ -32,6 +32,7 @@ i18n
       'platform_config',
       'workspace_members',
       'files',
+      'audit',
     ],
     backend: {
       loadPath: '/api/v1/i18n/{{lng}}/{{ns}}',

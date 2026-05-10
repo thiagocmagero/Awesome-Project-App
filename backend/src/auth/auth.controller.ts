@@ -26,6 +26,7 @@ import type { JwtPayload } from './jwt.strategy';
 import { UsersService } from '../users/users.service';
 import { LoginThrottlerGuard } from './guards/login-throttler.guard';
 import { SkipCsrf } from '../common/csrf/skip-csrf.decorator';
+import { Audit } from '../audit-log/decorators/audit.decorator';
 
 type AuthRequest = Request & {
   user: JwtPayload & { internalSessionId: number };
@@ -41,6 +42,7 @@ export class AuthController {
   @SkipCsrf()
   @Throttle({ default: { limit: 3, ttl: 3_600_000 } })
   @Post('register')
+  @Audit({ action: 'USER_REGISTERED', resourceType: 'user' })
   register(
     @Body() body: RegisterDto,
     @Req() req: Request,
@@ -53,6 +55,7 @@ export class AuthController {
   @UseGuards(LoginThrottlerGuard)
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('login')
+  @Audit({ action: 'USER_LOGIN', resourceType: 'session' })
   login(
     @Body() body: LoginDto,
     @Req() req: Request,
@@ -76,6 +79,7 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @Post('logout')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @Audit({ action: 'USER_LOGOUT', resourceType: 'session' })
   async logout(
     @Req() req: AuthRequest,
     @Res({ passthrough: true }) res: Response,
@@ -125,6 +129,7 @@ export class AuthController {
   @Throttle({ default: { limit: 10, ttl: 600_000 } })
   @Post('reset-password')
   @HttpCode(HttpStatus.OK)
+  @Audit({ action: 'PASSWORD_RESET', resourceType: 'user' })
   resetPassword(
     @Body() dto: ResetPasswordDto,
     @Res({ passthrough: true }) res: Response,

@@ -79,6 +79,50 @@ Detalhes completos, hierarquia de roles, padrão UI espelho (`canDo()`),
 intercepts em widgets DHTMLX e anti-padrões em @docs/claude/permissions.md
 e @docs/claude/tools/permissions/overview.md.
 
+## Regra obrigatória — Audit Logs em todos os endpoints
+
+**Premissa máxima.** TODA a chamada HTTP é registada automaticamente em
+`AuditLog` pelo `AuditLogInterceptor` global — sem código nos controllers.
+Captura: `userId`, `sessionId`, `method`, `url`, `statusCode`, `duration`,
+`ip`, `userAgent`, `status` (`SUCCESS`/`ERROR`/`FORBIDDEN`), `errorMessage`.
+
+Endpoints **`@Post`/`@Patch`/`@Put`/`@Delete`** **devem** adicionar
+`@Audit(...)` para enriquecer com semântica de domínio:
+
+```typescript
+import { Audit } from '../audit-log/decorators/audit.decorator';
+
+@Audit({
+  action: 'PROJECT_DELETED',
+  resourceType: 'project',
+  resourceId: (req) => req.params.id,
+})
+@Delete(':id')
+remove(@Param('id') id: string) { ... }
+```
+
+**Convenções:**
+- `action`: `SCREAMING_SNAKE_CASE` no passado (`USER_LOGIN`, `USER_CREATED`,
+  `PROJECT_DELETED`, `PASSWORD_RESET`, `FILE_DELETED`).
+- `resourceType`: substantivo singular minúsculo (`user`, `project`, `task`,
+  `file`).
+- `resourceId`: sempre `publicId` UUID v7 (ex.: `(req) => req.params.id`).
+  Nunca `id` numérico interno.
+
+**Princípios derivados:**
+- O auto-log NUNCA bloqueia o request (try/catch silencioso + fire-and-forget).
+- Não logar passwords/tokens — `sanitizeUrl` mascara `?token=...`/`?password=...`/
+  `?secret=...`/`?api_key=...`. Adicionar à regex se introduzires novos
+  query params sensíveis.
+- Endpoints `GET` de leitura ficam só com auto-log (sem `@Audit` — semântica
+  é o próprio path).
+- Acesso a `/audit-logs` é exclusivo `PLATFORM_ADMIN` e está excluído do
+  auto-log (anti-loop).
+- `AuditLog` é imutável — sem endpoints de update/delete.
+
+Detalhes completos (modelo, pipeline, frontend, anti-padrões) em
+@docs/claude/audit-logs.md.
+
 ## Regra obrigatória — User cascade rule
 
 QUALQUER novo modelo Prisma com FK para `User` **deve** declarar `onDelete`
@@ -657,6 +701,7 @@ npm run build
 @docs/claude/storage.md                  (wrapper AWS S3: env vars, StorageService, pipeline genérico de validação, avatares no bucket público)
 @docs/claude/workspaces.md               (workspace explícito: modelo, auto-criação, runtime helpers, V1/V2 path, anti-padrões)
 @docs/claude/uploads.md                  (upload de ficheiros project-scoped: File model, flags upload/upload_secured, GuardDuty, permissões FILE_*, presigned download, UI)
+@docs/claude/audit-logs.md               (audit trail técnico: AuditLog model, interceptor global, @Audit decorator, /audit page, tab Audit em /clients)
 @docs/claude/tools/gantt/overview.md     (Gantt — ponto de entrada obrigatório)
 @docs/claude/tools/gantt/data-model.md   (modelos Prisma Gantt, holidays, GanttConfig)
 @docs/claude/tools/gantt/interactions.md (drag & drop, eventos DHTMLX, stale closures)
