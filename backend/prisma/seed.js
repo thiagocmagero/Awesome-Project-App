@@ -214,7 +214,22 @@ async function upsertAdmin() {
       where: { email },
       data: { name, passwordHash, profileId: platformAdminProfile.id, status: 'ACTIVE' },
     });
-    console.log(`✔ Admin atualizado: ${email}`);
+
+    // Garantir workspace para users existentes (idempotente).
+    // Cobre o caso de admins criados antes da migração workspace ter sido
+    // aplicada — o `RedirectToDefaultWorkspace` no frontend bounces para
+    // `/login` se `user.workspacePublicId` for null, causando loop pós-login.
+    const existingWorkspace = await prisma.workspace.findFirst({
+      where: { ownerId: existing.id },
+    });
+    if (!existingWorkspace) {
+      await prisma.workspace.create({
+        data: { ownerId: existing.id, name: `${name}'s Workspace` },
+      });
+      console.log(`✔ Admin atualizado + workspace criado: ${email}`);
+    } else {
+      console.log(`✔ Admin atualizado: ${email}`);
+    }
     return;
   }
 
