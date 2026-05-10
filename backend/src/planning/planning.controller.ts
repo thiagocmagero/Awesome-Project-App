@@ -12,6 +12,8 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { BlockProfilesGuard } from '../auth/guards/block-profiles.guard';
+import { BlockProfiles } from '../auth/decorators/block-profiles.decorator';
 import { ProjectPermissionGuard } from '../projects/guards/project-permission.guard';
 import { RequireProjectPermission } from '../projects/decorators/require-project-permission.decorator';
 import { ProjectAction } from '../projects/project-permissions';
@@ -29,7 +31,8 @@ import { MoveTaskStateDto } from './states/dto/move-task-state.dto';
 import { JwtPayload } from '../auth/jwt.strategy';
 
 @Controller('projects/:projectId/planning')
-@UseGuards(JwtAuthGuard, ProjectPermissionGuard)
+@UseGuards(JwtAuthGuard, BlockProfilesGuard, ProjectPermissionGuard)
+@BlockProfiles('PLATFORM_ADMIN')
 export class PlanningController {
   constructor(
     private readonly planningService: PlanningService,

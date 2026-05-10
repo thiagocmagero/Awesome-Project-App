@@ -15,7 +15,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
-import { Status } from '@prisma/client';
+import { Status, SubscriptionStatus } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { JwtPayload } from '../auth/jwt.strategy';
@@ -33,13 +33,35 @@ import { UpdateMyPasswordDto } from './dto/update-my-password.dto';
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
-  /** Lista utilizadores — PLATFORM_ADMIN: todos; BASIC_USER: apenas os seus */
+  /** Lista utilizadores — PLATFORM_ADMIN: todos; BASIC_USER: apenas os seus.
+   *
+   * Query params (todos opcionais; combinam-se com AND):
+   *   - `status`             — filtra User.status (ACTIVE/INACTIVE/...)
+   *   - `planId`             — Plan.publicId; filtra users cujo workspace tem
+   *                            subscrição com este plano. Apenas PLATFORM_ADMIN
+   *                            (silenciosamente ignorado para BASIC_USER).
+   *   - `subscriptionStatus` — SubscriptionStatus (ACTIVE/TRIALING/PAST_DUE/...).
+   *                            Mesmo gate de PLATFORM_ADMIN.
+   */
   @Get()
   findAll(
     @CurrentUser() currentUser: JwtPayload,
     @Query('status') status?: Status,
+    @Query('planId') planId?: string,
+    @Query('subscriptionStatus') subscriptionStatus?: SubscriptionStatus,
   ) {
-    return this.usersService.findAll(currentUser, status ? { status } : undefined);
+    const filters: {
+      status?: Status;
+      planPublicId?: string;
+      subscriptionStatus?: SubscriptionStatus;
+    } = {};
+    if (status) filters.status = status;
+    if (planId) filters.planPublicId = planId;
+    if (subscriptionStatus) filters.subscriptionStatus = subscriptionStatus;
+    return this.usersService.findAll(
+      currentUser,
+      Object.keys(filters).length ? filters : undefined,
+    );
   }
 
   /** Detalhe de utilizador — PLATFORM_ADMIN: qualquer; BASIC_USER: apenas os seus */
@@ -49,6 +71,20 @@ export class UsersController {
     @CurrentUser() currentUser: JwtPayload,
   ) {
     return this.usersService.findOne(publicId, currentUser);
+  }
+
+  /**
+   * Estatísticas quantitativas do workspace dum cliente. Apenas PLATFORM_ADMIN.
+   * Devolve contadores agregados (projectos, equipas, membros, tasks, subtasks,
+   * ficheiros, feriados, storage) — usado pela vista de detalhe em /clients.
+   * Nunca expõe nomes/conteúdo: apenas números.
+   */
+  @Get(':id/stats')
+  getStats(
+    @Param('id', ParseUUIDPipe) publicId: string,
+    @CurrentUser() currentUser: JwtPayload,
+  ) {
+    return this.usersService.getStats(publicId, currentUser);
   }
 
   /** Cria utilizador — autenticados; BASIC_USER cria no seu workspace */

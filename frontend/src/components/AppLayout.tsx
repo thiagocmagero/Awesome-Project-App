@@ -613,11 +613,11 @@ function AppLayoutInner() {
                 </li>
                 <li>
                   <NavLink
-                    to={isPlatformAdmin ? '/users' : wsLink('/users')}
+                    to={isPlatformAdmin ? '/clients' : wsLink('/users')}
                     className="dropdown-item d-flex align-items-center gap-2 py-2"
                   >
                     <i className="ri-group-line fs-16 text-muted"></i>
-                    {isPlatformAdmin ? t('nav.users') : t('nav.workspace_users')}
+                    {isPlatformAdmin ? t('nav.clients') : t('nav.workspace_users')}
                   </NavLink>
                 </li>
                 <li>
@@ -706,11 +706,12 @@ function AppLayoutInner() {
               {/* ─ Gestão ─ */}
               <li className="slide__category"><span className="category-name">{t('nav.section.management')}</span></li>
 
-              {/* Utilizadores: PLATFORM_ADMIN vê gestão global (/users, workspace-agnostic);
-                  outros utilizadores vêem membros do seu workspace (/<wsId>/users). */}
+              {/* Clientes (PLATFORM_ADMIN) — gestão de clientes da plataforma em /clients,
+                  workspace-agnostic. Para outros utilizadores aparece a lista de membros
+                  do workspace em /<wsId>/users. */}
               <li className="slide">
                 <NavLink
-                  to={isPlatformAdmin ? '/users' : wsLink('/users')}
+                  to={isPlatformAdmin ? '/clients' : wsLink('/users')}
                   className={({ isActive }) => `side-menu__item${isActive ? ' active' : ''}`}
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" className="side-menu__icon" viewBox="0 0 256 256">
@@ -721,65 +722,75 @@ function AppLayoutInner() {
                     <path d="M187.93,112c9.97,16.82,17.07,40.43,17.07,72a8,8,0,0,1-8,8" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
                   </svg>
                   <span className="side-menu__label">
-                    {isPlatformAdmin ? t('nav.users') : t('nav.workspace_users')}
+                    {isPlatformAdmin ? t('nav.clients') : t('nav.workspace_users')}
                   </span>
                 </NavLink>
               </li>
 
-              <li className="slide">
-                <NavLink to={wsLink('/teams')} className={({ isActive }) => `side-menu__item${isActive ? ' active' : ''}`}>
-                  <svg xmlns="http://www.w3.org/2000/svg" className="side-menu__icon" viewBox="0 0 256 256">
-                    <rect width="256" height="256" fill="none" />
-                    <circle cx="80" cy="80" r="48" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
-                    <circle cx="176" cy="80" r="48" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
-                    <path d="M8,188a80,80,0,0,1,144,0" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
-                    <path d="M152,188a80,80,0,0,1,96,0" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
-                  </svg>
-                  <span className="side-menu__label">{t('nav.teams')}</span>
-                </NavLink>
-              </li>
+              {!isPlatformAdmin && (
+                <li className="slide">
+                  <NavLink to={wsLink('/teams')} className={({ isActive }) => `side-menu__item${isActive ? ' active' : ''}`}>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="side-menu__icon" viewBox="0 0 256 256">
+                      <rect width="256" height="256" fill="none" />
+                      <circle cx="80" cy="80" r="48" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+                      <circle cx="176" cy="80" r="48" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+                      <path d="M8,188a80,80,0,0,1,144,0" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+                      <path d="M152,188a80,80,0,0,1,96,0" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+                    </svg>
+                    <span className="side-menu__label">{t('nav.teams')}</span>
+                  </NavLink>
+                </li>
+              )}
 
-              <li className="slide">
-                <NavLink to={wsLink('/projects')} className={({ isActive }) => `side-menu__item${isActive ? ' active' : ''}`}>
-                  <svg xmlns="http://www.w3.org/2000/svg" className="side-menu__icon" viewBox="0 0 256 256">
-                    <rect width="256" height="256" fill="none" />
-                    <path d="M216,72H131.31L104,44.69A16,16,0,0,0,92.69,40H40A16,16,0,0,0,24,56V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V88A16,16,0,0,0,216,72Z" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
-                  </svg>
-                  <span className="side-menu__label">{t('nav.projects')}</span>
-                </NavLink>
-              </li>
+              {!isPlatformAdmin && (
+                <li className="slide">
+                  <NavLink to={wsLink('/projects')} className={({ isActive }) => `side-menu__item${isActive ? ' active' : ''}`}>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="side-menu__icon" viewBox="0 0 256 256">
+                      <rect width="256" height="256" fill="none" />
+                      <path d="M216,72H131.31L104,44.69A16,16,0,0,0,92.69,40H40A16,16,0,0,0,24,56V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V88A16,16,0,0,0,216,72Z" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+                    </svg>
+                    <span className="side-menu__label">{t('nav.projects')}</span>
+                  </NavLink>
+                </li>
+              )}
 
-              <li className="slide">
-                <NavLink to={wsLink('/holidays')} className={({ isActive }) => `side-menu__item${isActive ? ' active' : ''}`}>
-                  <svg xmlns="http://www.w3.org/2000/svg" className="side-menu__icon" viewBox="0 0 256 256">
-                    <rect width="256" height="256" fill="none"/>
-                    <rect x="40" y="40" width="176" height="176" rx="8" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16"/>
-                    <line x1="176" y1="24" x2="176" y2="56" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16"/>
-                    <line x1="80" y1="24" x2="80" y2="56" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16"/>
-                    <line x1="40" y1="96" x2="216" y2="96" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16"/>
-                  </svg>
-                  <span className="side-menu__label">{t('nav.holidays')}</span>
-                </NavLink>
-              </li>
+              {!isPlatformAdmin && (
+                <li className="slide">
+                  <NavLink to={wsLink('/holidays')} className={({ isActive }) => `side-menu__item${isActive ? ' active' : ''}`}>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="side-menu__icon" viewBox="0 0 256 256">
+                      <rect width="256" height="256" fill="none"/>
+                      <rect x="40" y="40" width="176" height="176" rx="8" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16"/>
+                      <line x1="176" y1="24" x2="176" y2="56" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16"/>
+                      <line x1="80" y1="24" x2="80" y2="56" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16"/>
+                      <line x1="40" y1="96" x2="216" y2="96" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16"/>
+                    </svg>
+                    <span className="side-menu__label">{t('nav.holidays')}</span>
+                  </NavLink>
+                </li>
+              )}
 
-              <li className="slide">
-                <NavLink to={wsLink('/timesheets')} className={({ isActive }) => `side-menu__item${isActive ? ' active' : ''}`}>
-                  <i className="side-menu__icon ri-time-line" />
-                  <span className="side-menu__label">{t('nav.timesheets')}</span>
-                </NavLink>
-              </li>
+              {!isPlatformAdmin && (
+                <li className="slide">
+                  <NavLink to={wsLink('/timesheets')} className={({ isActive }) => `side-menu__item${isActive ? ' active' : ''}`}>
+                    <i className="side-menu__icon ri-time-line" />
+                    <span className="side-menu__label">{t('nav.timesheets')}</span>
+                  </NavLink>
+                </li>
+              )}
 
-              <li className="slide">
-                <NavLink to={wsLink('/user-types')} className={({ isActive }) => `side-menu__item${isActive ? ' active' : ''}`}>
-                  <svg xmlns="http://www.w3.org/2000/svg" className="side-menu__icon" viewBox="0 0 256 256">
-                    <rect width="256" height="256" fill="none" />
-                    <rect x="32" y="48" width="192" height="160" rx="8" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
-                    <line x1="32" y1="96" x2="224" y2="96" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
-                    <line x1="96" y1="48" x2="96" y2="96" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
-                  </svg>
-                  <span className="side-menu__label">{t('nav.user_types')}</span>
-                </NavLink>
-              </li>
+              {!isPlatformAdmin && (
+                <li className="slide">
+                  <NavLink to={wsLink('/user-types')} className={({ isActive }) => `side-menu__item${isActive ? ' active' : ''}`}>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="side-menu__icon" viewBox="0 0 256 256">
+                      <rect width="256" height="256" fill="none" />
+                      <rect x="32" y="48" width="192" height="160" rx="8" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+                      <line x1="32" y1="96" x2="224" y2="96" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+                      <line x1="96" y1="48" x2="96" y2="96" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+                    </svg>
+                    <span className="side-menu__label">{t('nav.user_types')}</span>
+                  </NavLink>
+                </li>
+              )}
 
               {/* ─ Plataforma (PLATFORM_ADMIN only) ─ */}
               {isPlatformAdmin && (
@@ -827,6 +838,7 @@ function AppLayoutInner() {
                       {t('nav.account')}
                     </NavLink>
                   </li>
+                  {!isPlatformAdmin && (
                   <li className="slide has-sub">
                     <a href="#" onClick={(e) => e.preventDefault()} className="side-menu__item">
                       {t('nav.section.components')}<i className="ri-arrow-right-s-line side-menu__angle"></i>
@@ -850,6 +862,7 @@ function AppLayoutInner() {
                       </li>
                     </ul>
                   </li>
+                  )}
                   {/* Workspace > Membros movido para o topo da Gestão (sem sub-menu). */}
                   {isPlatformAdmin && (
                     <li className="slide has-sub">

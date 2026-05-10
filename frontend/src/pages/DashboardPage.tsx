@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
+import { useIsPlatformAdmin } from '../hooks/useIsPlatformAdmin';
 import { getApiBase, apiFetch } from '../lib/api';
 
 interface UsageItem {
@@ -14,6 +15,7 @@ interface UsageItem {
 
 export default function DashboardPage() {
   const { user, token } = useAuth();
+  const isPlatformAdmin = useIsPlatformAdmin();
   const { t } = useTranslation('dashboard');
   const { t: tc } = useTranslation('common');
   const [totalUsers, setTotalUsers] = useState<number | null>(null);
@@ -117,7 +119,12 @@ export default function DashboardPage() {
                 <span className="avatar avatar-md bg-secondary-transparent rounded">
                   <i className="ri-group-line fs-20 text-secondary"></i>
                 </span>
-                <NavLink to="/users" className="badge bg-secondary-transparent text-secondary text-decoration-none">
+                <NavLink
+                  to={isPlatformAdmin
+                    ? '/clients'
+                    : (user?.workspacePublicId ? `/${user.workspacePublicId}/users` : '/')}
+                  className="badge bg-secondary-transparent text-secondary text-decoration-none"
+                >
                   {t('actions.view_all')}
                 </NavLink>
               </div>

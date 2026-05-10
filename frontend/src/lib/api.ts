@@ -110,7 +110,19 @@ const PUBLIC_PATHS = [
   '/reset-password', '/create-account', '/error/',
 ];
 
-function redirectToLogin(): void {
+/**
+ * Redirige para /login quando estamos numa rota protegida.
+ * Devolve `true` se de facto disparou o redirect (browser vai sair desta página);
+ * `false` se já estávamos numa rota pública e nada foi feito.
+ *
+ * Importa este sinal: quando devolve `false`, o caller (apiFetch) **não pode**
+ * suspender-se com `new Promise(() => {})` — tem de devolver a Response real
+ * para que callers reactivos (ex.: AuthProvider boot) consigam reagir ao 401
+ * em vez de ficarem com `loading: true` indefinidamente. Causa de tela branca
+ * pós-login: AuthProvider boot dispara /auth/me em /login (sem cookies) → 401 →
+ * refresh 401 → este redirect no-op → promise pendurado → loading nunca cai.
+ */
+function redirectToLogin(): boolean {
   try {
     localStorage.removeItem('app_user');
     localStorage.removeItem('app_token'); // legacy
@@ -121,7 +133,9 @@ function redirectToLogin(): void {
   const isPublic = PUBLIC_PATHS.some((p) => path.startsWith(p));
   if (!isPublic) {
     window.location.href = '/login';
+    return true;
   }
+  return false;
 }
 
 // ─── apiFetch ─────────────────────────────────────────────────────────────────
@@ -140,8 +154,11 @@ export async function apiFetch(
 
   const refreshed = await refreshSession();
   if (!refreshed) {
-    redirectToLogin();
-    return new Promise(() => {}); // suspende — caller nunca continua
+    const redirected = redirectToLogin();
+    // Em rota pública não há redirect — devolver a Response 401 para callers
+    // reactivos (AuthProvider boot) reagirem em vez de suspenderem.
+    if (!redirected) return res;
+    return new Promise(() => {}); // browser está a navegar para /login
   }
 
   // Retry uma vez com cookies novos
@@ -149,7 +166,8 @@ export async function apiFetch(
   const retryRes = await fetch(input, retryInit);
 
   if (retryRes.status === 401) {
-    redirectToLogin();
+    const redirected = redirectToLogin();
+    if (!redirected) return retryRes;
     return new Promise(() => {});
   }
 

@@ -10,6 +10,8 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { BlockProfilesGuard } from '../auth/guards/block-profiles.guard';
+import { BlockProfiles } from '../auth/decorators/block-profiles.decorator';
 import { FeatureFlagGuard } from '../auth/guards/feature-flag.guard';
 import { RequireFeature } from '../auth/decorators/require-feature.decorator';
 import { ProjectPermissionGuard } from '../projects/guards/project-permission.guard';
@@ -33,7 +35,8 @@ import { FeatureKey } from '../common/entitlements';
  * CRUD escreve apenas em CalendarEvent / CalendarEventType.
  */
 @Controller('projects/:id/calendar')
-@UseGuards(JwtAuthGuard, FeatureFlagGuard, ProjectPermissionGuard)
+@UseGuards(JwtAuthGuard, BlockProfilesGuard, FeatureFlagGuard, ProjectPermissionGuard)
+@BlockProfiles('PLATFORM_ADMIN')
 @RequireFeature(FeatureKey.CALENDAR_VIEW)
 export class CalendarController {
   constructor(private readonly service: CalendarService) {}

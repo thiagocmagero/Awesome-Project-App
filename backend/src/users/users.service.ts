@@ -14,7 +14,7 @@ import sharp = require('sharp');
 // `file-type@16.x` mantém CommonJS exports — versões 17+ são ESM-only e não
 // resolvem com `moduleResolution: "node"` do tsconfig actual.
 import { fromBuffer as fileTypeFromBuffer } from 'file-type';
-import { Status } from '@prisma/client';
+import { Prisma, Status, SubscriptionStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import type { JwtPayload } from '../auth/jwt.strategy';
@@ -43,6 +43,8 @@ const USER_SELECT = {
   // Subscription vive no Workspace. Navegamos via workspaces[0].subscription
   // (V1: 1 workspace por user) — o `toPublicResponse` transpõe para o shape
   // legado `subscription: { status, plan: {...} }` que o frontend espera.
+  // `_count.members` (apenas memberships ACCEPTED) é exposto à UI admin como
+  // a coluna "Membros" da página /clients.
   workspaces: {
     take: 1,
     select: {
@@ -52,6 +54,9 @@ const USER_SELECT = {
           status: true,
           plan: { select: { publicId: true, code: true, name: true } },
         },
+      },
+      _count: {
+        select: { members: { where: { status: 'ACCEPTED' } } },
       },
     },
   },
@@ -114,7 +119,13 @@ export class UsersService {
     const workspacePublicId = Array.isArray(workspaces) && workspaces[0]?.publicId
       ? workspaces[0].publicId
       : null;
-    return { ...rest, avatarUrl, subscription, workspacePublicId };
+    // `memberCount` (workspace V1 1:1) — coluna da UI admin /clients. 0 quando
+    // workspace ainda não tem membros aceites (estado normal logo após criar
+    // conta — o owner não conta como member, é owner).
+    const memberCount = Array.isArray(workspaces) && workspaces[0]?._count?.members
+      ? workspaces[0]._count.members
+      : 0;
+    return { ...rest, avatarUrl, subscription, workspacePublicId, memberCount };
   }
 
   /** Variante para arrays (findAll). */
@@ -283,16 +294,42 @@ export class UsersService {
     return { ...this.attachAvatarUrl(created), id: created.id };
   }
 
-  async findAll(requestingUser: JwtPayload, filters?: { status?: Status }) {
+  async findAll(
+    requestingUser: JwtPayload,
+    filters?: {
+      status?: Status;
+      planPublicId?: string;
+      subscriptionStatus?: SubscriptionStatus;
+    },
+  ) {
     // BASIC_USER sees: users they created + themselves (so they can add themselves to teams/projects)
-    const ownershipFilter = IS_ADMIN(requestingUser)
+    const ownershipFilter: Prisma.UserWhereInput = IS_ADMIN(requestingUser)
       ? {}
       : { OR: [{ createdById: requestingUser.sub }, { id: requestingUser.sub }] };
 
-    const statusFilter = filters?.status ? { status: filters.status } : {};
+    const statusFilter: Prisma.UserWhereInput = filters?.status
+      ? { status: filters.status }
+      : {};
+
+    // Filtros de subscrição/plano são platform-admin only (admins listam clientes
+    // por plano e/ou estado de subscrição). Para BASIC_USER ignoramos silenciosamente
+    // — não há cenário onde precisem destes filtros.
+    let workspaceFilter: Prisma.UserWhereInput = {};
+    if (IS_ADMIN(requestingUser) && (filters?.planPublicId || filters?.subscriptionStatus)) {
+      const subscriptionWhere: Prisma.SubscriptionWhereInput = {};
+      if (filters.planPublicId) {
+        subscriptionWhere.plan = { publicId: filters.planPublicId };
+      }
+      if (filters.subscriptionStatus) {
+        subscriptionWhere.status = filters.subscriptionStatus;
+      }
+      workspaceFilter = {
+        workspaces: { some: { subscription: subscriptionWhere } },
+      };
+    }
 
     const users = await this.prisma.user.findMany({
-      where: { ...ownershipFilter, ...statusFilter },
+      where: { ...ownershipFilter, ...statusFilter, ...workspaceFilter },
       orderBy: { id: 'asc' },
       select: USER_SELECT,
     });
@@ -303,6 +340,92 @@ export class UsersService {
     const user = await this.resolveUser(publicId);
     this.assertOwnership(user.id, user.createdById, requestingUser);
     return this.attachAvatarUrl(this.stripInternal(user));
+  }
+
+  /**
+   * Estatísticas quantitativas do workspace dum cliente — apenas PLATFORM_ADMIN.
+   *
+   * Devolve contadores de recursos do workspace primário do utilizador (V1: 1
+   * workspace por user). Todos os recursos são scoped ao `workspaceId`. Usado
+   * pela página `/clients` para mostrar utilização agregada na vista de detalhe.
+   *
+   * **Princípio de privacidade**: apenas números — nunca nomes de projectos,
+   * tasks, ficheiros, comentários ou actividade interna do workspace.
+   */
+  async getStats(publicId: string, requestingUser: JwtPayload) {
+    if (!IS_ADMIN(requestingUser)) {
+      throw new AppException('FORBIDDEN', HttpStatus.FORBIDDEN);
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { publicId },
+      select: {
+        id: true,
+        workspaces: { take: 1, select: { id: true } },
+      },
+    });
+    if (!user) throw new AppException('USER_NOT_FOUND', HttpStatus.NOT_FOUND);
+
+    const workspaceId = user.workspaces[0]?.id;
+    if (!workspaceId) {
+      // Workspace ainda não criado (estado raro). Devolvemos zeros — defensivo.
+      return {
+        projects: 0, teams: 0, workspaceMembers: 0, teamMembers: 0,
+        tasks: 0, subtasks: 0, files: 0, holidays: 0, storageBytes: 0,
+      };
+    }
+
+    const projectScope: Prisma.TaskWhereInput['project'] = { workspaceId };
+
+    // Paralelo — 9 contadores independentes via Promise.all.
+    const [
+      projects, teams, workspaceMembers, teamMembers,
+      tasks, subtasks, files, holidays, storageAgg,
+    ] = await Promise.all([
+      this.prisma.project.count({
+        where: { workspaceId, status: { not: Status.INACTIVE } },
+      }),
+      this.prisma.team.count({
+        where: { workspaceId, status: { not: Status.INACTIVE } },
+      }),
+      this.prisma.workspaceMember.count({
+        where: { workspaceId, status: 'ACCEPTED' },
+      }),
+      this.prisma.teamMember.count({
+        where: { team: { workspaceId, status: { not: Status.INACTIVE } } },
+      }),
+      // tasks = top-level (parentId IS NULL). Task não tem campo Status —
+      // não há soft-delete; cascade Project → Task remove ao apagar projecto.
+      this.prisma.task.count({
+        where: { project: projectScope, parentId: null },
+      }),
+      // subtasks = filhas (parentId IS NOT NULL)
+      this.prisma.task.count({
+        where: { project: projectScope, parentId: { not: null } },
+      }),
+      this.prisma.file.count({
+        where: { project: projectScope, status: { not: Status.INACTIVE } },
+      }),
+      this.prisma.holiday.count({
+        where: { workspaceId, status: { not: Status.INACTIVE } },
+      }),
+      this.prisma.file.aggregate({
+        where: { project: projectScope, status: { not: Status.INACTIVE } },
+        _sum: { sizeBytes: true },
+      }),
+    ]);
+
+    return {
+      projects,
+      teams,
+      workspaceMembers,
+      teamMembers,
+      tasks,
+      subtasks,
+      files,
+      holidays,
+      storageBytes: storageAgg._sum.sizeBytes ?? 0,
+    };
   }
 
   async update(publicId: string, dto: UpdateUserDto, requestingUser: JwtPayload) {

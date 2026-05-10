@@ -10,6 +10,8 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { BlockProfilesGuard } from '../auth/guards/block-profiles.guard';
+import { BlockProfiles } from '../auth/decorators/block-profiles.decorator';
 import { PlanLimitGuard } from '../auth/guards/plan-limit.guard';
 import { CheckPlanLimit } from '../auth/decorators/check-plan-limit.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -27,7 +29,8 @@ import { AddHolidayDto } from './dto/add-holiday.dto';
 import { LimitKey } from '../common/entitlements';
 
 @Controller('projects')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, BlockProfilesGuard)
+@BlockProfiles('PLATFORM_ADMIN')
 export class ProjectsController {
   constructor(private readonly projectsService: ProjectsService) {}
 

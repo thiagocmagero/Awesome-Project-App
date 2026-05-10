@@ -10,6 +10,8 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { BlockProfilesGuard } from '../auth/guards/block-profiles.guard';
+import { BlockProfiles } from '../auth/decorators/block-profiles.decorator';
 import { FeatureFlagGuard } from '../auth/guards/feature-flag.guard';
 import { RequireFeature } from '../auth/decorators/require-feature.decorator';
 import { PlanLimitGuard } from '../auth/guards/plan-limit.guard';
@@ -24,7 +26,8 @@ import { UpdateHolidayDateDto } from './dto/update-holiday-date.dto';
 import { FeatureKey, LimitKey } from '../common/entitlements';
 
 @Controller('holidays')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, BlockProfilesGuard)
+@BlockProfiles('PLATFORM_ADMIN')
 export class HolidaysController {
   constructor(private readonly holidaysService: HolidaysService) {}
 

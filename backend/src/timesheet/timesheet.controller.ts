@@ -12,6 +12,8 @@ import {
 } from '@nestjs/common';
 import { TimesheetWeekStatus } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { BlockProfilesGuard } from '../auth/guards/block-profiles.guard';
+import { BlockProfiles } from '../auth/decorators/block-profiles.decorator';
 import { FeatureFlagGuard } from '../auth/guards/feature-flag.guard';
 import { RequireFeature } from '../auth/decorators/require-feature.decorator';
 import { ProjectPermissionGuard } from '../projects/guards/project-permission.guard';
@@ -39,7 +41,8 @@ import { FeatureKey } from '../common/entitlements';
  * `@RequireProjectPermission`.
  */
 @Controller('projects/:id/timesheets')
-@UseGuards(JwtAuthGuard, FeatureFlagGuard, ProjectPermissionGuard)
+@UseGuards(JwtAuthGuard, BlockProfilesGuard, FeatureFlagGuard, ProjectPermissionGuard)
+@BlockProfiles('PLATFORM_ADMIN')
 @RequireFeature(FeatureKey.TIMESHEET_VIEW)
 export class TimesheetController {
   constructor(private readonly service: TimesheetService) {}

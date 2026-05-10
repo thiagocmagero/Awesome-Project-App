@@ -7,7 +7,7 @@ import AppLayout from './components/AppLayout';
 import RedirectToDefaultWorkspace from './components/RedirectToDefaultWorkspace';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
-import UsersPage from './pages/UsersPage';
+import ClientsPage from './pages/ClientsPage';
 import UserTypesPage from './pages/UserTypesPage';
 import TeamsPage from './pages/TeamsPage';
 import ProjectsPage from './pages/ProjectsPage';
@@ -51,7 +51,7 @@ export default function App() {
         {/* ── Protegidas workspace-agnostic (platform admin / user-self) ─ */}
         <Route element={<ProtectedRoute />}>
           <Route element={<AppLayout />}>
-            <Route path="/users" element={<UsersPage />} />
+            <Route path="/clients" element={<ClientsPage />} />
             <Route path="/plans" element={<PlansPage />} />
             <Route path="/translations" element={<TranslationsPage />} />
             <Route path="/settings/limits" element={<PlatformLimitsPage />} />

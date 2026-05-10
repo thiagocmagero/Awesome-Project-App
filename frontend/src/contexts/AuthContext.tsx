@@ -121,7 +121,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Boot: validar cookie HttpOnly via /auth/me. Usa apiFetch para auto-refresh em 401
   // (access_token expira em 15min; refresh_token aguenta 7d). Sem apiFetch, F5 após
   // 15min de inactividade dá 401 e kicka o user para /login mesmo com refresh válido.
+  //
+  // **Skip em rotas públicas** (/login, /signup, ...): não há cookies para validar
+  // e o /auth/me + /auth/refresh resultariam em dois 401 visíveis na consola sem
+  // valor. Skip directo → setLoading(false). Sem isto, o boot dispara antes do
+  // user clicar em "Entrar" e o promise da apiFetch nunca chegava a resolver
+  // (causa do bug "tela branca pós-login").
   useEffect(() => {
+    const PUBLIC_PATHS = [
+      '/login', '/signup', '/confirm-email', '/forgot-password',
+      '/reset-password', '/create-account', '/error/',
+    ];
+    const isPublic = PUBLIC_PATHS.some((p) => window.location.pathname.startsWith(p));
+    if (isPublic) {
+      setLoading(false);
+      return;
+    }
+
     let cancelled = false;
     (async () => {
       try {
@@ -149,6 +165,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   function login(newUser: AuthUser) {
     setUser(newUser);
+    setLoading(false);  // defensivo — se o boot ficou suspenso por algum motivo
     localStorage.setItem('app_user', JSON.stringify(newUser));
     localStorage.removeItem('app_token'); // limpar qualquer token legacy
   }

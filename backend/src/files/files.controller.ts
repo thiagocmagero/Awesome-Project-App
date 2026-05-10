@@ -17,6 +17,8 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { BlockProfilesGuard } from '../auth/guards/block-profiles.guard';
+import { BlockProfiles } from '../auth/decorators/block-profiles.decorator';
 import { FeatureFlagGuard } from '../auth/guards/feature-flag.guard';
 import { PlanLimitGuard } from '../auth/guards/plan-limit.guard';
 import { RequireFeature } from '../auth/decorators/require-feature.decorator';
@@ -44,7 +46,8 @@ import { FeatureKey, LimitKey } from '../common/entitlements';
 const MULTER_MAX_BYTES = 2 * 1024 * 1024 * 1024;
 
 @Controller('projects/:id/files')
-@UseGuards(JwtAuthGuard, FeatureFlagGuard, ProjectPermissionGuard)
+@UseGuards(JwtAuthGuard, BlockProfilesGuard, FeatureFlagGuard, ProjectPermissionGuard)
+@BlockProfiles('PLATFORM_ADMIN')
 @RequireFeature(FeatureKey.UPLOAD, { projectIdFrom: 'params.id' })
 export class FilesController {
   constructor(private readonly service: FilesService) {}
