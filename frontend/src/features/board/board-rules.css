@@ -1,0 +1,9 @@
+/* Marca visual em cards do Board cuja task viola as regras de campos
+ * obrigatórios do estado actual. Aplicada via attribute selector
+ * (data-card-violation="1") por BoardView.tsx num useEffect que monitoriza
+ * o Set de violatingTaskIds. */
+/* Selector com :where para máxima especificidade quando combinado com !important. */
+.ak-card[data-card-violation="1"],
+article.ak-card[data-card-violation="1"] {
+  box-shadow: 0px 0 0 2px rgba(255, 0, 0, 0.35) !important;
+}

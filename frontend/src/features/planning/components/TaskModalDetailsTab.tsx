@@ -14,7 +14,7 @@ import {
   type EMPTY_TASK_FORM,
   type Task,
 } from '../types';
-import type { ITaskState } from '../states-types';
+import type { ITaskState, TaskFieldKey } from '../states-types';
 
 type TaskFormShape = typeof EMPTY_TASK_FORM;
 
@@ -40,6 +40,14 @@ interface Props {
   onAddSubtask: (parentPublicId: string) => void;
   onOpenSubtask: (task: Task) => void;
   onJumpToFiles: () => void;
+  /** Campos obrigatórios pelo estado destino — adiciona `*` no label. */
+  requiredFields?: Set<TaskFieldKey>;
+  /**
+   * Limpa a data de início — invoca `fp.clear()` na instância FlatPickr gerida
+   * pelo orchestrator (o input é `readOnly`, sem isto não há forma do user
+   * voltar a data vazia depois de seleccionar uma).
+   */
+  onClearStartDate?: () => void;
 }
 
 /**
@@ -78,17 +86,22 @@ export function TaskModalDetailsTab({
   onAddSubtask,
   onOpenSubtask,
   onJumpToFiles,
+  requiredFields,
+  onClearStartDate,
 }: Props) {
   const { t } = useTranslation('planning');
+  const { t: tc } = useTranslation('common');
 
   const isMilestone = taskForm.type === 'milestone';
+  const req = requiredFields ?? new Set<TaskFieldKey>();
+  const reqMarker = <span className="text-danger ms-1">*</span>;
 
   return (
     <div className="task-details-grid">
 
       {/* ─── Coluna 1 (40%) — Descrição + Subtarefas ─── */}
       <div className="task-details-main">
-        <TaskModalDescriptionField value={description} onChange={setDescription} />
+        <TaskModalDescriptionField value={description} onChange={setDescription} required={req.has('description')} />
         {editingTask && (
           <TaskModalSubtasks
             parentTask={editingTask}
@@ -111,7 +124,8 @@ export function TaskModalDetailsTab({
             {/* Linha 1: Data de início (full width) */}
             <div className="col-12">
               <label className="form-label">
-                {t('task.form.start_date_label')} <span className="text-danger">*</span>
+                {t('task.form.start_date_label')}
+                {req.has('schedule') && reqMarker}
               </label>
               <div className="input-group">
                 <span className="input-group-text">
@@ -124,6 +138,18 @@ export function TaskModalDetailsTab({
                   placeholder="DD-MM-YYYY HH:mm"
                   readOnly
                 />
+                {taskForm.start_date && onClearStartDate && (
+                  <button
+                    type="button"
+                    className="input-group-text"
+                    onClick={onClearStartDate}
+                    aria-label={tc('actions.clear')}
+                    title={tc('actions.clear')}
+                    style={{ cursor: 'pointer', border: 0, background: 'transparent' }}
+                  >
+                    <i className="ri-close-line text-muted" aria-hidden="true" />
+                  </button>
+                )}
               </div>
             </div>
 
@@ -135,6 +161,7 @@ export function TaskModalDetailsTab({
                     {taskForm.durationUnit === 'HOUR'
                       ? t('task.duration_hours_label')
                       : t('task.duration_days_label')}
+                    {req.has('duration') && reqMarker}
                   </label>
                   <input
                     type="number"
@@ -170,7 +197,7 @@ export function TaskModalDetailsTab({
             {/* Linha 3: Restrição (full width, oculta para milestone) */}
             {!isMilestone && (
               <div className="col-12">
-                <label className="form-label">{t('task.form.constraint_label')}</label>
+                <label className="form-label">{t('task.form.constraint_label')}{req.has('restriction') && reqMarker}</label>
                 <select
                   ref={choicesConstraintRef}
                   className="form-control"
@@ -221,7 +248,7 @@ export function TaskModalDetailsTab({
           </h6>
           <div className="row gy-3">
             <div className="col-12">
-              <label className="form-label">{t('task.form.type_label')}</label>
+              <label className="form-label">{t('task.form.type_label')}{req.has('type') && reqMarker}</label>
               <select
                 ref={choicesTypeRef}
                 className="form-control"
@@ -264,7 +291,7 @@ export function TaskModalDetailsTab({
             </div>
             {!isMilestone && (
               <div className="col-12">
-                <label className="form-label">{t('task.form.priority_label')}</label>
+                <label className="form-label">{t('task.form.priority_label')}{req.has('priority') && reqMarker}</label>
                 <select
                   ref={choicesPriorityRef}
                   className="form-control"
@@ -304,6 +331,7 @@ export function TaskModalDetailsTab({
             <h6 className="task-section-title">
               <i className="ri-team-line" aria-hidden="true" />
               {t('task.assignees.title')}
+              {req.has('assignees') && reqMarker}
               {taskOwnerIds.length > 0 && <span className="tab-count">{taskOwnerIds.length}</span>}
             </h6>
             {allResourcesByType.size === 0 ? (

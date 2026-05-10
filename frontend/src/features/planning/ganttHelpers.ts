@@ -339,9 +339,13 @@ export function parseGanttData({
   // No modo inclusivo o backend devolve end_date = último dia real — converter para exclusivo (DHTMLX).
   // Tasks com `durationUnit === 'HOUR'` NÃO são afectadas: o end_date já é a hora exacta canónica,
   // não há "+1 dia" semântica. Ver docs/claude/tools/gantt/data-model.md.
-  let tasksForGantt: Task[] = tasks;
+  // Tasks sem start_date (introduzidas Mai 2026 com regras de campos) não têm
+  // posição temporal — não podem ser renderizadas no Gantt. Aparecem em
+  // Planning list, Board e TaskModal mas não na timeline. Filtramos aqui antes
+  // do parse para evitar Invalid Date no DHTMLX.
+  let tasksForGantt: Task[] = tasks.filter((t) => !!t.start_date);
   if (endDateModeRef.current === 'inclusive') {
-    tasksForGantt = tasks.map((t) => {
+    tasksForGantt = tasksForGantt.map((t) => {
       if (!t.end_date) return t;
       if (t.durationUnit === 'HOUR') return t; // hora exacta — sem soma
       const [datePart, timePart = '00:00'] = t.end_date.split(' ');

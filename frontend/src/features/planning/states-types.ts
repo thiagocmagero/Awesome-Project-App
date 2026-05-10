@@ -7,6 +7,13 @@
 
 export type TaskStateColumnType = 'INITIAL' | 'INTERMEDIATE' | 'FINAL';
 
+export type TaskFieldKey = 'description' | 'schedule' | 'duration' | 'restriction' | 'type' | 'priority' | 'assignees';
+
+export interface IFieldRule {
+  field: TaskFieldKey;
+  isRequired: boolean;
+}
+
 export interface ITaskState {
   publicId: string;
   /** custom label; null → usar `labelKey` para resolver via i18n */
@@ -20,6 +27,7 @@ export interface ITaskState {
   position: number;
   color: string | null;
   wipLimit: number | null;
+  rules: IFieldRule[];
 }
 
 export interface ITaskSwimlane {

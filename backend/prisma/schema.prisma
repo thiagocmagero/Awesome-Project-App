@@ -1072,7 +1072,10 @@ model Task {
   /// Descrição rica/longa da task (opcional). Editada no TaskModal.
   description String?
   type        String    @default("task") // "task" | "project" | "milestone"
-  startDate   DateTime
+  /// Data de início. Opcional desde Mai 2026 — quando vazia, a tarefa não
+  /// aparece no Gantt (não tem range temporal). Obrigatoriedade real é
+  /// imposta pelas regras de campos do estado (TaskFieldKey.schedule).
+  startDate   DateTime?
   endDate     DateTime? // calculado automaticamente se omitido
 
   /// Duração em dias OU horas (float). Interpretação depende de `durationUnit`.
@@ -1305,6 +1308,17 @@ model ProjectMemberHours {
 
 // ─── Board (Quadro Kanban) ────────────────────────────────────────────────────
 
+/// Campos configuráveis como obrigatórios por estado de task
+enum TaskFieldKey {
+  description
+  schedule
+  duration
+  restriction
+  type
+  priority
+  assignees
+}
+
 /// Coluna (estado) do quadro Kanban — representa uma etapa do workflow
 /// Estados sistema (isSystem=true): TODO, INPROGRESS, DONE — não podem ser eliminados
 /// Estados custom (isSystem=false): criados pelo utilizador (sempre type=INTERMEDIATE)
@@ -1341,7 +1355,23 @@ model BoardColumn {
   /// Tarefas neste estado
   tasks Task[]
 
+  /// Regras de obrigatoriedade de campos para este estado
+  fieldRules BoardColumnFieldRule[]
+
   @@index([projectId, position])
+}
+
+/// Regra de campo obrigatório para um estado (BoardColumn)
+/// onDelete: Cascade — eliminar estado elimina as suas regras automaticamente
+model BoardColumnFieldRule {
+  id            Int          @id @default(autoincrement())
+  boardColumnId Int
+  boardColumn   BoardColumn  @relation(fields: [boardColumnId], references: [id], onDelete: Cascade)
+  field         TaskFieldKey
+  isRequired    Boolean      @default(true)
+
+  @@unique([boardColumnId, field])
+  @@index([boardColumnId])
 }
 
 /// Responsável atribuído a um cartão via board (n:m entre Task e User)

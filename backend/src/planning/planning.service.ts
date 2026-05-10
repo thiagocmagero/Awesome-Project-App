@@ -506,7 +506,13 @@ export class PlanningService {
     });
     const workHours = resolveWorkHours(project?.workHours);
 
-    const startDate = parseGanttDate(dto.start_date);
+    // start_date é opcional. Quando vazio/omitido, a tarefa fica sem
+    // startDate/endDate — não aparece no Gantt mas existe na lista, board e
+    // modal. A obrigatoriedade real fica delegada às regras de campos do
+    // estado (TaskFieldKey.schedule).
+    const startDate: Date | null = dto.start_date && dto.start_date.trim()
+      ? parseGanttDate(dto.start_date)
+      : null;
     const constraintDate = dto.constraint_date
       ? parseGanttDate(dto.constraint_date)
       : undefined;
@@ -514,23 +520,27 @@ export class PlanningService {
     const nonWorkingDays = await this.holidaysService.getNonWorkingDaysForProject(projectId);
     const nonWorkingSet = new Set(nonWorkingDays);
 
-    let endDate: Date;
+    let endDate: Date | null = null;
 
     // Cap configurável (PlatformLimits) — converte HOUR ↔ dias úteis via workHours.
     const maxBusinessDays = await this.platformConfig.getMaxTaskBusinessDays();
     assertTaskDurationWithinLimit(dto.duration, durationUnit, workHours, maxBusinessDays);
 
-    if (durationUnit === TaskDurationUnit.HOUR) {
-      this.assertStartWithinWorkHours(startDate, workHours);
-      endDate = addBusinessHoursInclusive(startDate, dto.duration, workHours, nonWorkingSet);
-    } else {
-      // DAY (legacy): addBusinessDaysInclusive + endDateMode.
-      const lastBusinessDay = addBusinessDaysInclusive(startDate, dto.duration, nonWorkingSet);
-      endDate = dto.endDateMode === 'inclusive'
-        ? lastBusinessDay
-        : new Date(lastBusinessDay.getTime() + 86400000);
+    // Só calculamos endDate quando há startDate. Tasks sem data de início ficam
+    // com startDate=null/endDate=null e não aparecem no Gantt.
+    if (startDate) {
+      if (durationUnit === TaskDurationUnit.HOUR) {
+        this.assertStartWithinWorkHours(startDate, workHours);
+        endDate = addBusinessHoursInclusive(startDate, dto.duration, workHours, nonWorkingSet);
+      } else {
+        // DAY (legacy): addBusinessDaysInclusive + endDateMode.
+        const lastBusinessDay = addBusinessDaysInclusive(startDate, dto.duration, nonWorkingSet);
+        endDate = dto.endDateMode === 'inclusive'
+          ? lastBusinessDay
+          : new Date(lastBusinessDay.getTime() + 86400000);
+      }
+      this.assertEndDateInRange(endDate);
     }
-    this.assertEndDateInRange(endDate);
 
     // Atribuir automaticamente a coluna INITIAL (TODO) para tarefas tipo 'task'.
     // Tarefas do tipo 'project' ou 'milestone' não aparecem no board (não precisam).
@@ -643,7 +653,15 @@ export class PlanningService {
       data.description = dto.description.length > 0 ? dto.description : null;
     }
     if (dto.type !== undefined) data.type = dto.type;
-    if (dto.start_date !== undefined) data.startDate = parseGanttDate(dto.start_date);
+    // start_date pode ser explicitamente limpo no update. Convenção:
+    //   undefined → não tocar
+    //   null | '' | só whitespace → set null (limpa também endDate em baixo)
+    //   string com data → parse
+    if (dto.start_date !== undefined) {
+      data.startDate = dto.start_date && dto.start_date.trim()
+        ? parseGanttDate(dto.start_date)
+        : null;
+    }
     if (dto.duration !== undefined) data.duration = dto.duration;
     if (dto.durationUnit !== undefined) data.durationUnit = dto.durationUnit;
     if (dto.progress !== undefined) data.progress = dto.progress;
@@ -654,9 +672,16 @@ export class PlanningService {
     if (dto.parent !== undefined)
       data.parentId = dto.parent !== 0 ? dto.parent : null;
     if (dto.priority !== undefined) data.priority = dto.priority;
-    if (dto.constraint_type !== undefined) data.constraintType = dto.constraint_type;
-    if (dto.constraint_date !== undefined)
-      data.constraintDate = parseGanttDate(dto.constraint_date);
+    if (dto.constraint_type !== undefined) {
+      data.constraintType = dto.constraint_type && dto.constraint_type.length > 0
+        ? dto.constraint_type
+        : null;
+    }
+    if (dto.constraint_date !== undefined) {
+      data.constraintDate = dto.constraint_date && dto.constraint_date.trim()
+        ? parseGanttDate(dto.constraint_date)
+        : null;
+    }
 
     // Calcular endDate sempre que startDate, duration ou durationUnit forem actualizados.
     // Ramifica conforme a unidade efectiva (DTO ou existente).
@@ -665,35 +690,86 @@ export class PlanningService {
       dto.duration !== undefined ||
       dto.durationUnit !== undefined
     ) {
-      const effStart = dto.start_date ? parseGanttDate(dto.start_date) : existing.startDate;
+      // Se o user enviou start_date no DTO, é a fonte de verdade (incluindo
+      // null/empty para limpar). Senão, mantém o existente.
+      const effStart: Date | null = dto.start_date !== undefined
+        ? (dto.start_date && dto.start_date.trim()
+            ? parseGanttDate(dto.start_date)
+            : null)
+        : existing.startDate;
       const effDur   = dto.duration  ?? existing.duration;
-      const nonWorkingDays = await this.holidaysService.getNonWorkingDaysForProject(existing.projectId);
-      const nonWorkingSet = new Set(nonWorkingDays);
 
       const maxBusinessDays = await this.platformConfig.getMaxTaskBusinessDays();
       assertTaskDurationWithinLimit(effDur, effUnit, workHours, maxBusinessDays);
 
-      if (effUnit === TaskDurationUnit.HOUR) {
-        // Só validar quando o user tocou no start. Tasks legacy podem ter
-        // startDate fora da janela e um resize-direita (sem dto.start_date)
-        // não deve ser bloqueado por isso.
-        if (dto.start_date !== undefined) {
-          this.assertStartWithinWorkHours(effStart, workHours);
+      if (effStart) {
+        const nonWorkingDays = await this.holidaysService.getNonWorkingDaysForProject(existing.projectId);
+        const nonWorkingSet = new Set(nonWorkingDays);
+
+        if (effUnit === TaskDurationUnit.HOUR) {
+          // Só validar quando o user tocou no start. Tasks legacy podem ter
+          // startDate fora da janela e um resize-direita (sem dto.start_date)
+          // não deve ser bloqueado por isso.
+          if (dto.start_date !== undefined) {
+            this.assertStartWithinWorkHours(effStart, workHours);
+          }
+          data.endDate = addBusinessHoursInclusive(effStart, effDur, workHours, nonWorkingSet);
+        } else {
+          const lastBusinessDay = addBusinessDaysInclusive(effStart, effDur, nonWorkingSet);
+          data.endDate = dto.endDateMode === 'inclusive'
+            ? lastBusinessDay
+            : new Date(lastBusinessDay.getTime() + 86400000);
         }
-        data.endDate = addBusinessHoursInclusive(effStart, effDur, workHours, nonWorkingSet);
+        this.assertEndDateInRange(data.endDate as Date);
       } else {
-        const lastBusinessDay = addBusinessDaysInclusive(effStart, effDur, nonWorkingSet);
-        data.endDate = dto.endDateMode === 'inclusive'
-          ? lastBusinessDay
-          : new Date(lastBusinessDay.getTime() + 86400000);
+        // Sem start: limpa endDate também.
+        data.endDate = null;
       }
-      this.assertEndDateInRange(data.endDate as Date);
     }
 
     const previousOwnerIds = existing.ownerIds;
     if (requestingUser) {
       data.updatedById = requestingUser.sub;
     }
+
+    // Validar regras de campos do estado actual da task com os dados merged
+    // (existing + dto). Bloqueia o save se algum campo obrigatório ficar vazio.
+    if (existing.boardColumnId !== null) {
+      const requiredRules = await this.prisma.boardColumnFieldRule.findMany({
+        where: { boardColumnId: existing.boardColumnId, isRequired: true },
+        select: { field: true },
+      });
+      if (requiredRules.length > 0) {
+        const boardAssignees = await this.prisma.boardCardAssignee.findMany({
+          where: { taskId: id },
+          select: { userId: true },
+        });
+        const merged = {
+          description: 'description' in data ? (data.description as string | null) : existing.description,
+          startDate:   'startDate'   in data ? (data.startDate as Date)            : existing.startDate,
+          duration:    'duration'    in data ? (data.duration as number)           : existing.duration,
+          type:        'type'        in data ? (data.type as string)               : existing.type,
+          constraintType: 'constraintType' in data
+            ? (data.constraintType as string | null)
+            : existing.constraintType,
+          priority:    'priority'    in data ? (data.priority as number | null)    : existing.priority,
+          ownerIds:    'ownerIds'    in data ? (data.ownerIds as string[])         : existing.ownerIds,
+          boardAssignees: boardAssignees as unknown[],
+        };
+        const missing = this.statesService.validateTaskAgainstRules(
+          merged,
+          requiredRules.map((r) => r.field),
+        );
+        if (missing.length > 0) {
+          throw new AppException(
+            'TASK_MISSING_REQUIRED_FIELDS',
+            HttpStatus.UNPROCESSABLE_ENTITY,
+            { fields: missing },
+          );
+        }
+      }
+    }
+
     const task = await this.prisma.task.update({
       where: { id },
       data,
@@ -752,21 +828,25 @@ export class PlanningService {
     const workHours = resolveWorkHours(project?.workHours);
 
     await this.prisma.$transaction(
-      tasks.map((t) => {
-        let endDate: Date;
-        if (t.durationUnit === TaskDurationUnit.HOUR) {
-          endDate = addBusinessHoursInclusive(t.startDate, t.duration, workHours, nonWorkingSet);
-        } else {
-          const lastBusinessDay = addBusinessDaysInclusive(t.startDate, t.duration, nonWorkingSet);
-          endDate = endDateMode === 'inclusive'
-            ? lastBusinessDay
-            : new Date(lastBusinessDay.getTime() + 86400000);
-        }
-        return this.prisma.task.update({
-          where: { id: t.id },
-          data: { endDate },
-        });
-      }),
+      tasks
+        // Tasks sem startDate (Mai 2026, regras de campos) ficam fora do
+        // recompute — sem start, não há endDate possível.
+        .filter((t): t is typeof t & { startDate: Date } => t.startDate !== null)
+        .map((t) => {
+          let endDate: Date;
+          if (t.durationUnit === TaskDurationUnit.HOUR) {
+            endDate = addBusinessHoursInclusive(t.startDate, t.duration, workHours, nonWorkingSet);
+          } else {
+            const lastBusinessDay = addBusinessDaysInclusive(t.startDate, t.duration, nonWorkingSet);
+            endDate = endDateMode === 'inclusive'
+              ? lastBusinessDay
+              : new Date(lastBusinessDay.getTime() + 86400000);
+          }
+          return this.prisma.task.update({
+            where: { id: t.id },
+            data: { endDate },
+          });
+        }),
     );
 
     return { affected: tasks.length };
@@ -1086,7 +1166,7 @@ export class PlanningService {
     text: string;
     description?: string | null;
     type: string;
-    startDate: Date;
+    startDate: Date | null;
     endDate: Date | null;
     duration: number;
     durationUnit: TaskDurationUnit;
@@ -1116,18 +1196,24 @@ export class PlanningService {
       createdAt?: Date | null;
       updatedAt?: Date | null;
     };
+    // Tasks sem startDate (introduzido Mai 2026 com regras de campos) ficam
+    // com start_date/end_date undefined no wire — frontend filtra no
+    // parseGanttData e não as renderiza no Gantt.
+    const startDateStr = t.startDate ? formatGanttDate(t.startDate) : undefined;
+    const endDateRaw = t.endDate ?? (t.startDate ? (
+      t.durationUnit === TaskDurationUnit.HOUR
+        ? new Date(t.startDate.getTime() + t.duration * 3_600_000)
+        : new Date(t.startDate.getTime() + t.duration * 24 * 60 * 60 * 1000)
+    ) : null);
+    const endDateStr = endDateRaw ? formatGanttDate(endDateRaw) : undefined;
     return {
       id: t.id,
       publicId: t.publicId,
       text: t.text,
       description: t.description ?? null,
       type: t.type,
-      start_date: formatGanttDate(t.startDate),
-      end_date: formatGanttDate(t.endDate ?? (
-        t.durationUnit === TaskDurationUnit.HOUR
-          ? new Date(t.startDate.getTime() + t.duration * 3_600_000)
-          : new Date(t.startDate.getTime() + t.duration * 24 * 60 * 60 * 1000)
-      )),
+      start_date: startDateStr,
+      end_date: endDateStr,
       duration: t.duration,
       durationUnit: t.durationUnit,
       progress: t.progress,

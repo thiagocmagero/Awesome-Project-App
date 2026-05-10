@@ -17,7 +17,7 @@ import { TaskModalDetailsTab } from './TaskModalDetailsTab';
 import { TaskModalLinksTab } from './TaskModalLinksTab';
 import { TaskModalFooter } from './TaskModalFooter';
 import type { Task, EMPTY_TASK_FORM } from '../types';
-import type { ITaskState } from '../states-types';
+import type { ITaskState, TaskFieldKey } from '../states-types';
 import './task-modal.css';
 
 type TaskFormShape = typeof EMPTY_TASK_FORM;
@@ -59,6 +59,12 @@ export interface TaskModalProps {
   openCreateSubtask?: (parentPublicId: string) => void;
   /** Abrir o modal a editar outra tarefa (clique numa subtarefa). */
   openEditTaskFromSubtask?: (task: Task) => void;
+  /** Erros de regras de campos obrigatórios do estado destino. */
+  fieldRuleErrors?: string[];
+  /** Campos obrigatórios do estado destino (para mostrar * nos labels). */
+  requiredFields?: Set<TaskFieldKey>;
+  /** Limpa a data de início no input FlatPickr + estado React. */
+  onClearStartDate?: () => void;
 }
 
 export function TaskModal({
@@ -72,6 +78,8 @@ export function TaskModal({
   choicesParentRef,
   setShowTaskModal, handleTaskSubmit,
   openCreateSubtask, openEditTaskFromSubtask,
+  fieldRuleErrors = [], requiredFields = new Set(),
+  onClearStartDate,
 }: TaskModalProps) {
   const { t } = useTranslation('planning');
   const { t: tc } = useTranslation('common');
@@ -239,6 +247,14 @@ export function TaskModal({
               {taskFormError && (
                 <div className="alert alert-danger py-2 mb-3">{taskFormError}</div>
               )}
+              {fieldRuleErrors.length > 0 && (
+                <div className="alert alert-danger py-2 mb-3">
+                  <div className="fw-semibold mb-1">{t('states.rules.validation_title')}</div>
+                  <ul className="mb-0 ps-3">
+                    {fieldRuleErrors.map((err) => <li key={err}>{err}</li>)}
+                  </ul>
+                </div>
+              )}
 
               {/* Detalhes — sempre montado para preservar Choices/FlatPickr nos refs */}
               <div style={{ display: taskModalTab === 'details' ? '' : 'none' }}>
@@ -269,6 +285,8 @@ export function TaskModal({
                     onAddSubtask={(parentPublicId) => openCreateSubtask?.(parentPublicId)}
                     onOpenSubtask={(t) => openEditTaskFromSubtask?.(t)}
                     onJumpToFiles={() => setTaskModalTab('files')}
+                    requiredFields={requiredFields}
+                    onClearStartDate={onClearStartDate}
                   />
                   {/* invisible submit input para Enter no form submeter via footer */}
                   <button type="submit" style={{ display: 'none' }} aria-hidden="true" />

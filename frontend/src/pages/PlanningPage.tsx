@@ -38,7 +38,9 @@ import { usePlanningStates }    from '../features/planning/usePlanningStates';
 import { StateModal }           from '../features/planning/components/StateModal';
 import { DeleteStateModal }     from '../features/planning/components/DeleteStateModal';
 import { StatesManagerPanel }   from '../features/planning/components/StatesManagerPanel';
-import type { ITaskState }      from '../features/planning/states-types';
+import { StateRulesModal }      from '../features/planning/components/StateRulesModal';
+import { useTaskFieldRules }    from '../features/planning/useTaskFieldRules';
+import type { ITaskState, TaskFieldKey } from '../features/planning/states-types';
 // Board feature (Maio 2026 — AwesomeKanban com sync ao backend)
 import { BoardView, type BoardViewApi } from '../features/board/BoardView';
 import { BoardConfigPanel }     from '../features/board/components/BoardConfigPanel';
@@ -154,6 +156,7 @@ export default function PlanningPage() {
   const [editingState,       setEditingState]       = useState<ITaskState | null>(null);
   const [showDeleteStateModal, setShowDeleteStateModal] = useState(false);
   const [deletingState,      setDeletingState]      = useState<ITaskState | null>(null);
+  const [rulesModalState,    setRulesModalState]    = useState<ITaskState | null>(null);
   const [configTab, setConfigTab]             = useState<'columns' | 'colors' | 'defaults'>('columns');
   const [pendingEndDateMode, setPendingEndDateMode] = useState<'inclusive' | 'exclusive'>('exclusive');
   const [columnMenuPos, setColumnMenuPos]     = useState<{ x: number; y: number } | null>(null);
@@ -225,15 +228,125 @@ export default function PlanningPage() {
     setTasks, setLinks, setMemberHours,
   } = planningData;
 
-  // ── States refresh ref: actualizado após usePlanningStates inicializar ───────
-  // Permite que syncLoadAll refresque a lista de Estados após TaskModal guardar
-  // (caso o user altere o estado da tarefa), sem depender da ordem de declaração
-  // dos hooks (statesData vem depois de useTaskForm).
-  const statesRefreshRef = useRef<() => void>(() => {});
+  // ── Planning states (Estados / colunas do projecto) ──────────────────────────
+  // Carregado ANTES de useTaskForm para que validateTaskForm seja sempre fresh
+  // (sem ref dance). Substitui o antigo `useBoardData` (Abril 2026).
+  const statesData = usePlanningStates(projectId);
+
+  // ── Field rules (validação centralizada de campos obrigatórios por estado) ───
+  const { getRequiredFields, validateTaskForm: validateTaskFormImpl, getViolatingTaskIds } = useTaskFieldRules(statesData.states);
+  // Set de tasks com regras violadas — actualizado quando tasks ou rules mudam.
+  // Passado a BoardView para aplicar border-top vermelho via CSS.
+  const dbViolatingTaskIds = useMemo(
+    () => getViolatingTaskIds(tasks),
+    // getViolatingTaskIds é re-criado em cada render mas depende de statesData.states (já no dep).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tasks, statesData.states],
+  );
+
+  // Map ephemeral client-side: cada entrada guarda o estado da task no
+  // momento em que o backend rejeitou o move por TASK_MISSING_REQUIRED_FIELDS,
+  // mais os campos que faltavam. Como o snap-back deixa a task na coluna
+  // original (que normalmente satisfaz regras), `dbViolatingTaskIds` não
+  // cobre este caso — memorizamos para poder limpar quando o utilizador:
+  //   a) preencher os campos em falta (em qualquer caminho), OU
+  //   b) mover a task com sucesso para uma coluna sem violação.
+  type FailedMoveEntry = { stateAtFailure: string | null; missingFields: Set<TaskFieldKey> };
+  const [failedMoveFields, setFailedMoveFields] = useState<Map<string, FailedMoveEntry>>(new Map());
+
+  const handleMoveRejected = useCallback((taskPublicId: string, missingFields: TaskFieldKey[]) => {
+    if (!Array.isArray(missingFields) || missingFields.length === 0) return;
+    setFailedMoveFields((prev) => {
+      const next = new Map(prev);
+      // O state actual (snap-back) é o que está em `tasksRef`. Em rare race
+      // (handleMoveRejected antes do refresh), aceitamos `null` como
+      // sentinel — o useEffect a seguir corrige assim que o reload chegar.
+      const task = tasksRef.current.find((t) => t.publicId === taskPublicId);
+      next.set(taskPublicId, {
+        stateAtFailure: task?.boardColumn ?? null,
+        missingFields: new Set(missingFields),
+      });
+      return next;
+    });
+  }, []);
+
+  // Move bem sucedido — sinal explícito do user, limpa a marca mesmo que a
+  // coluna efectiva em DB não tenha mudado (TODO→TODO após snap-back).
+  const handleMoveSucceeded = useCallback((taskPublicId: string) => {
+    setFailedMoveFields((prev) => {
+      if (!prev.has(taskPublicId)) return prev;
+      const next = new Map(prev);
+      next.delete(taskPublicId);
+      return next;
+    });
+  }, []);
+
+  // Limpeza automática: sempre que `tasks` muda, remove do Map ephemeral as
+  // entradas cujas tasks (a) já não existem, (b) foram movidas para uma
+  // coluna diferente da que estavam no momento da falha (= move bem
+  // sucedido), ou (c) já têm preenchidos os campos que faltavam.
+  useEffect(() => {
+    setFailedMoveFields((prev) => {
+      if (prev.size === 0) return prev;
+      const tasksByPublicId = new Map(tasks.map((t) => [t.publicId, t]));
+      const next = new Map<string, FailedMoveEntry>();
+      for (const [publicId, entry] of prev.entries()) {
+        const task = tasksByPublicId.get(publicId);
+        if (!task) continue; // task apagada
+        // (b) Mudou de coluna desde a falha → move bem sucedido. Limpa.
+        // Excepção: se `stateAtFailure === null` (sentinel da race), espera
+        // o próximo refresh para preencher e re-avaliar — mantém entry como
+        // está, com `stateAtFailure` actualizado.
+        if (entry.stateAtFailure === null) {
+          next.set(publicId, { ...entry, stateAtFailure: task.boardColumn ?? null });
+          continue;
+        }
+        if ((task.boardColumn ?? null) !== entry.stateAtFailure) continue;
+        // (c) Mesma coluna — re-avalia se os campos em falta continuam por preencher.
+        const stillMissing = new Set<TaskFieldKey>();
+        const isMilestone = task.type === 'milestone';
+        for (const field of entry.missingFields) {
+          let unmet = false;
+          switch (field) {
+            case 'description': unmet = !task.description || !task.description.trim(); break;
+            case 'schedule':    unmet = !task.start_date; break;
+            case 'duration':    unmet = !isMilestone && (!task.duration || task.duration <= 0); break;
+            case 'restriction': unmet = !task.constraint_type; break;
+            case 'type':        unmet = !task.type; break;
+            case 'priority':    unmet = task.priority == null; break;
+            case 'assignees':   unmet = !task.owner_id || task.owner_id.length === 0; break;
+          }
+          if (unmet) stillMissing.add(field);
+        }
+        if (stillMissing.size > 0) {
+          next.set(publicId, { stateAtFailure: entry.stateAtFailure, missingFields: stillMissing });
+        }
+      }
+      // Comparação cheap para evitar re-renders quando nada mudou.
+      if (next.size === prev.size) {
+        let same = true;
+        for (const k of next.keys()) {
+          if (!prev.has(k)) { same = false; break; }
+        }
+        if (same) return prev;
+      }
+      return next;
+    });
+  }, [tasks]);
+
+  // União do "real" (DB) com o ephemeral (tentativas falhadas) — Set único
+  // passado ao BoardView para aplicar a marca vermelha.
+  const violatingTaskIds = useMemo(() => {
+    if (failedMoveFields.size === 0) return dbViolatingTaskIds;
+    const merged = new Set(dbViolatingTaskIds);
+    for (const id of failedMoveFields.keys()) merged.add(id);
+    return merged;
+  }, [dbViolatingTaskIds, failedMoveFields]);
+
   const syncLoadAll = useCallback(async () => {
     await loadAll();
-    statesRefreshRef.current();
-  }, [loadAll]); // eslint-disable-line react-hooks/exhaustive-deps
+    await statesData.refresh();
+  }, [loadAll, statesData.refresh]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Task form hook ────────────────────────────────────────────────────────────
   // Ref que mantém as instâncias Choices.js activas do modal de task.
@@ -245,11 +358,11 @@ export default function PlanningPage() {
     choicesTaskModalInstancesRef.current = [];
   }, []);
 
-  const taskForm = useTaskForm({ projectId, token, tasks, endDateModeRef, loadAll: syncLoadAll, showToast, workHoursRef, onBeforeOpen: destroyChoicesForTaskModal });
+  const taskForm = useTaskForm({ projectId, token, tasks, endDateModeRef, loadAll: syncLoadAll, showToast, workHoursRef, onBeforeOpen: destroyChoicesForTaskModal, validateTaskForm: validateTaskFormImpl });
   const {
     showTaskModal, setShowTaskModal, taskModalKey, taskModalTab, setTaskModalTab,
     editingTask, taskForm: taskFormState, setTaskForm, taskOwnerIds, setTaskOwnerIds,
-    taskFormError, taskFormLoading, showDeleteTask, setShowDeleteTask,
+    taskFormError, taskFormLoading, fieldRuleErrors, showDeleteTask, setShowDeleteTask,
     deletingTask, setDeletingTask, deleteTaskLoading,
     openCreateTask, openEditTask, handleTaskSubmit, handleDeleteTask,
   } = taskForm;
@@ -257,6 +370,10 @@ export default function PlanningPage() {
   // FlatPickr refs (passed to TaskModal, effects managed here)
   const fpStartRef      = useRef<HTMLInputElement>(null);
   const fpConstraintRef = useRef<HTMLInputElement>(null);
+  // Instância FlatPickr da data de início — exposta para o botão "X" do
+  // TaskModal poder chamar `clear()` (input é readOnly, sem isto não há
+  // forma de o user voltar a data vazia depois de seleccionar uma).
+  const fpStartInstanceRef = useRef<{ clear(): void; destroy(): void } | null>(null);
   const choicesTypeRef        = useRef<HTMLSelectElement>(null);
   const choicesPriorityRef    = useRef<HTMLSelectElement>(null);
   const choicesConstraintRef  = useRef<HTMLSelectElement>(null);
@@ -418,13 +535,9 @@ export default function PlanningPage() {
     };
   }, [viewFullscreen]);
 
-  // ── Planning states (Estados / colunas do projecto) ──────────────────────────
-  // Substitui o antigo `useBoardData` (Abril 2026). Lê apenas o que o Planning
-  // precisa: lista de Estados (TaskModal select, chips Row 2, offcanvas Gerir
-  // Estados) + CRUD via permissão STATE_MANAGE. Sem cards/move/assign/swimlanes.
-  const statesData = usePlanningStates(projectId);
-
-  useEffect(() => { statesRefreshRef.current = statesData.refresh; }, [statesData.refresh]);
+  // requiredFieldsForCurrent — calculado aqui (depois de taskFormState destructured)
+  // para alimentar o TaskModal com os asteriscos `*` do estado destino actual.
+  const requiredFieldsForCurrent = getRequiredFields(taskFormState.boardColumn || null);
 
   // ── Board (Kanban) state ─────────────────────────────────────────────────────
   const {
@@ -767,17 +880,28 @@ export default function PlanningPage() {
     if (!showTaskModal || typeof flatpickr === 'undefined') return;
     const instances: Array<{ destroy(): void }> = [];
     if (fpStartRef.current) {
-      instances.push(flatpickr(fpStartRef.current, {
+      const fp = flatpickr(fpStartRef.current, {
         enableTime: true, dateFormat: taskFlatpickrFormat, time_24hr: true,
-        defaultDate: editingTask ? ganttToDate(editingTask.start_date) : null,
+        defaultDate: editingTask?.start_date ? ganttToDate(editingTask.start_date) : null,
         onChange: (selectedDates: Date[]) => {
           const d = selectedDates[0];
           setTaskForm((f) => ({ ...f, start_date: d ? formatGanttDate(d) : '' }));
         },
-      }));
+      }) as unknown as { clear(): void; destroy(): void };
+      fpStartInstanceRef.current = fp;
+      instances.push(fp);
     }
-    return () => { instances.forEach((fp) => fp.destroy()); };
+    return () => {
+      instances.forEach((fp) => fp.destroy());
+      fpStartInstanceRef.current = null;
+    };
   }, [showTaskModal, scriptsReady, taskModalKey, taskFlatpickrFormat]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Handler do botão "X" da data de início — sincroniza FlatPickr + estado React.
+  const handleClearStartDate = useCallback(() => {
+    fpStartInstanceRef.current?.clear();
+    setTaskForm((f) => ({ ...f, start_date: '' }));
+  }, [setTaskForm]);
 
   useEffect(() => {
     if (!showTaskModal || !CONSTRAINT_NEEDS_DATE.has(taskFormState.constraint_type)) return;
@@ -1438,6 +1562,13 @@ export default function PlanningPage() {
                 const task = tasks.find((t) => t.publicId === taskPublicId);
                 if (task) openEditTask(task, initialTab ?? 'details');
               }}
+              onOpenColumnRules={(columnPublicId) => {
+                const s = statesData.states.find((x) => x.publicId === columnPublicId);
+                if (s) setRulesModalState(s);
+              }}
+              violatingTaskIds={violatingTaskIds}
+              onMoveRejected={handleMoveRejected}
+              onMoveSucceeded={handleMoveSucceeded}
               onRequestDeleteTask={(taskPublicId) => {
                 const task = tasks.find((t) => t.publicId === taskPublicId);
                 if (task) {
@@ -1759,6 +1890,9 @@ export default function PlanningPage() {
             openCreateTask(parent?.id ?? 0, undefined, parentPublicId);
           }}
           openEditTaskFromSubtask={(t) => openEditTask(t)}
+          fieldRuleErrors={fieldRuleErrors}
+          requiredFields={requiredFieldsForCurrent}
+          onClearStartDate={handleClearStartDate}
         />
       )}
 
@@ -1771,8 +1905,18 @@ export default function PlanningPage() {
           onClose={() => setShowStatesManager(false)}
           onCreateState={() => { setEditingState(null); setShowStateModal(true); }}
           onEditState={(s) => { setEditingState(s); setShowStateModal(true); }}
+          onEditStateRules={(s) => setRulesModalState(s)}
           onDeleteState={(s) => { setDeletingState(s); setShowDeleteStateModal(true); }}
           onReorderStates={(ids) => statesData.reorderStates(ids)}
+        />
+      )}
+
+      {/* Modal: regras de obrigatoriedade por estado */}
+      {rulesModalState && (
+        <StateRulesModal
+          state={rulesModalState}
+          onClose={() => setRulesModalState(null)}
+          onSave={(publicId, rules) => statesData.updateStateRules(publicId, rules)}
         />
       )}
 

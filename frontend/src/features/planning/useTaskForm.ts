@@ -1,5 +1,5 @@
 // Hook: gestão de estado e handlers do formulário e CRUD de tarefa
-import { useState, type FormEvent, type MutableRefObject } from 'react';
+import { useState, useEffect, type FormEvent, type MutableRefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getApiBase, apiFetch } from '../../lib/api';
 import { EMPTY_TASK_FORM, CONSTRAINT_NEEDS_DATE } from './types';
@@ -18,6 +18,12 @@ export interface UseTaskFormProps {
    *  openCreateTask. Usado para destruir instâncias Choices.js antes que o
    *  React reconcilie os <option>, evitando o crash "removeChild". */
   onBeforeOpen?: () => void;
+  /** Valida campos obrigatórios para o estado destino; devolve lista de mensagens de erro. */
+  validateTaskForm?: (
+    form: typeof EMPTY_TASK_FORM,
+    ownerIds: string[],
+    statePublicId: string | null,
+  ) => string[];
 }
 
 export interface UseTaskFormReturn {
@@ -33,6 +39,7 @@ export interface UseTaskFormReturn {
   setTaskOwnerIds: React.Dispatch<React.SetStateAction<string[]>>;
   taskFormError: string;
   taskFormLoading: boolean;
+  fieldRuleErrors: string[];
   showDeleteTask: boolean;
   setShowDeleteTask: React.Dispatch<React.SetStateAction<boolean>>;
   deletingTask: Task | null;
@@ -45,7 +52,7 @@ export interface UseTaskFormReturn {
 }
 
 export function useTaskForm({
-  projectId, token, tasks: _tasks, endDateModeRef, loadAll, showToast, workHoursRef, onBeforeOpen,
+  projectId, token, tasks: _tasks, endDateModeRef, loadAll, showToast, workHoursRef, onBeforeOpen, validateTaskForm,
 }: UseTaskFormProps): UseTaskFormReturn {
   const { t } = useTranslation('planning');
   const { t: tc } = useTranslation('common');
@@ -59,10 +66,14 @@ export function useTaskForm({
   const [taskOwnerIds, setTaskOwnerIds]       = useState<string[]>([]);
   const [taskFormError, setTaskFormError]     = useState('');
   const [taskFormLoading, setTaskFormLoading] = useState(false);
+  const [fieldRuleErrors, setFieldRuleErrors] = useState<string[]>([]);
 
   const [showDeleteTask, setShowDeleteTask]       = useState(false);
   const [deletingTask, setDeletingTask]           = useState<Task | null>(null);
   const [deleteTaskLoading, setDeleteTaskLoading] = useState(false);
+
+  // Limpar erros de regras ao mudar de estado destino
+  useEffect(() => { setFieldRuleErrors([]); }, [taskForm.boardColumn]);
 
   function h() {
     return { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
@@ -103,12 +114,12 @@ export function useTaskForm({
       text: task.text,
       description: task.description ?? '',
       type: task.type,
-      start_date: task.start_date,
+      start_date: task.start_date ?? '',
       duration: String(task.duration),
       durationUnit: (task.durationUnit ?? 'DAY') as 'DAY' | 'HOUR',
       progress: String(Math.round(task.progress * 100)),
       parent: String(task.parent ?? 0),
-      priority: task.priority ? String(task.priority) : '',
+      priority: task.priority != null ? String(task.priority) : '',
       constraint_type: task.constraint_type ?? '',
       constraint_date: task.constraint_date ?? '',
       boardColumn: task.boardColumn ?? '',
@@ -124,10 +135,23 @@ export function useTaskForm({
   async function handleTaskSubmit(e: FormEvent) {
     e.preventDefault();
     setTaskFormError('');
+
     if (taskForm.type === 'milestone' && taskForm.parent === '0') {
       setTaskFormError(t('task.milestone_no_parent_error'));
       return;
     }
+
+    // Validar campos obrigatórios do estado destino antes do round-trip.
+    if (validateTaskForm) {
+      const stateTarget = taskForm.boardColumn || null;
+      const ruleErrors = validateTaskForm(taskForm, taskOwnerIds, stateTarget);
+      if (ruleErrors.length > 0) {
+        setFieldRuleErrors(ruleErrors);
+        return;
+      }
+    }
+    setFieldRuleErrors([]);
+
     setTaskFormLoading(true);
     try {
       const body: Record<string, unknown> = {
@@ -186,10 +210,25 @@ export function useTaskForm({
       } else {
         body.parent = Number(taskForm.parent);
       }
-      if (taskForm.priority) body.priority = Number(taskForm.priority);
-      if (taskForm.constraint_type) body.constraint_type = taskForm.constraint_type;
-      if (taskForm.constraint_date && CONSTRAINT_NEEDS_DATE.has(taskForm.constraint_type))
+      // Priority: '' = limpar (null), '0'..'3' = valor (0=Crítica é válido).
+      // Em criação, só envia se preenchido. Em edição envia sempre — null limpa.
+      if (taskForm.priority !== '') {
+        body.priority = Number(taskForm.priority);
+      } else if (editingTask) {
+        body.priority = null;
+      }
+      // Constraint type: '' = limpar (null) em edição.
+      if (taskForm.constraint_type) {
+        body.constraint_type = taskForm.constraint_type;
+      } else if (editingTask) {
+        body.constraint_type = null;
+      }
+      if (taskForm.constraint_date && CONSTRAINT_NEEDS_DATE.has(taskForm.constraint_type)) {
         body.constraint_date = taskForm.constraint_date;
+      } else if (editingTask) {
+        // Se não há constraint_type ou não precisa de data, limpa em edição.
+        body.constraint_date = null;
+      }
       body.owner_id = taskOwnerIds;
 
       const url = editingTask
@@ -204,6 +243,14 @@ export function useTaskForm({
         // devolve { message: string | string[], statusCode }. Tratar ambos.
         const code = data.error_code as string | undefined;
         const msg = Array.isArray(data.message) ? data.message.join(' · ') : data.message;
+        // Caso especial: regras de campos obrigatórios — popula fieldRuleErrors em vez do erro genérico.
+        if (code === 'TASK_MISSING_REQUIRED_FIELDS' && Array.isArray(data.fields)) {
+          const labels = (data.fields as string[]).map(
+            (f) => t(`states.rules.field.${f}` as Parameters<typeof t>[0]),
+          );
+          setFieldRuleErrors(labels);
+          return;
+        }
         // Mapeia códigos do backend para mensagens i18n amigáveis.
         const friendly = code === 'TASK_DURATION_EXCEEDS_LIMIT'
           ? t('task.error_duration_too_long')
@@ -274,6 +321,7 @@ export function useTaskForm({
     taskOwnerIds, setTaskOwnerIds,
     taskFormError,
     taskFormLoading,
+    fieldRuleErrors,
     showDeleteTask, setShowDeleteTask,
     deletingTask, setDeletingTask,
     deleteTaskLoading,

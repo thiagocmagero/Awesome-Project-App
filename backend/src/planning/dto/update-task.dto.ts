@@ -56,9 +56,10 @@ export class UpdateTaskDto {
   @IsInt()
   parent?: number;
 
+  /** 0=Crítica, 1=Alta, 2=Média, 3=Baixa (legacy: 0 é valor válido) */
   @IsOptional()
   @IsInt()
-  @IsPositive()
+  @Min(0)
   priority?: number;
 
   @IsOptional()

@@ -31,7 +31,7 @@ import {
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 import { getApiBase, apiFetch } from '../../lib/api';
-import type { ITaskState, ITaskSwimlane } from '../planning/states-types';
+import type { ITaskState, ITaskSwimlane, TaskFieldKey } from '../planning/states-types';
 import type { Task, ProjectDetail, ResourceNode } from '../planning/types';
 import {
   columnAddEventToPayload,
@@ -43,6 +43,7 @@ import {
 import { useBoardData } from './useBoardData';
 import { useBoardHistory } from './useBoardHistory';
 import type { BoardColorsConfig, BoardConfigData } from './types';
+import './board-rules.css';
 
 // ── Helper: aplica cores das colunas de sistema a partir da config ────────────
 
@@ -122,6 +123,24 @@ interface BoardViewProps {
    * `handleDeleteTask` (chama `loadAll()` no fim).
    */
   onRequestDeleteTask: (taskPublicId: string) => void;
+  /** Abre o modal de regras de obrigatoriedade para a coluna (estado) indicada. */
+  onOpenColumnRules?: (columnPublicId: string) => void;
+  /** Set de publicIds de tasks que violam regras do seu estado actual — recebem border-top vermelho. */
+  violatingTaskIds?: Set<string>;
+  /**
+   * Chamado quando o backend rejeita um move por `TASK_MISSING_REQUIRED_FIELDS`.
+   * O parent regista o publicId + fields num Map ephemeral para o card ficar
+   * com a marca vermelha até o utilizador preencher esses campos
+   * (em qualquer caminho: edição via modal ou drag para coluna sem regras).
+   */
+  onMoveRejected?: (taskPublicId: string, missingFields: TaskFieldKey[]) => void;
+  /**
+   * Chamado quando um drag de card termina com sucesso (PATCH state OK).
+   * O parent usa para limpar a marca vermelha — mesmo que a coluna efectiva
+   * em DB não tenha mudado (caso o utilizador "arraste" o card de volta para
+   * a coluna onde já estava, após um snap-back visual).
+   */
+  onMoveSucceeded?: (taskPublicId: string) => void;
 }
 
 export function BoardView({
@@ -141,6 +160,10 @@ export function BoardView({
   onOpenCreateTask,
   onOpenEditTask,
   onRequestDeleteTask,
+  onOpenColumnRules,
+  violatingTaskIds,
+  onMoveRejected,
+  onMoveSucceeded,
 }: BoardViewProps) {
   const { token, user } = useAuth();
   const { showToast } = useToast();
@@ -200,6 +223,11 @@ export function BoardView({
   const onOpenCreateTaskRef = useRef(onOpenCreateTask);
   const onOpenEditTaskRef = useRef(onOpenEditTask);
   const onRequestDeleteTaskRef = useRef(onRequestDeleteTask);
+  const onOpenColumnRulesRef = useRef(onOpenColumnRules);
+  const onMoveRejectedRef = useRef(onMoveRejected);
+  const onMoveSucceededRef = useRef(onMoveSucceeded);
+  useEffect(() => { onMoveRejectedRef.current = onMoveRejected; }, [onMoveRejected]);
+  useEffect(() => { onMoveSucceededRef.current = onMoveSucceeded; }, [onMoveSucceeded]);
   useEffect(() => { canDoRef.current = canDo; }, [canDo]);
   useEffect(() => { onDataChangedRef.current = onDataChanged; }, [onDataChanged]);
   useEffect(() => { showToastRef.current = showToast; }, [showToast]);
@@ -211,6 +239,7 @@ export function BoardView({
   useEffect(() => { onOpenCreateTaskRef.current = onOpenCreateTask; }, [onOpenCreateTask]);
   useEffect(() => { onOpenEditTaskRef.current = onOpenEditTask; }, [onOpenEditTask]);
   useEffect(() => { onRequestDeleteTaskRef.current = onRequestDeleteTask; }, [onRequestDeleteTask]);
+  useEffect(() => { onOpenColumnRulesRef.current = onOpenColumnRules; }, [onOpenColumnRules]);
 
   // ── API helpers (chamam backend) ──────────────────────────────────────────
 
@@ -318,8 +347,8 @@ export function BoardView({
     menu: {
       show: true,
       rightClick: true,
-      items: (ctx: ColumnMenuCtx) =>
-        defaultColumnMenuItems.map((item) => {
+      items: (ctx: ColumnMenuCtx) => {
+        const items = defaultColumnMenuItems.map((item) => {
           if (item.id === 'add-card') {
             // Replace the builtin 'add-card' id with a custom non-builtin id so
             // handleMenuSelect's switch-case never fires the builtin flow
@@ -340,7 +369,24 @@ export function BoardView({
             return { ...item, disabled: true };
           }
           return item;
-        }),
+        });
+        // Item adicional: regras de obrigatoriedade do estado. Inserido antes do
+        // separador / "Eliminar" para ficar agrupado com as acções da coluna.
+        if (canDoRef.current('STATE_MANAGE') && onOpenColumnRulesRef.current) {
+          const sepIdx = items.findIndex((it) => it.separator);
+          const insertAt = sepIdx >= 0 ? sepIdx : items.length;
+          items.splice(insertAt, 0, {
+            id: 'open-state-rules',
+            text: tRef.current('planning:states.rules.btn_rules' as Parameters<typeof tRef.current>[0]),
+            icon: 'ti-list-check',
+            iconColor: '#f59e0b',
+            onClick: ({ column }: { column: Column }) => {
+              onOpenColumnRulesRef.current?.(String(column.id));
+            },
+          });
+        }
+        return items;
+      },
     },
     fixedHeaders: true,
     confirmDeletion: false,
@@ -565,11 +611,22 @@ export function BoardView({
             }),
           },
         );
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        if (!r.ok) {
+          const body = await r.json().catch(() => ({}));
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const err: any = new Error(`HTTP ${r.status}`);
+          err.error_code = body?.error_code;
+          err.fields = body?.fields;
+          throw err;
+        }
       };
 
       try {
         await doMove(toColumnId, toRowId, position);
+        // Limpa a marca vermelha mesmo que o backend não tenha mudado nada
+        // (caso TODO→TODO depois dum snap-back visual): a acção do user foi
+        // honrada, é o sinal explícito para tirar o flag.
+        onMoveSucceededRef.current?.(cardId);
         await onDataChangedRef.current();
 
         historyPushRef.current({
@@ -588,10 +645,35 @@ export function BoardView({
           },
         });
       } catch (err) {
-        console.error('[BoardView] card:move failed:', err);
-        showToastRef.current('danger', tRef.current('errors.move_failed'));
-        queueSkip(`card:move:${cardId}`);
-        api.moveCard(cardId, { columnId: fromColumnId, rowId: fromRowId ?? undefined });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const e = err as any;
+        // Apenas log para falhas inesperadas. TASK_MISSING_REQUIRED_FIELDS é
+        // uma rejeição de negócio esperada (toast + marca vermelha cuidam da UX).
+        if (e?.error_code !== 'TASK_MISSING_REQUIRED_FIELDS') {
+          console.error('[BoardView] card:move failed:', err);
+        }
+        if (e?.error_code === 'TASK_MISSING_REQUIRED_FIELDS' && Array.isArray(e?.fields)) {
+          // Mensagem enriquecida com os campos em falta. Não revertemos
+          // visualmente — onDataChanged() reload faz o snap-back natural.
+          const friendly = (e.fields as string[])
+            .map((f) => tRef.current(`planning:states.rules.field.${f}` as Parameters<typeof tRef.current>[0]))
+            .join(', ');
+          showToastRef.current(
+            'warning',
+            tRef.current('planning:states.rules.drag_error_fields' as Parameters<typeof tRef.current>[0], { fields: friendly }),
+          );
+          // Marca client-side: o card fica visualmente flagged até o utilizador
+          // preencher os campos em falta (PlanningPage limpa quando re-avalia).
+          // Snap-back visual fica a cargo de onDataChanged() — chamar
+          // api.moveCard aqui, em conjunto com o refresh, faz o widget perder
+          // o card (race entre a moveCard manual e o re-parse do bundle).
+          onMoveRejectedRef.current?.(cardId, e.fields as TaskFieldKey[]);
+          await onDataChangedRef.current();
+        } else {
+          showToastRef.current('danger', tRef.current('errors.move_failed'));
+          queueSkip(`card:move:${cardId}`);
+          api.moveCard(cardId, { columnId: fromColumnId, rowId: fromRowId ?? undefined });
+        }
       }
     }));
 
@@ -871,6 +953,49 @@ export function BoardView({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [history.canUndo, history.canRedo]);
+
+  // ── Visual: marca cards com violação de regras (border-top vermelho) ────────
+  // Estratégia: aplica `data-card-violation="1"` no <article> de cada card
+  // violado. CSS picada via selector `.ak-card[data-card-violation="1"]`
+  // (board-rules.css). Como o widget AwesomeKanban renderiza cards
+  // assincronamente (uncontrolled mode + DnD reordering), usamos um
+  // MutationObserver para reaplicar sempre que o subtree muda — não basta
+  // depender de `bundle.cards` no useEffect, porque os <article> podem ainda
+  // não estar no DOM no momento em que a effect corre.
+  const violatingRef = useRef<Set<string>>(new Set());
+  useEffect(() => { violatingRef.current = violatingTaskIds ?? new Set(); }, [violatingTaskIds]);
+
+  useEffect(() => {
+    const apply = () => {
+      const violating = violatingRef.current;
+      const allCardEls = document.querySelectorAll<HTMLElement>('.ak-card[data-card-id]');
+      allCardEls.forEach((el) => {
+        const id = el.getAttribute('data-card-id') ?? '';
+        if (violating.has(id)) {
+          if (el.getAttribute('data-card-violation') !== '1') {
+            el.setAttribute('data-card-violation', '1');
+          }
+        } else if (el.hasAttribute('data-card-violation')) {
+          el.removeAttribute('data-card-violation');
+        }
+      });
+    };
+
+    // Aplicação inicial + retry via rAF para casos em que o DOM ainda não tem cards.
+    apply();
+    const rafId = requestAnimationFrame(apply);
+
+    // Observer global no body — captura cards adicionados pelo widget após
+    // cada parse / DnD reorder / resize. childList apenas (não observamos
+    // attributes para evitar loops com o nosso próprio setAttribute).
+    const observer = new MutationObserver(apply);
+    observer.observe(document.body, { childList: true, subtree: true });
+
+    return () => {
+      cancelAnimationFrame(rafId);
+      observer.disconnect();
+    };
+  }, [bundle.cards, violatingTaskIds]);
 
   // ── Render ────────────────────────────────────────────────────────────────
 

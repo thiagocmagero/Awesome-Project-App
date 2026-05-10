@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 interface Props {
   value: string;
   onChange: (value: string) => void;
+  required?: boolean;
 }
 
 /**
@@ -12,7 +13,7 @@ interface Props {
  * UI-only state local até o schema Task suportar `description`.
  * Persiste apenas enquanto o modal está aberto.
  */
-export function TaskModalDescriptionField({ value, onChange }: Props) {
+export function TaskModalDescriptionField({ value, onChange, required }: Props) {
   const { t } = useTranslation('planning');
   const ref = useRef<HTMLDivElement>(null);
 
@@ -32,6 +33,7 @@ export function TaskModalDescriptionField({ value, onChange }: Props) {
       <h6 className="task-section-title">
         <i className="ri-file-text-line" aria-hidden="true" />
         {t('task.section.description')}
+        {required && <span className="text-danger ms-1">*</span>}
       </h6>
       <div
         ref={ref}

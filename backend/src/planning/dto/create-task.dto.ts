@@ -25,9 +25,14 @@ export class CreateTaskDto {
   @IsString()
   type?: string;
 
-  /** Formato Gantt: "DD-MM-YYYY HH:mm" */
+  /**
+   * Formato Gantt: "DD-MM-YYYY HH:mm". Opcional — quando vazio/omitido o
+   * service usa "hoje 00:00 UTC" (DAY) como default. A obrigatoriedade real
+   * é decidida pelas regras de campos do estado destino (`TaskFieldKey.schedule`).
+   */
+  @IsOptional()
   @IsString()
-  start_date!: string;
+  start_date?: string;
 
   /**
    * Duração em dias úteis (durationUnit=DAY, default) ou horas úteis
@@ -68,10 +73,10 @@ export class CreateTaskDto {
   @IsUUID('all')
   parentPublicId?: string;
 
-  /** 1=Alta, 2=Média, 3=Baixa */
+  /** 0=Crítica, 1=Alta, 2=Média, 3=Baixa (legacy: 0 é valor válido) */
   @IsOptional()
   @IsInt()
-  @IsPositive()
+  @Min(0)
   priority?: number;
 
   /** "asap" | "alap" | "snet" | "snlt" | "fnet" | "fnlt" | "mso" | "mfo" */

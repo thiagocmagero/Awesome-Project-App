@@ -46,7 +46,8 @@ export interface Task {
   /** Descrição rica/longa (opcional) — editada no TaskModal. */
   description?: string | null;
   type: string;
-  start_date: string;
+  /** Data de início no formato wire DHTMLX `"DD-MM-YYYY HH:mm"`. Opcional desde Mai 2026 — tasks sem startDate não aparecem no Gantt. */
+  start_date?: string;
   end_date?: string;
   /**
    * Duração em dias úteis (DAY) ou horas úteis (HOUR), conforme `durationUnit`.

@@ -14,13 +14,14 @@ interface Props {
   canManage: boolean;
   onCreateState: () => void;
   onEditState: (state: ITaskState) => void;
+  onEditStateRules: (state: ITaskState) => void;
   onDeleteState: (state: ITaskState) => void;
   onReorderStates: (orderedPublicIds: string[]) => Promise<boolean>;
 }
 
 export function StatesManagerPanel({
   open, states, onClose, canManage,
-  onCreateState, onEditState, onDeleteState, onReorderStates,
+  onCreateState, onEditState, onEditStateRules, onDeleteState, onReorderStates,
 }: Props) {
   const { t } = useTranslation('planning');
   const { t: tc } = useTranslation('common');
@@ -117,10 +118,23 @@ export function StatesManagerPanel({
                       {t('states.manager.wip_prefix')}{col.wipLimit}
                     </span>
                   )}
+                  {col.rules.some((r) => r.isRequired) && (
+                    <span className="badge bg-warning-transparent text-warning fs-11">
+                      {t('states.rules.active_badge', { count: col.rules.filter((r) => r.isRequired).length })}
+                    </span>
+                  )}
                 </div>
               </div>
               {canManage && (
                 <>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-icon btn-warning-transparent"
+                    onClick={() => onEditStateRules(col)}
+                    title={t('states.rules.btn_rules')}
+                  >
+                    <i className="ri-list-check" />
+                  </button>
                   <button
                     type="button"
                     className="btn btn-sm btn-icon btn-primary-transparent"

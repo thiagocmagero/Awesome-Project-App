@@ -7,6 +7,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Put,
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../auth/jwt-auth.guard';
@@ -18,6 +19,7 @@ import { CreateBoardColumnDto } from './dto/create-board-column.dto';
 import { UpdateBoardColumnDto } from './dto/update-board-column.dto';
 import { ReorderColumnsDto } from './dto/reorder-columns.dto';
 import { DeleteBoardColumnDto } from './dto/delete-board-column.dto';
+import { UpsertStateRulesDto } from './dto/state-rules.dto';
 
 /**
  * PlanningStatesController — CRUD de Estados (colunas do projecto).
@@ -76,5 +78,24 @@ export class PlanningStatesController {
     @Body() dto: DeleteBoardColumnDto,
   ) {
     return this.board.deleteColumn(projectPublicId, statePublicId, dto);
+  }
+
+  @Get(':stateId/rules')
+  @RequireProjectPermission(ProjectAction.STATE_MANAGE)
+  getRules(
+    @Param('id', ParseUUIDPipe) projectPublicId: string,
+    @Param('stateId', ParseUUIDPipe) statePublicId: string,
+  ) {
+    return this.board.getStateRules(projectPublicId, statePublicId);
+  }
+
+  @Put(':stateId/rules')
+  @RequireProjectPermission(ProjectAction.STATE_MANAGE)
+  upsertRules(
+    @Param('id', ParseUUIDPipe) projectPublicId: string,
+    @Param('stateId', ParseUUIDPipe) statePublicId: string,
+    @Body() dto: UpsertStateRulesDto,
+  ) {
+    return this.board.upsertStateRules(projectPublicId, statePublicId, dto);
   }
 }

@@ -1,5 +1,5 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
-import { BoardColumnType, EntityType, InviteStatus, Status } from '@prisma/client';
+import { BoardColumnType, EntityType, InviteStatus, Status, TaskFieldKey } from '@prisma/client';
 import { AppException } from '../../common/exceptions/app.exception';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateBoardColumnDto } from './dto/create-board-column.dto';
@@ -10,6 +10,7 @@ import { DeleteBoardColumnDto } from './dto/delete-board-column.dto';
 import { CreateBoardSwimlaneDto } from './dto/create-board-swimlane.dto';
 import { UpdateBoardSwimlaneDto } from './dto/update-board-swimlane.dto';
 import { ReorderSwimlanesDto } from './dto/reorder-swimlanes.dto';
+import { UpsertStateRulesDto } from './dto/state-rules.dto';
 
 /**
  * StatesService — gere os Estados (colunas) e Swimlanes do projecto. Substitui o
@@ -410,12 +411,21 @@ export class StatesService {
         position: true,
         color: true,
         wipLimit: true,
+        fieldRules: { select: { field: true, isRequired: true } },
       },
     });
 
     return rawColumns.map((col) => ({
-      ...col,
-      labelKey: col.systemKey ? `states.${col.systemKey.toLowerCase()}` : null,
+      publicId:  col.publicId,
+      label:     col.label,
+      systemKey: col.systemKey,
+      type:      col.type,
+      isSystem:  col.isSystem,
+      position:  col.position,
+      color:     col.color,
+      wipLimit:  col.wipLimit,
+      labelKey:  col.systemKey ? `states.${col.systemKey.toLowerCase()}` : null,
+      rules:     col.fieldRules.map((r) => ({ field: r.field, isRequired: r.isRequired })),
     }));
   }
 
@@ -435,6 +445,103 @@ export class StatesService {
       select: { id: true },
     });
     return initial?.id ?? null;
+  }
+
+  // ── Field Rules ───────────────────────────────────────────────────────────────
+
+  /**
+   * Verifica que campos obrigatórios estão em falta para um conjunto de regras.
+   * Único ponto de verdade da validação no backend — chamado por:
+   *   - StatesService.moveCard (transição de estado)
+   *   - PlanningService.updateTask (PUT /tasks/:id, valida estado actual)
+   */
+  validateTaskAgainstRules(
+    task: {
+      description?: string | null;
+      startDate?: Date | null;
+      duration?: number | null;
+      type?: string | null;
+      constraintType?: string | null;
+      priority?: number | null;
+      ownerIds: string[];
+      boardAssignees: unknown[];
+    },
+    requiredFields: TaskFieldKey[],
+  ): TaskFieldKey[] {
+    const missing: TaskFieldKey[] = [];
+    const isMilestone = task.type === 'milestone';
+
+    for (const field of requiredFields) {
+      let violated = false;
+      switch (field) {
+        case TaskFieldKey.description:
+          violated = !task.description?.trim();
+          break;
+        case TaskFieldKey.schedule:
+          violated = !task.startDate;
+          break;
+        case TaskFieldKey.duration:
+          violated = !isMilestone && (!task.duration || task.duration <= 0);
+          break;
+        case TaskFieldKey.restriction:
+          violated = !task.constraintType;
+          break;
+        case TaskFieldKey.type:
+          violated = !task.type;
+          break;
+        case TaskFieldKey.priority:
+          // 0=Crítica, 1=Alta, 2=Média, 3=Baixa — todos valores válidos.
+          // Apenas null/undefined é "em falta".
+          violated = task.priority == null;
+          break;
+        case TaskFieldKey.assignees:
+          violated = task.ownerIds.length === 0 && task.boardAssignees.length === 0;
+          break;
+      }
+      if (violated) missing.push(field);
+    }
+    return missing;
+  }
+
+  async getStateRules(projectPublicId: string, statePublicId: string) {
+    const projectId = await this.resolveProjectId(projectPublicId);
+    const columnId  = await this.resolveColumnId(statePublicId, projectId);
+
+    const rules = await this.prisma.boardColumnFieldRule.findMany({
+      where: { boardColumnId: columnId },
+      select: { field: true, isRequired: true },
+    });
+
+    return { rules };
+  }
+
+  async upsertStateRules(
+    projectPublicId: string,
+    statePublicId: string,
+    dto: UpsertStateRulesDto,
+  ) {
+    const projectId = await this.resolveProjectId(projectPublicId);
+    const columnId  = await this.resolveColumnId(statePublicId, projectId);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.boardColumnFieldRule.deleteMany({ where: { boardColumnId: columnId } });
+      if (dto.rules.length > 0) {
+        await tx.boardColumnFieldRule.createMany({
+          data: dto.rules.map((r) => ({
+            boardColumnId: columnId,
+            field: r.field,
+            isRequired: r.isRequired,
+          })),
+        });
+      }
+    });
+
+    const rules = await this.prisma.boardColumnFieldRule.findMany({
+      where: { boardColumnId: columnId },
+      select: { field: true, isRequired: true },
+    });
+
+    return { rules };
   }
 
   // ── Columns CRUD ──────────────────────────────────────────────────────────────
@@ -598,6 +705,37 @@ export class StatesService {
         swimlaneIntent.value = null;
       } else {
         swimlaneIntent.value = await this.resolveSwimlaneId(dto.swimlanePublicId, projectId);
+      }
+    }
+
+    // Validar regras obrigatórias da coluna de destino antes de mover
+    if (newColumnId !== null) {
+      const requiredRules = await this.prisma.boardColumnFieldRule.findMany({
+        where: { boardColumnId: newColumnId, isRequired: true },
+        select: { field: true },
+      });
+      if (requiredRules.length > 0) {
+        const task = await this.prisma.task.findUnique({
+          where: { id: taskId },
+          select: {
+            description: true,
+            startDate: true,
+            duration: true,
+            type: true,
+            constraintType: true,
+            priority: true,
+            ownerIds: true,
+            boardAssignees: { select: { userId: true } },
+          },
+        });
+        if (!task) throw new AppException('TASK_NOT_FOUND', HttpStatus.NOT_FOUND);
+        const missing = this.validateTaskAgainstRules(
+          { ...task, boardAssignees: task.boardAssignees as unknown[] },
+          requiredRules.map((r) => r.field),
+        );
+        if (missing.length > 0) {
+          throw new AppException('TASK_MISSING_REQUIRED_FIELDS', HttpStatus.UNPROCESSABLE_ENTITY, { fields: missing });
+        }
       }
     }
 

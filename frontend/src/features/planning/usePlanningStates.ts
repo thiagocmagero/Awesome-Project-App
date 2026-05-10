@@ -15,7 +15,7 @@ import { getApiBase, apiFetch } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 import { useTranslation } from 'react-i18next';
-import type { ITaskState, ITaskSwimlane } from './states-types';
+import type { ITaskState, ITaskSwimlane, IFieldRule } from './states-types';
 
 const SYSTEM_LABEL_KEY_MAP: Record<string, string> = {
   'column.todo':       'states.todo',
@@ -38,6 +38,7 @@ interface RawState {
   position: number;
   color: string | null;
   wipLimit: number | null;
+  rules?: IFieldRule[];
 }
 
 interface RawSwimlane {
@@ -66,6 +67,7 @@ interface UsePlanningStatesResult {
     targetStatePublicId?: string,
   ) => Promise<{ ok: boolean; error?: string }>;
   reorderStates: (orderedPublicIds: string[]) => Promise<boolean>;
+  updateStateRules: (statePublicId: string, rules: IFieldRule[]) => Promise<boolean>;
 }
 
 export function usePlanningStates(projectPublicId: string | undefined): UsePlanningStatesResult {
@@ -90,7 +92,7 @@ export function usePlanningStates(projectPublicId: string | undefined): UsePlann
       if (!resStates.ok) throw new Error('Failed to load states');
       const rawStates: RawState[] = await resStates.json();
       const rawSwimlanes: RawSwimlane[] = resSw.ok ? await resSw.json() : [];
-      setStates(rawStates.map((s) => ({ ...s, labelKey: normalizeLabelKey(s.labelKey) })));
+      setStates(rawStates.map((s) => ({ ...s, labelKey: normalizeLabelKey(s.labelKey), rules: s.rules ?? [] })));
       setSwimlanes(rawSwimlanes.map((s) => ({ ...s, labelKey: normalizeLabelKey(s.labelKey) })));
       setError(null);
     } catch (e) {
@@ -174,5 +176,21 @@ export function usePlanningStates(projectPublicId: string | undefined): UsePlann
     }
   }
 
-  return { states, swimlanes, loading, error, refresh, createState, updateState, deleteState, reorderStates };
+  async function updateStateRules(statePublicId: string, rules: IFieldRule[]): Promise<boolean> {
+    if (!projectPublicId) return false;
+    try {
+      const res = await apiFetch(`${api}/projects/${projectPublicId}/planning/states/${statePublicId}/rules`, {
+        method: 'PUT', headers,
+        body: JSON.stringify({ rules }),
+      });
+      if (res.ok) { await refresh(); return true; }
+      showToast('danger', t('states.rules.error_save'));
+      return false;
+    } catch {
+      showToast('danger', t('states.rules.error_save'));
+      return false;
+    }
+  }
+
+  return { states, swimlanes, loading, error, refresh, createState, updateState, deleteState, reorderStates, updateStateRules };
 }
