@@ -332,3 +332,44 @@
   .tfiles-col-uploader,
   .tfiles-col-date { display: none; }
 }
+
+/* Storage usage indicator (bottom-left of FilesListView) */
+.tfiles-storage {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 14px;
+  padding: 8px 12px;
+  background: #fff;
+  border: 1px solid #e6e4f0;
+  border-radius: 8px;
+  min-width: 220px;
+  max-width: 260px;
+  font-size: 11.5px;
+  color: var(--text-secondary, #6b7280);
+}
+.tfiles-storage__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.tfiles-storage__head > i {
+  color: #845adf;
+  font-size: 14px;
+}
+.tfiles-storage__label {
+  font-weight: 500;
+  color: var(--text-primary, #1f2937);
+  font-variant-numeric: tabular-nums;
+}
+.tfiles-storage__track {
+  height: 6px;
+  background: #eef0f3;
+  border-radius: 999px;
+  overflow: hidden;
+}
+.tfiles-storage__fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 200ms ease, background 200ms ease;
+}

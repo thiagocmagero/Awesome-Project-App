@@ -14,6 +14,10 @@ export interface UseTaskFormProps {
   loadAll: () => Promise<void>;
   showToast: ShowToastFn;
   workHoursRef?: MutableRefObject<WorkHours | null>;
+  /** publicId do estado default (tipicamente o `systemKey='TODO'`) usado
+   *  para pré-preencher o campo "Estado" em criação de tarefa. Nunca pode
+   *  ficar vazio — o submit rejeita `boardColumn` sem valor. */
+  defaultBoardColumnPublicId?: string | null;
   /** Chamado de forma síncrona antes de qualquer setState em openEditTask /
    *  openCreateTask. Usado para destruir instâncias Choices.js antes que o
    *  React reconcilie os <option>, evitando o crash "removeChild". */
@@ -52,7 +56,7 @@ export interface UseTaskFormReturn {
 }
 
 export function useTaskForm({
-  projectId, token, tasks: _tasks, endDateModeRef, loadAll, showToast, workHoursRef, onBeforeOpen, validateTaskForm,
+  projectId, token, tasks: _tasks, endDateModeRef, loadAll, showToast, workHoursRef, defaultBoardColumnPublicId, onBeforeOpen, validateTaskForm,
 }: UseTaskFormProps): UseTaskFormReturn {
   const { t } = useTranslation('planning');
   const { t: tc } = useTranslation('common');
@@ -95,7 +99,9 @@ export function useTaskForm({
     setTaskForm({
       ...EMPTY_TASK_FORM,
       parent: String(resolvedParentId),
-      boardColumn: boardColumnPublicId ?? '',
+      // Default: estado seleccionado explicitamente > default do projecto (TODO) > vazio.
+      // O submit rejeita boardColumn vazio, garantindo que TODO é o mínimo.
+      boardColumn: boardColumnPublicId ?? defaultBoardColumnPublicId ?? '',
       parentPublicId: resolvedParentPublicId,
     });
     setTaskOwnerIds([]);
@@ -138,6 +144,12 @@ export function useTaskForm({
 
     if (taskForm.type === 'milestone' && taskForm.parent === '0') {
       setTaskFormError(t('task.milestone_no_parent_error'));
+      return;
+    }
+
+    // Estado é obrigatório — nunca permitir gravar sem state (REQ Mai 2026).
+    if (!taskForm.boardColumn) {
+      setTaskFormError(t('task.error_state_required'));
       return;
     }
 

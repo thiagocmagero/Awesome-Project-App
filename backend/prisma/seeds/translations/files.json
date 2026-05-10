@@ -67,7 +67,12 @@
     "task_files.chip.docs": "Documentos",
     "task_files.chip.sheets": "Folhas de cálculo",
     "task_files.chip.images": "Imagens",
-    "task_files.chip.others": "Outros"
+    "task_files.chip.others": "Outros",
+
+    "storage_usage.label": "{{percent}}% de {{total}} usados",
+    "storage_usage.unlimited": "{{used}} usados",
+    "storage_usage.tooltip": "{{used}} usados de {{limit}} disponíveis",
+    "storage_usage.tooltip_unlimited": "{{used}} usados — armazenamento ilimitado"
   },
   "pt-BR": {
     "page.tab_label": "Arquivos",
@@ -137,7 +142,12 @@
     "task_files.chip.docs": "Documentos",
     "task_files.chip.sheets": "Planilhas",
     "task_files.chip.images": "Imagens",
-    "task_files.chip.others": "Outros"
+    "task_files.chip.others": "Outros",
+
+    "storage_usage.label": "{{percent}}% de {{total}} usados",
+    "storage_usage.unlimited": "{{used}} usados",
+    "storage_usage.tooltip": "{{used}} usados de {{limit}} disponíveis",
+    "storage_usage.tooltip_unlimited": "{{used}} usados — armazenamento ilimitado"
   },
   "en": {
     "page.tab_label": "Files",
@@ -207,7 +217,12 @@
     "task_files.chip.docs": "Documents",
     "task_files.chip.sheets": "Spreadsheets",
     "task_files.chip.images": "Images",
-    "task_files.chip.others": "Other"
+    "task_files.chip.others": "Other",
+
+    "storage_usage.label": "{{percent}}% of {{total}} used",
+    "storage_usage.unlimited": "{{used}} used",
+    "storage_usage.tooltip": "{{used}} used of {{limit}} available",
+    "storage_usage.tooltip_unlimited": "{{used}} used — unlimited storage"
   },
   "es": {
     "page.tab_label": "Archivos",
@@ -277,6 +292,11 @@
     "task_files.chip.docs": "Documentos",
     "task_files.chip.sheets": "Hojas de cálculo",
     "task_files.chip.images": "Imágenes",
-    "task_files.chip.others": "Otros"
+    "task_files.chip.others": "Otros",
+
+    "storage_usage.label": "{{percent}}% de {{total}} usados",
+    "storage_usage.unlimited": "{{used}} usados",
+    "storage_usage.tooltip": "{{used}} usados de {{limit}} disponibles",
+    "storage_usage.tooltip_unlimited": "{{used}} usados — almacenamiento ilimitado"
   }
 }

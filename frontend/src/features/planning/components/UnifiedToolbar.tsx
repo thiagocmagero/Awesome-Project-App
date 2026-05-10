@@ -41,6 +41,10 @@ export interface UnifiedToolbarProps {
   /* Row 1 right — Gantt-only controls */
   ganttSearchText:    string;
   setGanttSearchText: (v: string) => void;
+
+  /* Row 1 right — Planning list search (mirror gantt/board) */
+  planningSearchText:    string;
+  setPlanningSearchText: (v: string) => void;
   onExportPdf:        () => void;
   onExportImage:      () => void;
   onExportJson:       () => void;
@@ -146,6 +150,7 @@ export function UnifiedToolbar(props: UnifiedToolbarProps) {
     planSubTab, setPlanSubTab, counts,
     taskStates, taskColumnFilter, setTaskColumnFilter, columnCounts, totalTasks,
     ganttSearchText, setGanttSearchText,
+    planningSearchText, setPlanningSearchText,
     onExportPdf, onExportImage, onExportJson,
     onOpenStates, onCreateTask,
     ganttAllExpanded, ganttZoomLevel,
@@ -307,6 +312,27 @@ export function UnifiedToolbar(props: UnifiedToolbarProps) {
               </>
             ) : pageTab !== 'calendar' ? (
               <>
+                {pageTab === 'planning' && (
+                  <div className="search">
+                    <i className="ti ti-search" />
+                    <input
+                      type="text"
+                      placeholder={t('task.search_placeholder')}
+                      value={planningSearchText}
+                      onChange={(e) => setPlanningSearchText(e.target.value)}
+                    />
+                    {planningSearchText && (
+                      <button
+                        type="button"
+                        className="search-clear"
+                        onClick={() => setPlanningSearchText('')}
+                        title={t('task.search_clear')}
+                      >
+                        <i className="ti ti-x" />
+                      </button>
+                    )}
+                  </div>
+                )}
                 <button
                   type="button"
                   className="btn-ghost"

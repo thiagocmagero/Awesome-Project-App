@@ -161,6 +161,7 @@ export default function PlanningPage() {
   const [pendingEndDateMode, setPendingEndDateMode] = useState<'inclusive' | 'exclusive'>('exclusive');
   const [columnMenuPos, setColumnMenuPos]     = useState<{ x: number; y: number } | null>(null);
   const [ganttSearchText, setGanttSearchText] = useState('');
+  const [planningSearchText, setPlanningSearchText] = useState('');
   const [taskColumnFilter, setTaskColumnFilter] = useState('all');
   const [savingHours, setSavingHours]         = useState<Record<string, boolean>>({});
   const [commentTask, setCommentTask]         = useState<{ publicId: string; name: string } | null>(null);
@@ -358,7 +359,19 @@ export default function PlanningPage() {
     choicesTaskModalInstancesRef.current = [];
   }, []);
 
-  const taskForm = useTaskForm({ projectId, token, tasks, endDateModeRef, loadAll: syncLoadAll, showToast, workHoursRef, onBeforeOpen: destroyChoicesForTaskModal, validateTaskForm: validateTaskFormImpl });
+  // Resolver o estado default para criação — preferir systemKey='TODO',
+  // fallback para o de menor position. Garante que toda a tarefa nova
+  // nasce com um Estado válido (nunca None).
+  const defaultStateId = useMemo(() => {
+    const list = statesData.states ?? [];
+    if (list.length === 0) return null;
+    const todo = list.find((s) => s.systemKey === 'TODO');
+    if (todo) return todo.publicId;
+    const sorted = [...list].sort((a, b) => a.position - b.position);
+    return sorted[0]?.publicId ?? null;
+  }, [statesData.states]);
+
+  const taskForm = useTaskForm({ projectId, token, tasks, endDateModeRef, loadAll: syncLoadAll, showToast, workHoursRef, defaultBoardColumnPublicId: defaultStateId, onBeforeOpen: destroyChoicesForTaskModal, validateTaskForm: validateTaskFormImpl });
   const {
     showTaskModal, setShowTaskModal, taskModalKey, taskModalTab, setTaskModalTab,
     editingTask, taskForm: taskFormState, setTaskForm, taskOwnerIds, setTaskOwnerIds,
@@ -993,9 +1006,10 @@ export default function PlanningPage() {
   }, [resourceNodes]);
 
   const flatTasks    = flattenTree(tasks);
-  const filteredTasks = taskColumnFilter === 'all'
-    ? flatTasks
-    : flatTasks.filter((tk) => (tk.boardColumn ?? '') === taskColumnFilter);
+  const planningQuery = planningSearchText.trim().toLowerCase();
+  const filteredTasks = flatTasks
+    .filter((tk) => taskColumnFilter === 'all' || (tk.boardColumn ?? '') === taskColumnFilter)
+    .filter((tk) => !planningQuery || (tk.text ?? '').toLowerCase().includes(planningQuery));
   const columnCounts = statesData.states.reduce<Record<string, number>>((acc, col) => {
     acc[col.publicId] = tasks.filter((tk) => tk.boardColumn === col.publicId).length;
     return acc;
@@ -1205,6 +1219,8 @@ export default function PlanningPage() {
         totalTasks={tasks.length}
         ganttSearchText={ganttSearchText}
         setGanttSearchText={setGanttSearchText}
+        planningSearchText={planningSearchText}
+        setPlanningSearchText={setPlanningSearchText}
         onExportPdf={handleExportPdf}
         onExportImage={handleExportImage}
         onExportJson={handleExportJson}

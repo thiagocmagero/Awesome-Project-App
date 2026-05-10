@@ -12,6 +12,7 @@ import {
 import { useFiles, useUploadsAvailability } from '../useFiles';
 import { FileUploadButton } from './FileUploadButton';
 import { ScanStatusBadge } from './ScanStatusBadge';
+import { StorageUsageBar } from './StorageUsageBar';
 import { parseErrorContext, formatUploadError } from '../errors';
 import type { AppFile } from '../types';
 import '../files-list.css';
@@ -310,171 +311,184 @@ export function FilesListView({
           </div>
         )}
 
-        {/* Table */}
+        {/* Table — Bootstrap (.table) para alinhar visualmente com Planning */}
         {files.length > 0 && (
-          <div className="tfiles-table">
-            {/* Page-size selector — topo da tabela (formato Planning) */}
-            <div className="d-flex align-items-center gap-2 px-1 pt-1 pb-2">
-              <label className="text-muted fs-13 mb-0" htmlFor="files-list-page-size">
-                {t('pager.page_size')}
-              </label>
-              <select
-                id="files-list-page-size"
-                className="form-select form-select-sm"
-                style={{ width: 'auto' }}
-                value={pageSize}
-                onChange={(e) => {
-                  setPageSize(Number(e.target.value));
-                  setPage(1);
-                }}
-              >
-                {PAGE_SIZE_OPTIONS.map((size) => (
-                  <option key={size} value={size}>{size}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="tfiles-thead">
-              <div className="tfiles-th tfiles-col-icon" aria-hidden="true" />
-              <button type="button" className="tfiles-th tfiles-col-name" onClick={() => toggleSort('name')}>
-                {t('task_files.col.name')}
-                <i className={sortIcon('name')} aria-hidden="true" />
-              </button>
-              <button type="button" className="tfiles-th tfiles-col-size" onClick={() => toggleSort('size')}>
-                {t('task_files.col.size')}
-                <i className={sortIcon('size')} aria-hidden="true" />
-              </button>
-              <button type="button" className="tfiles-th tfiles-col-uploader" onClick={() => toggleSort('uploader')}>
-                {t('task_files.col.uploader')}
-                <i className={sortIcon('uploader')} aria-hidden="true" />
-              </button>
-              <button type="button" className="tfiles-th tfiles-col-date" onClick={() => toggleSort('date')}>
-                {t('task_files.col.date')}
-                <i className={sortIcon('date')} aria-hidden="true" />
-              </button>
-              <div className="tfiles-th tfiles-col-actions" aria-hidden="true" />
-            </div>
-
-            {visible.length === 0 ? (
-              <div className="tfiles-empty tfiles-empty--filtered">
-                <i className="ri-filter-3-line" aria-hidden="true" />
-                <span>
-                  {filtersActive
-                    ? t('list.empty_filtered')
-                    : t('task_files.search_empty')}
-                </span>
+          <div className="card custom-card">
+            <div className="card-body p-0">
+              {/* Page-size selector — topo da tabela */}
+              <div className="d-flex align-items-center gap-2 px-3 pt-3 pb-2">
+                <label className="text-muted fs-13 mb-0" htmlFor="files-list-page-size">
+                  {t('pager.page_size')}
+                </label>
+                <select
+                  id="files-list-page-size"
+                  className="form-select form-select-sm"
+                  style={{ width: 'auto' }}
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setPage(1);
+                  }}
+                >
+                  {PAGE_SIZE_OPTIONS.map((size) => (
+                    <option key={size} value={size}>{size}</option>
+                  ))}
+                </select>
               </div>
-            ) : (
-              pageItems.map((f) => {
-                const ext = extOf(f.originalName);
-                const blocked = f.scanStatus === 'INFECTED' || f.scanStatus === 'PENDING';
-                const uploaderName = f.uploadedBy?.name ?? '—';
-                const isOpen = openMenuFor === f.publicId;
-                return (
-                  <div key={f.publicId} className="tfiles-row">
-                    <div className="tfiles-col-icon">
-                      <FileIcon
-                        extension={ext || undefined}
-                        {...(defaultStyles[ext] ?? {})}
-                        radius={4}
-                      />
-                    </div>
-                    <div className="tfiles-col-name">
-                      <button
-                        type="button"
-                        className={`tfiles-name${blocked ? ' is-blocked' : ''}`}
-                        title={f.originalName}
-                        onClick={() => !blocked && handleDownload(f)}
-                        disabled={blocked}
-                      >
-                        {f.originalName}
-                      </button>
-                      <ScanStatusBadge status={f.scanStatus} isSecured={f.isSecured} />
-                    </div>
-                    <div className="tfiles-col-size">{formatBytes(f.sizeBytes)}</div>
-                    <div className="tfiles-col-uploader">
-                      {f.uploadedBy ? (
-                        <>
-                          {f.uploadedBy.avatarUrl ? (
-                            <img
-                              className="tfiles-avatar tfiles-avatar--img"
-                              src={`${f.uploadedBy.avatarUrl}${f.uploadedBy.avatarUpdatedAt ? `?v=${encodeURIComponent(f.uploadedBy.avatarUpdatedAt)}` : ''}`}
-                              alt={uploaderName}
-                            />
-                          ) : (
-                            <span
-                              className="tfiles-avatar"
-                              style={{ background: avatarColorFor(uploaderName) }}
-                              aria-hidden="true"
-                            >
-                              {initialsOf(uploaderName)}
-                            </span>
-                          )}
-                          <span className="tfiles-uploader-name">{uploaderName}</span>
-                        </>
-                      ) : (
-                        <span className="tfiles-uploader-name">—</span>
-                      )}
-                    </div>
-                    <div className="tfiles-col-date">{formatDate(f.uploadedAt, dateFormat)}</div>
-                    <div className="tfiles-col-actions">
-                      <button
-                        type="button"
-                        className="tfiles-kebab-btn"
-                        aria-label={t('task_files.kebab_label')}
-                        aria-expanded={isOpen}
-                        onClick={() => setOpenMenuFor(isOpen ? null : f.publicId)}
-                      >
-                        <i className="ri-more-2-fill" aria-hidden="true" />
-                      </button>
-                      {isOpen && (
-                        <div className="tfiles-menu" role="menu">
-                          <button
-                            type="button"
-                            className="tfiles-menu-item"
-                            disabled={blocked}
-                            onClick={() => { setOpenMenuFor(null); handleDownload(f); }}
-                          >
-                            <i className="ri-download-2-line" aria-hidden="true" />
-                            {t('actions.download')}
-                          </button>
-                          {canRename && (
+
+              <div className="table-responsive">
+                <table className="table text-nowrap mb-0 align-middle">
+                  <thead>
+                    <tr>
+                      <th style={{ width: 36 }} aria-hidden="true" />
+                      <th>
+                        <button type="button" className="btn btn-link p-0 text-decoration-none text-reset fw-semibold d-inline-flex align-items-center gap-1" onClick={() => toggleSort('name')}>
+                          {t('task_files.col.name')} <i className={sortIcon('name')} aria-hidden="true" />
+                        </button>
+                      </th>
+                      <th>
+                        <button type="button" className="btn btn-link p-0 text-decoration-none text-reset fw-semibold d-inline-flex align-items-center gap-1" onClick={() => toggleSort('size')}>
+                          {t('task_files.col.size')} <i className={sortIcon('size')} aria-hidden="true" />
+                        </button>
+                      </th>
+                      <th>
+                        <button type="button" className="btn btn-link p-0 text-decoration-none text-reset fw-semibold d-inline-flex align-items-center gap-1" onClick={() => toggleSort('uploader')}>
+                          {t('task_files.col.uploader')} <i className={sortIcon('uploader')} aria-hidden="true" />
+                        </button>
+                      </th>
+                      <th>
+                        <button type="button" className="btn btn-link p-0 text-decoration-none text-reset fw-semibold d-inline-flex align-items-center gap-1" onClick={() => toggleSort('date')}>
+                          {t('task_files.col.date')} <i className={sortIcon('date')} aria-hidden="true" />
+                        </button>
+                      </th>
+                      <th style={{ width: 56 }} aria-hidden="true" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visible.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="text-center text-muted py-4">
+                          <i className="ri-filter-3-line me-1" aria-hidden="true" />
+                          {filtersActive ? t('list.empty_filtered') : t('task_files.search_empty')}
+                        </td>
+                      </tr>
+                    ) : pageItems.map((f) => {
+                      const ext = extOf(f.originalName);
+                      const blocked = f.scanStatus === 'INFECTED' || f.scanStatus === 'PENDING';
+                      const uploaderName = f.uploadedBy?.name ?? '—';
+                      const isOpen = openMenuFor === f.publicId;
+                      return (
+                        <tr key={f.publicId}>
+                          <td style={{ width: 36 }}>
+                            <div style={{ width: 24 }}>
+                              <FileIcon
+                                extension={ext || undefined}
+                                {...(defaultStyles[ext] ?? {})}
+                                radius={4}
+                              />
+                            </div>
+                          </td>
+                          <td>
+                            <div className="d-flex align-items-center gap-2" style={{ minWidth: 0 }}>
+                              <button
+                                type="button"
+                                className={`tfiles-name${blocked ? ' is-blocked' : ''}`}
+                                title={f.originalName}
+                                onClick={() => !blocked && handleDownload(f)}
+                                disabled={blocked}
+                              >
+                                {f.originalName}
+                              </button>
+                              <ScanStatusBadge status={f.scanStatus} isSecured={f.isSecured} />
+                            </div>
+                          </td>
+                          <td className="fs-13 text-muted">{formatBytes(f.sizeBytes)}</td>
+                          <td className="fs-13 text-muted">
+                            {f.uploadedBy ? (
+                              <span className="d-inline-flex align-items-center gap-2">
+                                {f.uploadedBy.avatarUrl ? (
+                                  <img
+                                    className="tfiles-avatar tfiles-avatar--img"
+                                    src={`${f.uploadedBy.avatarUrl}${f.uploadedBy.avatarUpdatedAt ? `?v=${encodeURIComponent(f.uploadedBy.avatarUpdatedAt)}` : ''}`}
+                                    alt={uploaderName}
+                                  />
+                                ) : (
+                                  <span
+                                    className="tfiles-avatar"
+                                    style={{ background: avatarColorFor(uploaderName) }}
+                                    aria-hidden="true"
+                                  >
+                                    {initialsOf(uploaderName)}
+                                  </span>
+                                )}
+                                <span>{uploaderName}</span>
+                              </span>
+                            ) : (
+                              <span>—</span>
+                            )}
+                          </td>
+                          <td className="fs-13 text-muted">{formatDate(f.uploadedAt, dateFormat)}</td>
+                          <td style={{ width: 56, position: 'relative' }}>
                             <button
                               type="button"
-                              className="tfiles-menu-item"
-                              onClick={() => { setOpenMenuFor(null); setReplaceTarget(f); }}
+                              className="btn btn-sm btn-icon btn-secondary-transparent"
+                              aria-label={t('task_files.kebab_label')}
+                              aria-expanded={isOpen}
+                              onClick={() => setOpenMenuFor(isOpen ? null : f.publicId)}
                             >
-                              <i className="ri-refresh-line" aria-hidden="true" />
-                              {t('actions.replace')}
+                              <i className="ri-more-2-fill" aria-hidden="true" />
                             </button>
-                          )}
-                          {canRename && (
-                            <button
-                              type="button"
-                              className="tfiles-menu-item"
-                              onClick={() => { setOpenMenuFor(null); setRenameTarget(f); }}
-                            >
-                              <i className="ri-edit-line" aria-hidden="true" />
-                              {t('actions.rename')}
-                            </button>
-                          )}
-                          {canDelete && (
-                            <button
-                              type="button"
-                              className="tfiles-menu-item is-danger"
-                              onClick={() => { setOpenMenuFor(null); setDeleteTarget(f); }}
-                            >
-                              <i className="ri-delete-bin-line" aria-hidden="true" />
-                              {t('actions.delete')}
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })
-            )}
+                            {isOpen && (
+                              <div className="tfiles-menu" role="menu">
+                                <button
+                                  type="button"
+                                  className="tfiles-menu-item"
+                                  disabled={blocked}
+                                  onClick={() => { setOpenMenuFor(null); handleDownload(f); }}
+                                >
+                                  <i className="ri-download-2-line" aria-hidden="true" />
+                                  {t('actions.download')}
+                                </button>
+                                {canRename && (
+                                  <button
+                                    type="button"
+                                    className="tfiles-menu-item"
+                                    onClick={() => { setOpenMenuFor(null); setReplaceTarget(f); }}
+                                  >
+                                    <i className="ri-refresh-line" aria-hidden="true" />
+                                    {t('actions.replace')}
+                                  </button>
+                                )}
+                                {canRename && (
+                                  <button
+                                    type="button"
+                                    className="tfiles-menu-item"
+                                    onClick={() => { setOpenMenuFor(null); setRenameTarget(f); }}
+                                  >
+                                    <i className="ri-edit-line" aria-hidden="true" />
+                                    {t('actions.rename')}
+                                  </button>
+                                )}
+                                {canDelete && (
+                                  <button
+                                    type="button"
+                                    className="tfiles-menu-item is-danger"
+                                    onClick={() => { setOpenMenuFor(null); setDeleteTarget(f); }}
+                                  >
+                                    <i className="ri-delete-bin-line" aria-hidden="true" />
+                                    {t('actions.delete')}
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         )}
 
@@ -534,6 +548,9 @@ export function FilesListView({
             </nav>
           </div>
         )}
+
+        {/* Storage usage indicator — bottom-left */}
+        <StorageUsageBar />
 
       {/* Modal: rename */}
       {renameTarget && (
