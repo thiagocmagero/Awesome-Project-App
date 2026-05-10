@@ -1,0 +1,83 @@
+events {
+    worker_connections 1024;
+}
+
+http {
+    include       /etc/nginx/mime.types;
+    default_type  application/octet-stream;
+    sendfile      on;
+    tcp_nopush    on;
+    tcp_nodelay   on;
+    keepalive_timeout 65;
+
+    # Tamanho máximo de upload — alinhado com `MULTER_MAX_BYTES` do backend (2GB).
+    client_max_body_size 2048m;
+
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_types text/plain text/css application/json application/javascript
+               text/xml application/xml application/xml+rss text/javascript
+               application/wasm image/svg+xml;
+
+    server {
+        listen ${PORT};
+        server_name _;
+        root /usr/share/nginx/html;
+        index index.html;
+
+        # Headers de segurança básicos
+        add_header X-Frame-Options "SAMEORIGIN" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+        # Cache agressivo para assets estáticos com hash no nome
+        location /assets/ {
+            expires 1y;
+            add_header Cache-Control "public, immutable";
+            try_files $uri =404;
+        }
+
+        # SPA fallback — qualquer rota React Router serve index.html
+        location / {
+            try_files $uri $uri/ /index.html;
+        }
+
+        # Não cachar o index.html (sempre fresh, build hash muda)
+        location = /index.html {
+            add_header Cache-Control "no-cache, no-store, must-revalidate";
+            expires 0;
+        }
+
+        # Proxy /api/ → backend Railway
+        # `Host $host` (e não $proxy_host) garante que cookies sem `Domain`
+        # explícito ficam associados ao frontend e funcionam através do proxy.
+        location /api/ {
+            proxy_pass ${BACKEND_URL}/api/;
+
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header X-Forwarded-Host $host;
+
+            # Necessário para Railway HTTPS backend (SNI)
+            proxy_ssl_server_name on;
+
+            # Timeouts para operações longas (uploads grandes, exports)
+            proxy_connect_timeout 60s;
+            proxy_send_timeout    300s;
+            proxy_read_timeout    300s;
+
+            # Buffer settings para responses grandes
+            proxy_buffering off;
+            proxy_request_buffering off;
+        }
+
+        # Bloquear acesso a ficheiros sensíveis
+        location ~ /\.(?!well-known) {
+            deny all;
+        }
+    }
+}
