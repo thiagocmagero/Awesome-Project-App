@@ -1,16 +1,26 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useWebSocket } from '../contexts/WebSocketContext';
 import { getApiBase, apiFetch } from '../lib/api';
 import type { AppNotification } from '../features/notifications/types';
 
 export type { AppNotification };
 
+/** Polling de fallback quando o WS está caído. Antes era 30s; com WS activo,
+ *  5min é suficiente para apanhar drift e notificações criadas off-line. */
+const POLL_FALLBACK_INTERVAL_MS = 5 * 60 * 1000;
+
 export function useNotifications() {
   const { token } = useAuth();
+  const { on: subscribeWs } = useWebSocket();
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [pendingToasts, setPendingToasts] = useState<AppNotification[]>([]);
   const api = getApiBase();
+  // Set dos publicIds já vistos — evita duplicar toast se a notificação chegar
+  // via WS e logo a seguir num refetch (polling de fallback).
+  const seenPublicIdsRef = useRef<Set<string>>(new Set());
 
   const refetch = useCallback(async () => {
     if (!token) return;
@@ -23,6 +33,8 @@ export function useNotifications() {
       setNotifications(data.items);
       setNextCursor(data.nextCursor);
       setUnreadCount(data.items.filter((n) => !n.read).length);
+      // Re-build seen set baseado no fetch (representa estado canónico)
+      data.items.forEach((n) => seenPublicIdsRef.current.add(n.publicId));
     } catch {
       // Silent — polling failure must not interrupt the user
     }
@@ -41,11 +53,34 @@ export function useNotifications() {
     } catch {/* silent */}
   }, [token, api, nextCursor]);
 
+  // Fetch inicial + polling de fallback (5 min)
   useEffect(() => {
     refetch();
-    const interval = setInterval(refetch, 30_000);
+    const interval = setInterval(refetch, POLL_FALLBACK_INTERVAL_MS);
     return () => clearInterval(interval);
   }, [refetch]);
+
+  // Subscrição WebSocket — push imediato
+  useEffect(() => {
+    return subscribeWs('notification:new', (raw) => {
+      const notif = raw as AppNotification;
+      if (!notif?.publicId) return;
+      // Defesa contra duplicação WS + refetch concorrente
+      if (seenPublicIdsRef.current.has(notif.publicId)) return;
+      seenPublicIdsRef.current.add(notif.publicId);
+
+      setNotifications((prev) => [notif, ...prev]);
+      if (!notif.read) setUnreadCount((c) => c + 1);
+      setPendingToasts((prev) => [...prev, notif]);
+      // Lifecycle do toast (entrada/visível/saída/remoção) é gerido por
+      // ToastItem no NotificationToastStack — esse componente chama
+      // `onDismiss` (dismissToast) no final do fade-out.
+    });
+  }, [subscribeWs]);
+
+  const dismissToast = useCallback((publicId: string) => {
+    setPendingToasts((prev) => prev.filter((t) => t.publicId !== publicId));
+  }, []);
 
   const markAsRead = useCallback(async (publicIds: string[]) => {
     if (!token || !publicIds.length) return;
@@ -81,5 +116,15 @@ export function useNotifications() {
     } catch {/* silent */}
   }, [token, api]);
 
-  return { notifications, unreadCount, nextCursor, loadMore, markAsRead, markAllAsRead, refetch };
+  return {
+    notifications,
+    unreadCount,
+    nextCursor,
+    loadMore,
+    markAsRead,
+    markAllAsRead,
+    refetch,
+    pendingToasts,
+    dismissToast,
+  };
 }

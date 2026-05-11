@@ -5,6 +5,7 @@ import { useIsPlatformAdmin } from '../hooks/useIsPlatformAdmin';
 import { usePendingInvitations } from '../hooks/usePendingInvitations';
 import { useNotifications } from '../hooks/useNotifications';
 import { useToast } from '../contexts/ToastContext';
+import NotificationToastStack from './NotificationToastStack';
 import { useWorkspaceLink } from '../hooks/useWorkspaceLink';
 import { getApiBase, apiFetch } from '../lib/api';
 import i18nInstance from '../i18n';
@@ -144,7 +145,15 @@ function AppLayoutInner() {
   const { t } = useTranslation('common');
   const wsLink = useWorkspaceLink();
 
-  const { notifications, unreadCount, markAsRead, markAllAsRead, refetch: refetchNotifications } = useNotifications();
+  const {
+    notifications,
+    unreadCount,
+    markAsRead,
+    markAllAsRead,
+    refetch: refetchNotifications,
+    pendingToasts,
+    dismissToast,
+  } = useNotifications();
 
   // After SweetAlert accept/decline, mark the corresponding INVITATION_RECEIVED notification as read
   usePendingInvitations((invitationPublicId: string) => {
@@ -1079,6 +1088,21 @@ function AppLayoutInner() {
       </div>
 
       <div id="responsive-overlay"></div>
+
+      {/* Stack de toasts WS — Top Right, estilo Zynix Basic */}
+      <NotificationToastStack
+        toasts={pendingToasts}
+        onDismiss={dismissToast}
+        onClick={(n) => {
+          dismissToast(n.publicId);
+          handleNotifClick(
+            n.publicId,
+            n.type,
+            n.projectPublicId ?? undefined,
+            n.entityPublicId ?? undefined,
+          );
+        }}
+      />
     </div>
   );
 }

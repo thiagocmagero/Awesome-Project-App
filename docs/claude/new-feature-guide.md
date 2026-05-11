@@ -129,7 +129,16 @@ Avaliar **cada regra** abaixo para cada nova funcionalidade. Marcar as que se ap
 | **Acções** | Auto-log via `AuditLogInterceptor` global cobre tudo. Endpoints `@Post`/`@Patch`/`@Put`/`@Delete` **devem** adicionar `@Audit({ action, resourceType, resourceId })` para enriquecer com semântica. `action` em `SCREAMING_SNAKE_CASE` no passado; `resourceType` substantivo singular minúsculo; `resourceId` sempre `publicId` UUID v7 (resolver `(req) => req.params.id`). Não logar passwords/tokens — `sanitizeUrl` mascara `?token=`/`?password=`/`?secret=`/`?api_key=`; alargar a regex em `audit-log.interceptor.ts` se introduzires novos params sensíveis. |
 | **Perguntar** | "É um endpoint mutating? Qual o `action` semântico (verbo no passado), `resourceType` (substantivo singular) e `resourceId` (publicId UUID)?" |
 
-### 13. Deploy
+### 13. WebSocket / real-time push
+
+| | |
+|---|---|
+| **Aplica-se quando** | A funcionalidade precisa de push imediato ao cliente (notificação, movimento de card no Board, alteração concorrente no Gantt, etc.) |
+| **Documentação** | @docs/claude/notifications.md secção "WebSocket — push em tempo real" |
+| **Acções** | **1)** Criar `@WebSocketGateway({ namespace: '/x', path: '/api/socket.io', cors: { origin: true, credentials: true } })` — `path` **deve** estar sob `/api` (cookie `access_token` tem `Path=/api`). **2)** Auth via cookie no `handleConnection` (mesmo padrão do `NotificationsGateway`). **3)** Injectar gateway no service e chamar `emitToUser`/`emitToProject` fire-and-forget após persistir. **4)** Frontend: subscrever via `useWebSocket().on('evento', handler)` — sem criar Provider novo. Vite proxy já trata `/api/socket.io` (regra `/api` com `ws: true`). |
+| **Perguntar** | "Esta funcionalidade beneficia de push real-time ao cliente (sem polling)? A room é por user (`user:{id}`) ou por projecto (`project:{id}`)?" |
+
+### 14. Deploy
 
 | | |
 |---|---|

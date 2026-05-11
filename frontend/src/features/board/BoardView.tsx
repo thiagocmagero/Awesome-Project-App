@@ -1071,6 +1071,13 @@ export function BoardView({
           onCommentClick={({ cardId }) => {
             onOpenEditTaskRef.current(String(cardId), 'comments');
           }}
+          onCardClick={({ card, event }) => {
+            if (event.shiftKey || event.ctrlKey || event.metaKey) return;
+            const target = event.target as HTMLElement | null;
+            if (target && target.closest('.ak-card__title')) {
+              onOpenEditTaskRef.current(String(card.id));
+            }
+          }}
         />
       </div>
     </div>

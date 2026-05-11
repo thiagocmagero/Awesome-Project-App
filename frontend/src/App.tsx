@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { ToastProvider } from './contexts/ToastContext';
+import { WebSocketProvider } from './contexts/WebSocketContext';
 import { WorkspaceProvider } from './contexts/WorkspaceContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import AppLayout from './components/AppLayout';
@@ -38,6 +39,7 @@ export default function App() {
   return (
     <AuthProvider>
       <ToastProvider>
+      <WebSocketProvider>
       <Routes>
         {/* ── Públicas / auth — sem workspace ───────────────────────────── */}
         <Route path="/login" element={<LoginPage />} />
@@ -94,6 +96,7 @@ export default function App() {
         <Route path="/" element={<RedirectToDefaultWorkspace />} />
         <Route path="*" element={<RedirectToDefaultWorkspace />} />
       </Routes>
+      </WebSocketProvider>
       </ToastProvider>
     </AuthProvider>
   );

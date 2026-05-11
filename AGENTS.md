@@ -27,10 +27,10 @@ Repositório privado: <https://github.com/thiagocmagero/Awesome-Project-App>
 - **Versionado**: código (`backend/`, `frontend/`), `docker-compose.yml`,
   `.env.example`, `.gitignore`, `README.md`.
 - **Excluído por `.gitignore`** (`*.md` excepto `README.md`): toda a
-  documentação markdown — `CLAUDE.md` (este ficheiro), `docs/claude/*`,
+  documentação markdown — `AGENTS.md` (este ficheiro), `docs/Codex/*`,
   `GANTT.md`, `Vulnerabilidades.md`, `i18n.md`, `clear-comments.md`,
   `especificacao_gantttool.md`. Estes ficheiros vivem **apenas localmente**
-  como contexto para Claude Code; não fazem parte do push para o GitHub.
+  como contexto para Codex; não fazem parte do push para o GitHub.
 - **Excluído também**: `.env`, `node_modules/`, `*-node_modules/`,
   `postgres-data/`, `dist/`, `coverage/`, `docker-compose.local.yml`.
 - **Nunca** comitar `.env` nem credenciais. O `.env.example` é o template
@@ -76,8 +76,8 @@ service for refactored sem manter a verificação.
   por compatibilidade DHTMLX (IDs locais ao projecto, scoped pelo guard).
 
 Detalhes completos, hierarquia de roles, padrão UI espelho (`canDo()`),
-intercepts em widgets DHTMLX e anti-padrões em @docs/claude/permissions.md
-e @docs/claude/tools/permissions/overview.md.
+intercepts em widgets DHTMLX e anti-padrões em @docs/Codex/permissions.md
+e @docs/Codex/tools/permissions/overview.md.
 
 ## Regra obrigatória — Audit Logs em todos os endpoints
 
@@ -121,7 +121,7 @@ remove(@Param('id') id: string) { ... }
 - `AuditLog` é imutável — sem endpoints de update/delete.
 
 Detalhes completos (modelo, pipeline, frontend, anti-padrões) em
-@docs/claude/audit-logs.md.
+@docs/Codex/audit-logs.md.
 
 ## Regra obrigatória — User cascade rule
 
@@ -139,7 +139,7 @@ Política:
 - **SetNull**: ownership de entidades que sobrevivem (Project.owner,
   Team.owner, Holiday.owner, ...).
 
-Tabela completa por modelo + checklist em @docs/claude/db.md secção
+Tabela completa por modelo + checklist em @docs/Codex/db.md secção
 "User cascade rule".
 
 ## Regra obrigatória — Catálogo formal de entitlement keys
@@ -245,37 +245,19 @@ está proibida em código novo.
   `profileCode` do user (ex.: `useProjectPermissions` compara contra a role
   retornada por `/projects/:id/my-permissions`).
 
-## Regra obrigatória — Actualização do CLAUDE.md
+## Regra obrigatória — Actualização do AGENTS.md
 
-SEMPRE que uma regra for criada ou alterada, reflectir obrigatoriamente neste `CLAUDE.md` e no ficheiro modular relevante em `docs/claude/`. O `CLAUDE.md` é a fonte de verdade das instruções do projecto.
+SEMPRE que uma regra for criada ou alterada, reflectir obrigatoriamente neste `AGENTS.md` e no ficheiro modular relevante em `docs/Codex/`. O `AGENTS.md` é a fonte de verdade das instruções do projecto.
 
 ## Regra obrigatória — Guia de novas funcionalidades
 
-Antes de implementar qualquer nova funcionalidade, consultar @docs/claude/new-feature-guide.md.
+Antes de implementar qualquer nova funcionalidade, consultar @docs/Codex/new-feature-guide.md.
 Quando o utilizador não especificar quais regras aplicar, PERGUNTAR SEMPRE antes de avançar.
 Nunca assumir que uma regra não se aplica — em caso de dúvida, perguntar.
 
-## Regra obrigatória — WebSocket sempre sob `/api/socket.io`
-
-Qualquer `@WebSocketGateway` novo **deve** declarar `path: '/api/socket.io'`
-(não `/socket.io`). Razão: o cookie HttpOnly `access_token` tem `Path=/api` —
-fora desse prefixo o browser **não envia** o cookie no handshake e o gateway
-rejeita silenciosamente.
-
-O cliente Socket.io espelha: `io('/namespace', { path: '/api/socket.io', withCredentials: true })`.
-
-O Vite proxy já tem `ws: true` na regra `/api` — **não** criar regra
-`/socket.io` separada (causa rotas duplicadas e quebra cookies).
-
-Push de notificações é o caso actual ([`backend/src/notifications/notifications.gateway.ts`](backend/src/notifications/notifications.gateway.ts) + [`frontend/src/contexts/WebSocketContext.tsx`](frontend/src/contexts/WebSocketContext.tsx)).
-Para adicionar push noutras tools (Board, Gantt, Timesheet), criar gateway
-próprio sob `/api/socket.io` com namespace dedicado e usar
-`useWebSocket().on(event, handler)` no frontend — não criar Provider novo.
-Detalhes completos em @docs/claude/notifications.md secção "WebSocket — push em tempo real".
-
 ## Regra obrigatória — Alinhamento com o template Zynix
 
-SEMPRE que for pedido um componente Zynix (`A:/Arquivos/zynix_template/`), rever **todas** as páginas para alinhar com os padrões: FlatPickr para datas, Choices.js para selects, Default Nav Tabs com `data-bs-toggle="tab"`, Breadcrumb Style-2 com `breadcrumb-style2`. Ver padrões completos em @docs/claude/frontend.md.
+SEMPRE que for pedido um componente Zynix (`A:/Arquivos/zynix_template/`), rever **todas** as páginas para alinhar com os padrões: FlatPickr para datas, Choices.js para selects, Default Nav Tabs com `data-bs-toggle="tab"`, Breadcrumb Style-2 com `breadcrumb-style2`. Ver padrões completos em @docs/Codex/frontend.md.
 
 ## Regra obrigatória — Timezone (Datas Puras vs Momentos Reais)
 
@@ -283,7 +265,7 @@ QUALQUER campo de data/hora introduzido na app deve ser classificado como
 **DATA PURA** (label de calendário, sem hora) ou **MOMENTO REAL** (instante
 exacto). A escolha define o tipo Postgres, o helper de formatação e o pipeline
 de conversão. Detalhes completos, tabela exaustiva por campo, edge cases
-(DST, hora ambígua/inexistente) e anti-padrões em @docs/claude/timezone.md.
+(DST, hora ambígua/inexistente) e anti-padrões em @docs/Codex/timezone.md.
 
 **Resumo:**
 - **DATA PURA** (workDate, weekStart, Project.startDate/endDate,
@@ -359,7 +341,7 @@ QUALQUER componente que exiba ou edite datas dentro do contexto dum projecto
 
 Pattern completo, lista exaustiva de consumidores, edge cases (singleton
 DHTMLX, FlatPickr `useEffect` deps, FullCalendar reactivo) e plano de
-extensão futura em @docs/claude/date-formatting.md.
+extensão futura em @docs/Codex/date-formatting.md.
 
 ## Regra obrigatória — Frame visual unificado das ferramentas (PlanningPage)
 
@@ -446,7 +428,7 @@ config**, não `api.on/intercept`.
 - **Toolbar nativa do FullCalendar desactivada** (`headerToolbar: false`); o
   header `< > Hoje | título | Mês/Semana/Dia/Lista` é renderizado por
   `<CalendarHeader>` React.
-- Ver @docs/claude/tools/calendar/overview.md para detalhes.
+- Ver @docs/Codex/tools/calendar/overview.md para detalhes.
 
 ## Regra obrigatória — Timesheet: estados, permissões e área global
 
@@ -522,7 +504,7 @@ o detalhe via vista do projecto.
 
 **Feature flag** `timesheet_view` (PLATFORM_ADMIN bypassa).
 
-Ver @docs/claude/tools/timesheet/overview.md para detalhes.
+Ver @docs/Codex/tools/timesheet/overview.md para detalhes.
 
 ## Regra obrigatória — Cap de duração de tasks Gantt (configurável)
 
@@ -547,7 +529,7 @@ projecto e o `max` actual via `PlatformConfigService.getMaxTaskBusinessDays()`.
 
 **UI**: PlatformConfigPanel ganha aba "Limits" com input numérico + estimativa
 em anos calendário (`/260`). Detalhes em
-@docs/claude/tools/gantt/data-model.md secção "durationUnit".
+@docs/Codex/tools/gantt/data-model.md secção "durationUnit".
 
 ## Regra obrigatória — Granularidade de tasks Gantt (DAY vs HOUR)
 
@@ -587,7 +569,7 @@ esse é per-task. Tasks DAY e HOUR co-existem em qualquer modo do widget.
 
 Detalhes completos, algoritmo de `addBusinessHoursInclusive`, edge cases
 (cross-day, cross-weekend, cross-holiday) e tabela DAY vs HOUR em
-@docs/claude/tools/gantt/data-model.md, @docs/claude/tools/gantt/interactions.md.
+@docs/Codex/tools/gantt/data-model.md, @docs/Codex/tools/gantt/interactions.md.
 
 ## Regra obrigatória — Estado da tarefa = `BoardColumn`
 
@@ -613,7 +595,7 @@ para N workspaces por user.
 - Em queries novas, filtrar por `workspaceId` em vez de `ownerId`. `ownerId` é
   audit field (preservado em Project/Team/Holiday/UserType).
 - `User.delete` (PLATFORM_ADMIN hard delete) cascades para Workspace e daí para
-  todas as 9 tabelas — ver `User cascade rule` em @docs/claude/db.md.
+  todas as 9 tabelas — ver `User cascade rule` em @docs/Codex/db.md.
 - Auto-criação obrigatória nos 4 hooks de criação de User
   (`auth.register`, `createAccountFromInvite`, `users.service.create`, seed).
   Pattern: `prisma.user.create({ data: { ..., workspaces: { create: { name } } } })`.
@@ -627,7 +609,7 @@ para N workspaces por user.
 inalterados em V1 (V2 introduz `/<workspacePublicId>/...`). Frontend envia
 header `X-Workspace-Id` via apiFetch (informativo em V1; future-ready V2).
 
-Detalhes completos em @docs/claude/workspaces.md.
+Detalhes completos em @docs/Codex/workspaces.md.
 
 ## Regra obrigatória — API global prefix `/api/v1`
 
@@ -654,7 +636,7 @@ Malware Protection — escolhida no momento do upload com base no plano do
 - API **nunca** expõe `bucketKey` nem ownership no path. Apenas `publicId`
   UUID v7 e UUID v4 random no key do bucket.
 - `FILE_VIEW`/`FILE_UPLOAD`/`FILE_RENAME`/`FILE_DELETE` são `ProjectAction`
-  com guards e UI espelho obrigatórios (ver @docs/claude/permissions.md).
+  com guards e UI espelho obrigatórios (ver @docs/Codex/permissions.md).
 - Quota cobrada **sempre no plano do owner do projecto**, não do uploader
   — coerente com seats LICENSED.
 - Validação em camadas: file-type magic bytes → MIME allowlist →
@@ -670,7 +652,7 @@ Malware Protection — escolhida no momento do upload com base no plano do
   humano (bucket key continua opaco).
 
 Detalhes completos (modelo, pipeline, GuardDuty, UI, anti-padrões) em
-@docs/claude/uploads.md.
+@docs/Codex/uploads.md.
 
 ## Stack
 
@@ -706,33 +688,33 @@ npm run build
 
 ## Referências modulares
 
-@docs/claude/architecture.md             (estrutura dirs, portas, Docker, env vars, fases, sidebar)
-@docs/claude/auth.md                     (JWT, guards, perfis, roles, planos, convites, selfRegistered)
-@docs/claude/backend.md                  (NestJS, endpoints, módulos, DTOs, convenções)
-@docs/claude/db.md                       (Prisma, modelos, migrações, seeds, soft delete)
-@docs/claude/frontend.md                 (React, Zynix, toasts, proxy, padrões de componentes)
-@docs/claude/i18n.md                     (react-i18next, namespaces, chaves, convenções)
-@docs/claude/date-formatting.md          (formato de data por projecto: helper, Context, hook, wire vs display, pattern por widget)
-@docs/claude/timezone.md                 (timezone: hierarquia binária, datas puras vs momentos reais, helpers, anti-padrões)
-@docs/claude/notifications.md            (mecanismo de notificações: modelo, endpoints, hook, dropdown, gaps)
-@docs/claude/email.md                    (envio de emails transacionais: SMTP Brevo, React Email, locale-aware, 10 tipos)
-@docs/claude/storage.md                  (wrapper AWS S3: env vars, StorageService, pipeline genérico de validação, avatares no bucket público)
-@docs/claude/workspaces.md               (workspace explícito: modelo, auto-criação, runtime helpers, V1/V2 path, anti-padrões)
-@docs/claude/uploads.md                  (upload de ficheiros project-scoped: File model, flags upload/upload_secured, GuardDuty, permissões FILE_*, presigned download, UI)
-@docs/claude/audit-logs.md               (audit trail técnico: AuditLog model, interceptor global, @Audit decorator, /audit page, tab Audit em /clients)
-@docs/claude/tools/gantt/overview.md     (Gantt — ponto de entrada obrigatório)
-@docs/claude/tools/gantt/data-model.md   (modelos Prisma Gantt, holidays, GanttConfig)
-@docs/claude/tools/gantt/interactions.md (drag & drop, eventos DHTMLX, stale closures)
-@docs/claude/tools/gantt/rendering.md    (layout 2 painéis, colunas, CSS, resourceGrid)
-@docs/claude/tools/calendar/overview.md     (Calendário — ponto de entrada obrigatório)
-@docs/claude/tools/calendar/data-model.md   (modelos Prisma Calendar, HolidayScope, CalendarConfig)
-@docs/claude/tools/calendar/interactions.md (FullCalendar callbacks, stale closures, singleton)
-@docs/claude/tools/calendar/rendering.md    (sources panel, header customizado, event sources)
-@docs/claude/tools/timesheet/overview.md     (Timesheet — ponto de entrada obrigatório)
-@docs/claude/tools/timesheet/data-model.md   (modelos Prisma Timesheet, enums, endpoints REST)
-@docs/claude/tools/timesheet/interactions.md (fluxos submit/approve/reject/copy, transições de estado)
-@docs/claude/tools/timesheet/rendering.md    (grelha, status pills, banner, modais, área global)
-@docs/claude/new-feature-guide.md        (guia de criação de novas funcionalidades — ponto de entrada obrigatório)
-@docs/claude/permissions.md              (metodologia de permissões — regras obrigatórias)
-@docs/claude/tools/permissions/overview.md (permissões — ponto de entrada)
-@docs/claude/tools/permissions/data-model.md (modelos, enum, resolução)
+@docs/Codex/architecture.md             (estrutura dirs, portas, Docker, env vars, fases, sidebar)
+@docs/Codex/auth.md                     (JWT, guards, perfis, roles, planos, convites, selfRegistered)
+@docs/Codex/backend.md                  (NestJS, endpoints, módulos, DTOs, convenções)
+@docs/Codex/db.md                       (Prisma, modelos, migrações, seeds, soft delete)
+@docs/Codex/frontend.md                 (React, Zynix, toasts, proxy, padrões de componentes)
+@docs/Codex/i18n.md                     (react-i18next, namespaces, chaves, convenções)
+@docs/Codex/date-formatting.md          (formato de data por projecto: helper, Context, hook, wire vs display, pattern por widget)
+@docs/Codex/timezone.md                 (timezone: hierarquia binária, datas puras vs momentos reais, helpers, anti-padrões)
+@docs/Codex/notifications.md            (mecanismo de notificações: modelo, endpoints, hook, dropdown, gaps)
+@docs/Codex/email.md                    (envio de emails transacionais: SMTP Brevo, React Email, locale-aware, 10 tipos)
+@docs/Codex/storage.md                  (wrapper AWS S3: env vars, StorageService, pipeline genérico de validação, avatares no bucket público)
+@docs/Codex/workspaces.md               (workspace explícito: modelo, auto-criação, runtime helpers, V1/V2 path, anti-padrões)
+@docs/Codex/uploads.md                  (upload de ficheiros project-scoped: File model, flags upload/upload_secured, GuardDuty, permissões FILE_*, presigned download, UI)
+@docs/Codex/audit-logs.md               (audit trail técnico: AuditLog model, interceptor global, @Audit decorator, /audit page, tab Audit em /clients)
+@docs/Codex/tools/gantt/overview.md     (Gantt — ponto de entrada obrigatório)
+@docs/Codex/tools/gantt/data-model.md   (modelos Prisma Gantt, holidays, GanttConfig)
+@docs/Codex/tools/gantt/interactions.md (drag & drop, eventos DHTMLX, stale closures)
+@docs/Codex/tools/gantt/rendering.md    (layout 2 painéis, colunas, CSS, resourceGrid)
+@docs/Codex/tools/calendar/overview.md     (Calendário — ponto de entrada obrigatório)
+@docs/Codex/tools/calendar/data-model.md   (modelos Prisma Calendar, HolidayScope, CalendarConfig)
+@docs/Codex/tools/calendar/interactions.md (FullCalendar callbacks, stale closures, singleton)
+@docs/Codex/tools/calendar/rendering.md    (sources panel, header customizado, event sources)
+@docs/Codex/tools/timesheet/overview.md     (Timesheet — ponto de entrada obrigatório)
+@docs/Codex/tools/timesheet/data-model.md   (modelos Prisma Timesheet, enums, endpoints REST)
+@docs/Codex/tools/timesheet/interactions.md (fluxos submit/approve/reject/copy, transições de estado)
+@docs/Codex/tools/timesheet/rendering.md    (grelha, status pills, banner, modais, área global)
+@docs/Codex/new-feature-guide.md        (guia de criação de novas funcionalidades — ponto de entrada obrigatório)
+@docs/Codex/permissions.md              (metodologia de permissões — regras obrigatórias)
+@docs/Codex/tools/permissions/overview.md (permissões — ponto de entrada)
+@docs/Codex/tools/permissions/data-model.md (modelos, enum, resolução)

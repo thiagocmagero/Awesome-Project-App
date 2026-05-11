@@ -1,8 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { EntityType, NotificationChannel, NotificationType } from '@prisma/client';
+import { EntityType, Notification, NotificationChannel, NotificationType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../emails/email.service';
 import { NotificationResponseDto } from './dto/notification-response.dto';
+import { NotificationsGateway } from './notifications.gateway';
 
 @Injectable()
 export class NotificationsService {
@@ -11,7 +12,27 @@ export class NotificationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly emailService: EmailService,
+    private readonly gateway: NotificationsGateway,
   ) {}
+
+  /**
+   * Cria a notificação na BD e emite via WebSocket no mesmo passo. Centralizar
+   * aqui garante que NUNCA emitimos sem persistir nem persistimos sem emitir,
+   * e que o payload WS é exactamente o mesmo DTO que a API REST devolve.
+   *
+   * Fire-and-forget na emissão — se o gateway não estiver pronto ou o user
+   * não tiver sockets abertos, a notificação fica disponível no próximo
+   * fetch ou no polling de fallback (5 min).
+   */
+  private async createAndEmit(data: Parameters<PrismaService['notification']['create']>[0]['data']): Promise<Notification> {
+    const created = await this.prisma.notification.create({ data });
+    this.gateway
+      .emitToUser(created.userId, 'notification:new', NotificationResponseDto.from(created))
+      .catch((err: unknown) => {
+        this.logger.warn(`WS emit failed for user ${created.userId}: ${(err as Error).message}`);
+      });
+    return created;
+  }
 
   // ─── Preference guard ────────────────────────────────────────────────────────
 
@@ -145,16 +166,14 @@ export class NotificationsService {
     excerpt: string,
   ): Promise<void> {
     if (await this.shouldNotify(mentionedUserId, NotificationType.MENTION, NotificationChannel.IN_APP)) {
-      await this.prisma.notification.create({
-        data: {
-          userId: mentionedUserId,
-          type: NotificationType.MENTION,
-          title: `${actorName} mencionou-te`,
-          body: excerpt,
-          entityType,
-          entityPublicId,
-          projectPublicId,
-        },
+      await this.createAndEmit({
+        userId: mentionedUserId,
+        type: NotificationType.MENTION,
+        title: `${actorName} mencionou-te`,
+        body: excerpt,
+        entityType,
+        entityPublicId,
+        projectPublicId,
       });
     }
 
@@ -189,16 +208,14 @@ export class NotificationsService {
     taskName: string,
   ): Promise<void> {
     if (await this.shouldNotify(assigneeUserId, NotificationType.TASK_ASSIGNED, NotificationChannel.IN_APP)) {
-      await this.prisma.notification.create({
-        data: {
-          userId: assigneeUserId,
-          type: NotificationType.TASK_ASSIGNED,
-          title: `${assignerName} atribuiu-te uma tarefa`,
-          body: taskName,
-          entityType: EntityType.TASK,
-          entityPublicId: taskPublicId,
-          projectPublicId,
-        },
+      await this.createAndEmit({
+        userId: assigneeUserId,
+        type: NotificationType.TASK_ASSIGNED,
+        title: `${assignerName} atribuiu-te uma tarefa`,
+        body: taskName,
+        entityType: EntityType.TASK,
+        entityPublicId: taskPublicId,
+        projectPublicId,
       });
     }
 
@@ -232,15 +249,13 @@ export class NotificationsService {
     inviteUrl?: string,
   ): Promise<void> {
     if (await this.shouldNotify(userId, NotificationType.INVITATION_RECEIVED, NotificationChannel.IN_APP)) {
-      await this.prisma.notification.create({
-        data: {
-          userId,
-          type: NotificationType.INVITATION_RECEIVED,
-          title: `${inviterName} convidou-te para um projeto`,
-          body: `Projeto: ${projectName}`,
-          entityPublicId: invitationPublicId,
-          projectPublicId,
-        },
+      await this.createAndEmit({
+        userId,
+        type: NotificationType.INVITATION_RECEIVED,
+        title: `${inviterName} convidou-te para um projeto`,
+        body: `Projeto: ${projectName}`,
+        entityPublicId: invitationPublicId,
+        projectPublicId,
       });
     }
 
@@ -268,14 +283,12 @@ export class NotificationsService {
     projectPublicId: string,
   ): Promise<void> {
     if (await this.shouldNotify(userId, NotificationType.INVITATION_ACCEPTED, NotificationChannel.IN_APP)) {
-      await this.prisma.notification.create({
-        data: {
-          userId,
-          type: NotificationType.INVITATION_ACCEPTED,
-          title: `${inviteeName} aceitou o convite`,
-          body: `Projeto: ${projectName}`,
-          projectPublicId,
-        },
+      await this.createAndEmit({
+        userId,
+        type: NotificationType.INVITATION_ACCEPTED,
+        title: `${inviteeName} aceitou o convite`,
+        body: `Projeto: ${projectName}`,
+        projectPublicId,
       });
     }
 
@@ -303,14 +316,12 @@ export class NotificationsService {
     projectPublicId: string,
   ): Promise<void> {
     if (await this.shouldNotify(userId, NotificationType.INVITATION_DECLINED, NotificationChannel.IN_APP)) {
-      await this.prisma.notification.create({
-        data: {
-          userId,
-          type: NotificationType.INVITATION_DECLINED,
-          title: `${inviteeName} recusou o convite`,
-          body: `Projeto: ${projectName}`,
-          projectPublicId,
-        },
+      await this.createAndEmit({
+        userId,
+        type: NotificationType.INVITATION_DECLINED,
+        title: `${inviteeName} recusou o convite`,
+        body: `Projeto: ${projectName}`,
+        projectPublicId,
       });
     }
 
@@ -337,15 +348,13 @@ export class NotificationsService {
     entityPublicId: string,
   ): Promise<void> {
     if (await this.shouldNotify(userId, NotificationType.COMMENT_REACTION, NotificationChannel.IN_APP)) {
-      await this.prisma.notification.create({
-        data: {
-          userId,
-          type: NotificationType.COMMENT_REACTION,
-          title: `${reactorName} reagiu ao teu comentário`,
-          body: `Reação: ${emoji}`,
-          projectPublicId,
-          entityPublicId,
-        },
+      await this.createAndEmit({
+        userId,
+        type: NotificationType.COMMENT_REACTION,
+        title: `${reactorName} reagiu ao teu comentário`,
+        body: `Reação: ${emoji}`,
+        projectPublicId,
+        entityPublicId,
       });
     }
 
@@ -384,14 +393,12 @@ export class NotificationsService {
     weekStartIso: string,
   ): Promise<void> {
     if (await this.shouldNotify(approverUserId, NotificationType.TIMESHEET_SUBMITTED, NotificationChannel.IN_APP)) {
-      await this.prisma.notification.create({
-        data: {
-          userId: approverUserId,
-          type: NotificationType.TIMESHEET_SUBMITTED,
-          title: `${submitterName} submeteu uma timesheet`,
-          body: `Projeto: ${projectName} · Semana: ${weekStartIso}`,
-          projectPublicId,
-        },
+      await this.createAndEmit({
+        userId: approverUserId,
+        type: NotificationType.TIMESHEET_SUBMITTED,
+        title: `${submitterName} submeteu uma timesheet`,
+        body: `Projeto: ${projectName} · Semana: ${weekStartIso}`,
+        projectPublicId,
       });
     }
 
@@ -422,14 +429,12 @@ export class NotificationsService {
     weekStartIso: string,
   ): Promise<void> {
     if (await this.shouldNotify(submitterUserId, NotificationType.TIMESHEET_APPROVED, NotificationChannel.IN_APP)) {
-      await this.prisma.notification.create({
-        data: {
-          userId: submitterUserId,
-          type: NotificationType.TIMESHEET_APPROVED,
-          title: `${approverName} aprovou a tua timesheet`,
-          body: `Projeto: ${projectName} · Semana: ${weekStartIso}`,
-          projectPublicId,
-        },
+      await this.createAndEmit({
+        userId: submitterUserId,
+        type: NotificationType.TIMESHEET_APPROVED,
+        title: `${approverName} aprovou a tua timesheet`,
+        body: `Projeto: ${projectName} · Semana: ${weekStartIso}`,
+        projectPublicId,
       });
     }
 
@@ -460,14 +465,12 @@ export class NotificationsService {
     weekStartIso: string,
   ): Promise<void> {
     if (await this.shouldNotify(submitterUserId, NotificationType.TIMESHEET_PARTIALLY_APPROVED, NotificationChannel.IN_APP)) {
-      await this.prisma.notification.create({
-        data: {
-          userId: submitterUserId,
-          type: NotificationType.TIMESHEET_PARTIALLY_APPROVED,
-          title: `${approverName} aprovou parte da tua timesheet`,
-          body: `Projeto: ${projectName} · Semana: ${weekStartIso} · Há dias pendentes ou rejeitados`,
-          projectPublicId,
-        },
+      await this.createAndEmit({
+        userId: submitterUserId,
+        type: NotificationType.TIMESHEET_PARTIALLY_APPROVED,
+        title: `${approverName} aprovou parte da tua timesheet`,
+        body: `Projeto: ${projectName} · Semana: ${weekStartIso} · Há dias pendentes ou rejeitados`,
+        projectPublicId,
       });
     }
 
@@ -502,14 +505,12 @@ export class NotificationsService {
     reason: string,
   ): Promise<void> {
     if (await this.shouldNotify(submitterUserId, NotificationType.TIMESHEET_REJECTED, NotificationChannel.IN_APP)) {
-      await this.prisma.notification.create({
-        data: {
-          userId: submitterUserId,
-          type: NotificationType.TIMESHEET_REJECTED,
-          title: `${approverName} rejeitou parte da tua timesheet`,
-          body: `Projeto: ${projectName} · Data: ${scopeDateIso} · Motivo: ${reason}`,
-          projectPublicId,
-        },
+      await this.createAndEmit({
+        userId: submitterUserId,
+        type: NotificationType.TIMESHEET_REJECTED,
+        title: `${approverName} rejeitou parte da tua timesheet`,
+        body: `Projeto: ${projectName} · Data: ${scopeDateIso} · Motivo: ${reason}`,
+        projectPublicId,
       });
     }
 
@@ -598,14 +599,12 @@ export class NotificationsService {
     args: { filePublicId: string; originalName: string },
   ): Promise<void> {
     if (await this.shouldNotify(userId, NotificationType.FILE_INFECTED, NotificationChannel.IN_APP)) {
-      await this.prisma.notification.create({
-        data: {
-          userId,
-          type: NotificationType.FILE_INFECTED,
-          title: 'Ficheiro bloqueado por motivos de segurança',
-          body: args.originalName,
-          entityPublicId: args.filePublicId,
-        },
+      await this.createAndEmit({
+        userId,
+        type: NotificationType.FILE_INFECTED,
+        title: 'Ficheiro bloqueado por motivos de segurança',
+        body: args.originalName,
+        entityPublicId: args.filePublicId,
       });
     }
 

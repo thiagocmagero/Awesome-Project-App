@@ -616,6 +616,13 @@
   text-wrap: pretty;
   margin: 0;
   word-break: break-word;
+  cursor: pointer;
+  text-decoration: none;
+  text-underline-offset: 2px;
+}
+
+.ak-card__title:hover {
+  text-decoration: underline;
 }
 
 /* ── Priority pill / dot / stripe ───────────────────────────────────────── */

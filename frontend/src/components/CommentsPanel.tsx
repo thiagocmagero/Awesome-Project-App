@@ -362,13 +362,23 @@ export default function CommentsPanel({ projectId, entityType, entityPublicId }:
 
       {/* Composer FIXO no topo */}
       <form onSubmit={handleSubmit} className="comment-composer">
-        <span
-          className="avatar avatar-md"
-          style={{ background: avatarColor(user?.publicId ?? user?.name ?? '') }}
-          aria-hidden="true"
-        >
-          {initials(user?.name ?? 'U')}
-        </span>
+        {user?.avatarUrl ? (
+          <img
+            className="avatar avatar-md avatar-rounded"
+            src={`${user.avatarUrl}${user.avatarUpdatedAt ? `?v=${encodeURIComponent(user.avatarUpdatedAt)}` : ''}`}
+            alt={user.name ?? ''}
+            style={{ objectFit: 'cover' }}
+            aria-hidden="true"
+          />
+        ) : (
+          <span
+            className="avatar avatar-md"
+            style={{ background: avatarColor(user?.publicId ?? user?.name ?? '') }}
+            aria-hidden="true"
+          >
+            {initials(user?.name ?? 'U')}
+          </span>
+        )}
         <div className="composer-body" style={{ position: 'relative' }}>
           <textarea
             ref={textareaRef}
@@ -383,6 +393,7 @@ export default function CommentsPanel({ projectId, entityType, entityPublicId }:
             <MentionDropdown
               items={filteredMentionables}
               anchor={textareaRef.current}
+              caretPos={mentionCursorPos}
               onSelect={(m) => insertMention(m, content, setContent, textareaRef.current, newMentionsMapRef)}
             />
           )}
@@ -521,6 +532,7 @@ export default function CommentsPanel({ projectId, entityType, entityPublicId }:
                           <MentionDropdown
                             items={filteredMentionables}
                             anchor={editTextareaRef.current}
+                            caretPos={mentionCursorPos}
                             onSelect={(m) => insertMention(m, editContent, setEditContent, editTextareaRef.current, editMentionsMapRef)}
                           />
                         )}
@@ -604,23 +616,77 @@ export default function CommentsPanel({ projectId, entityType, entityPublicId }:
 
 // ─── MentionDropdown ──────────────────────────────────────────────────────────
 //
-// Renderizado via portal (document.body) com `position: fixed` ancorado à
-// textarea: escapa qualquer overflow:hidden ancestor (modal-body, .comments-panel)
-// e fica visível mesmo quando a textarea está no topo do scroll container e
-// não há comentários acima.
+// Renderizado via portal (document.body) com `position: fixed` ancorado ao
+// **caret** dentro da textarea (não ao bounding box da textarea inteira), via
+// mirror-div que replica os estilos relevantes da textarea e mede a posição
+// do `@`. Escapa overflow:hidden ancestor (modal-body, .comments-panel).
 //
-// Heurística de placement: se houver pouco espaço acima (<200px) → abre em
-// baixo; senão abre acima da textarea (UX antiga preservada quando há comentários).
+// Heurística de placement: abre logo abaixo da linha do caret; se não houver
+// espaço inferior suficiente, abre acima da linha do caret.
 
 const DROPDOWN_MAX_HEIGHT = 180;
+const LINE_HEIGHT_FALLBACK = 20;
+
+/**
+ * Calcula o rect (em coords de viewport) do caractere `caretPos` dentro duma
+ * `<textarea>`, usando um mirror div com os mesmos estilos.
+ */
+function getTextareaCaretRect(
+  textarea: HTMLTextAreaElement,
+  caretPos: number,
+): { left: number; top: number; lineHeight: number } {
+  const props: Array<keyof CSSStyleDeclaration> = [
+    'boxSizing', 'width', 'height',
+    'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
+    'borderTopWidth', 'borderRightWidth', 'borderBottomWidth', 'borderLeftWidth',
+    'fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'letterSpacing',
+    'lineHeight', 'textTransform', 'wordSpacing', 'tabSize',
+    'whiteSpace', 'wordWrap', 'overflowWrap',
+  ];
+
+  const mirror = document.createElement('div');
+  const cs = window.getComputedStyle(textarea);
+  for (const p of props) {
+    // @ts-expect-error indexed style assignment
+    mirror.style[p] = cs[p];
+  }
+  mirror.style.position = 'absolute';
+  mirror.style.visibility = 'hidden';
+  mirror.style.top = '0';
+  mirror.style.left = '-9999px';
+  mirror.style.whiteSpace = 'pre-wrap';
+  mirror.style.wordWrap = 'break-word';
+  mirror.style.overflow = 'hidden';
+
+  const before = textarea.value.substring(0, caretPos);
+  mirror.textContent = before;
+  const marker = document.createElement('span');
+  marker.textContent = '​'; // zero-width space marca o caret
+  mirror.appendChild(marker);
+  document.body.appendChild(mirror);
+
+  const lineHeight = parseFloat(cs.lineHeight) || LINE_HEIGHT_FALLBACK;
+  const trect = textarea.getBoundingClientRect();
+  const left = trect.left
+    + (marker.offsetLeft - textarea.scrollLeft)
+    + (parseFloat(cs.borderLeftWidth) || 0);
+  const top = trect.top
+    + (marker.offsetTop - textarea.scrollTop)
+    + (parseFloat(cs.borderTopWidth) || 0);
+
+  document.body.removeChild(mirror);
+  return { left, top, lineHeight };
+}
 
 function MentionDropdown({
   items,
   anchor,
+  caretPos,
   onSelect,
 }: {
   items: Mentionable[];
   anchor: HTMLTextAreaElement | null;
+  caretPos: number;
   onSelect: (m: Mentionable) => void;
 }) {
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
@@ -628,11 +694,12 @@ function MentionDropdown({
   useEffect(() => {
     if (!anchor) { setPos(null); return; }
     const update = () => {
-      const r = anchor.getBoundingClientRect();
-      const placeBelow = r.top < DROPDOWN_MAX_HEIGHT + 24;
+      const caret = getTextareaCaretRect(anchor, caretPos);
+      const spaceBelow = window.innerHeight - (caret.top + caret.lineHeight);
+      const placeBelow = spaceBelow >= DROPDOWN_MAX_HEIGHT + 8 || caret.top < DROPDOWN_MAX_HEIGHT + 8;
       setPos({
-        left: r.left,
-        top: placeBelow ? r.bottom + 4 : r.top - DROPDOWN_MAX_HEIGHT - 4,
+        left: caret.left,
+        top: placeBelow ? caret.top + caret.lineHeight + 4 : caret.top - DROPDOWN_MAX_HEIGHT - 4,
       });
     };
     update();
@@ -642,7 +709,7 @@ function MentionDropdown({
       window.removeEventListener('scroll', update, true);
       window.removeEventListener('resize', update);
     };
-  }, [anchor]);
+  }, [anchor, caretPos]);
 
   if (!pos) return null;
 
