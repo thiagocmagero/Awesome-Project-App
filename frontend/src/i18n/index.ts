@@ -1,7 +1,7 @@
 import i18n from 'i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
 import { initReactI18next } from 'react-i18next';
-import type { BackendModule } from 'i18next';
+import type { BackendModule, ResourceKey } from 'i18next';
 
 const STORAGE_BUNDLE_KEY = (lng: string) => `i18n_bundle_${lng}`;
 const STORAGE_VERSION_KEY = (lng: string) => `i18n_version_${lng}`;
@@ -16,9 +16,11 @@ const safeStorage = {
   },
 };
 
+type BundleData = Record<string, ResourceKey>;
+
 type BundleResult =
   | { fresh: false }
-  | { fresh: true; version: string; data: Record<string, Record<string, unknown>> };
+  | { fresh: true; version: string; data: BundleData };
 
 // Deduplicates the 22 parallel read() calls into a single fetch per language
 const _pendingBundles = new Map<string, Promise<BundleResult>>();
@@ -48,7 +50,7 @@ const LocalStorageBackend: BackendModule = {
   type: 'backend',
   init() {},
 
-  async read(language: string, namespace: string, callback: (err: Error | null, data: unknown) => void) {
+  async read(language, namespace, callback) {
     try {
       const storedVersion = safeStorage.get(STORAGE_VERSION_KEY(language));
       const storedBundle  = safeStorage.get(STORAGE_BUNDLE_KEY(language));
@@ -59,7 +61,7 @@ const LocalStorageBackend: BackendModule = {
       if (!result.fresh) {
         // 304 — serve from localStorage cache
         if (storedBundle) {
-          const bundle = JSON.parse(storedBundle) as Record<string, Record<string, unknown>>;
+          const bundle = JSON.parse(storedBundle) as BundleData;
           return callback(null, bundle[namespace] ?? {});
         }
         // 304 but no local cache (edge case: storage was cleared mid-session)
@@ -75,7 +77,7 @@ const LocalStorageBackend: BackendModule = {
       const storedBundle = safeStorage.get(STORAGE_BUNDLE_KEY(language));
       if (storedBundle) {
         try {
-          const bundle = JSON.parse(storedBundle) as Record<string, Record<string, unknown>>;
+          const bundle = JSON.parse(storedBundle) as BundleData;
           return callback(null, bundle[namespace] ?? {});
         } catch { /* corrupt cache — fall through */ }
       }
