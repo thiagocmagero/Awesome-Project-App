@@ -2,7 +2,8 @@ import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
-import { getApiBase } from '../lib/api';
+import { apiFetch, getApiBase } from '../lib/api';
+import MissingKeysPanel from '../features/translations/MissingKeysPanel';
 
 function getCsrfToken(): string {
   const m = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/);
@@ -295,7 +296,8 @@ export default function TranslationsPage() {
   const [showApiKey, setShowApiKey]     = useState(false);
 
   // Main tabs
-  const [mainTab, setMainTab] = useState<'keys' | 'locales'>('keys');
+  const [mainTab, setMainTab] = useState<'keys' | 'locales' | 'missing'>('keys');
+  const [missingPending, setMissingPending] = useState<number>(0);
 
   // Keys tab
   const [nsStats, setNsStats] = useState<NamespaceStat[]>([]);
@@ -421,6 +423,18 @@ export default function TranslationsPage() {
     fetchLocales();
     fetchStats();
   }, [fetchLocales, fetchStats]);
+
+  // ── Missing keys badge ──────────────────────────────────────────────────────
+  const fetchMissingStats = useCallback(async () => {
+    try {
+      const res = await apiFetch(`${api}/i18n/backoffice/missing/stats`);
+      if (!res.ok) return;
+      const data = (await res.json()) as { pending: number };
+      setMissingPending(data.pending ?? 0);
+    } catch { /* silent */ }
+  }, [api]);
+
+  useEffect(() => { fetchMissingStats(); }, [fetchMissingStats]);
 
   useEffect(() => {
     fetchKeys(activeNs);
@@ -1041,6 +1055,18 @@ export default function TranslationsPage() {
                 {t('tabs.locales')}
               </button>
             </li>
+            <li className="nav-item">
+              <button
+                className={`nav-link${mainTab === 'missing' ? ' active' : ''}`}
+                onClick={() => setMainTab('missing')}
+              >
+                <i className="ti ti-radar me-1" />
+                {t('tabs.missing_keys')}
+                {missingPending > 0 && (
+                  <span className="badge bg-danger ms-2 fs-10">{missingPending}</span>
+                )}
+              </button>
+            </li>
           </ul>
         </div>
 
@@ -1483,6 +1509,11 @@ export default function TranslationsPage() {
                 </div>
               )}
             </div>
+          )}
+
+          {/* ── Tab: Missing Keys ─────────────────────────────────────── */}
+          {mainTab === 'missing' && (
+            <MissingKeysPanel onStatsChange={setMissingPending} />
           )}
 
         </div>

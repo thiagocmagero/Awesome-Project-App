@@ -1053,7 +1053,7 @@ export default function ClientsPage() {
         <>
           <div className="modal-backdrop fade show"></div>
           <div className="modal fade show d-block" tabIndex={-1} role="dialog" aria-modal="true">
-            <div className="modal-dialog modal-lg modal-dialog-centered">
+            <div className="modal-dialog modal-dialog-centered" style={{ maxWidth: '1300px' }}>
               <div className="modal-content">
                 <div className="modal-header">
                   <div className="d-flex align-items-center gap-2">

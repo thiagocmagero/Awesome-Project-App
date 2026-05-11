@@ -34,7 +34,18 @@
     "uploads.allowed_extensions": "Allowed extensions",
     "uploads.allowed_extensions_hint": "Extensions separated by ; (e.g. pdf;png;jpg;docx). Lowercase canonical names — JPEG is 'jpg', not 'jpeg'. Files must pass BOTH this allowlist AND the MIME allowlist.",
     "uploads.allowed_mime_types": "Allowed MIME types",
-    "uploads.allowed_mime_types_hint": "One MIME type per line. Validated against magic bytes — Content-Type declared by the client is ignored."
+    "uploads.allowed_mime_types_hint": "One MIME type per line. Validated against magic bytes — Content-Type declared by the client is ignored.",
+    "config.email.tab_label": "Email",
+    "config.email.enabled": "Enabled",
+    "config.email.host": "SMTP host",
+    "config.email.port": "SMTP port",
+    "config.email.secure": "Use TLS",
+    "config.email.username": "SMTP user",
+    "config.email.password": "SMTP password",
+    "config.email.no_password_hint": "(unchanged if empty)",
+    "config.email.from_email": "From email",
+    "config.email.from_name": "From name",
+    "config.email.save_btn": "Save"
   },
   "es": {
     "email.page_title": "Email",
@@ -71,7 +82,18 @@
     "uploads.allowed_extensions": "Extensiones permitidas",
     "uploads.allowed_extensions_hint": "Extensiones separadas por ; (ej. pdf;png;jpg;docx). Nombres canónicos en minúsculas — JPEG es 'jpg', no 'jpeg'. Los archivos deben pasar AMBAS listas (extensión Y MIME).",
     "uploads.allowed_mime_types": "Tipos MIME permitidos",
-    "uploads.allowed_mime_types_hint": "Un MIME por línea. Validado contra magic bytes — el Content-Type declarado por el cliente es ignorado."
+    "uploads.allowed_mime_types_hint": "Un MIME por línea. Validado contra magic bytes — el Content-Type declarado por el cliente es ignorado.",
+    "config.email.tab_label": "Email",
+    "config.email.enabled": "Activado",
+    "config.email.host": "Host SMTP",
+    "config.email.port": "Puerto SMTP",
+    "config.email.secure": "Usar TLS",
+    "config.email.username": "Usuario SMTP",
+    "config.email.password": "Contraseña SMTP",
+    "config.email.no_password_hint": "(sin cambios si está vacío)",
+    "config.email.from_email": "Correo del remitente",
+    "config.email.from_name": "Nombre del remitente",
+    "config.email.save_btn": "Guardar"
   },
   "pt-BR": {
     "email.page_title": "Email",
@@ -108,7 +130,18 @@
     "uploads.allowed_extensions": "Extensões permitidas",
     "uploads.allowed_extensions_hint": "Extensões separadas por ; (ex. pdf;png;jpg;docx). Nomes canónicos em minúsculas — JPEG é 'jpg', não 'jpeg'. Os arquivos devem passar AMBAS as listas (extensão E MIME).",
     "uploads.allowed_mime_types": "Tipos MIME permitidos",
-    "uploads.allowed_mime_types_hint": "Um MIME por linha. Validado por magic bytes — o Content-Type declarado pelo cliente é ignorado."
+    "uploads.allowed_mime_types_hint": "Um MIME por linha. Validado por magic bytes — o Content-Type declarado pelo cliente é ignorado.",
+    "config.email.tab_label": "Email",
+    "config.email.enabled": "Ativado",
+    "config.email.host": "Host SMTP",
+    "config.email.port": "Porta SMTP",
+    "config.email.secure": "Usar TLS",
+    "config.email.username": "Usuário SMTP",
+    "config.email.password": "Senha SMTP",
+    "config.email.no_password_hint": "(sem alterações se vazio)",
+    "config.email.from_email": "E-mail do remetente",
+    "config.email.from_name": "Nome do remetente",
+    "config.email.save_btn": "Salvar"
   },
   "pt-PT": {
     "email.page_title": "Email",
@@ -145,6 +178,17 @@
     "uploads.allowed_extensions": "Extensões permitidas",
     "uploads.allowed_extensions_hint": "Extensões separadas por ; (ex. pdf;png;jpg;docx). Nomes canónicos em minúsculas — JPEG é 'jpg', não 'jpeg'. Os ficheiros têm que passar AMBAS as listas (extensão E MIME).",
     "uploads.allowed_mime_types": "Tipos MIME permitidos",
-    "uploads.allowed_mime_types_hint": "Um MIME por linha. Validado por magic bytes — o Content-Type declarado pelo cliente é ignorado."
+    "uploads.allowed_mime_types_hint": "Um MIME por linha. Validado por magic bytes — o Content-Type declarado pelo cliente é ignorado.",
+    "config.email.tab_label": "Email",
+    "config.email.enabled": "Activado",
+    "config.email.host": "Host SMTP",
+    "config.email.port": "Porta SMTP",
+    "config.email.secure": "Usar TLS",
+    "config.email.username": "Utilizador SMTP",
+    "config.email.password": "Palavra-passe SMTP",
+    "config.email.no_password_hint": "(sem alterações se vazio)",
+    "config.email.from_email": "Email do remetente",
+    "config.email.from_name": "Nome do remetente",
+    "config.email.save_btn": "Guardar"
   }
 }

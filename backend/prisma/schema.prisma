@@ -1754,6 +1754,7 @@ model Translation {
 /// Chaves reportadas como em falta pelo frontend (missingKeyHandler do i18next)
 model MissingTranslation {
   id        Int      @id @default(autoincrement())
+  publicId  String   @unique @default(uuid(7))
   locale    String
   namespace String
   key       String

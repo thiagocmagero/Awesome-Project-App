@@ -13,6 +13,9 @@ import { TranslationStatus } from '@prisma/client';
 export class I18nService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private readonly nsCache = new Map<string, { data: Record<string, any>; expiresAt: number }>();
+  private readonly NS_CACHE_TTL_MS = 5 * 60 * 1000;
+
   // ─── Locales ────────────────────────────────────────────────────────────────
 
   async getActiveLocales() {
@@ -102,17 +105,68 @@ export class I18nService {
 
   // ─── Public translation endpoint ────────────────────────────────────────────
 
-  async getNamespace(locale: string, namespace: string): Promise<Record<string, string>> {
+  async getNamespace(locale: string, namespace: string): Promise<Record<string, any>> {
+    const cacheKey = `${locale}::${namespace}`;
+    const hit = this.nsCache.get(cacheKey);
+    if (hit && hit.expiresAt > Date.now()) return hit.data;
+
     const rows = await this.prisma.translation.findMany({
       where: { locale, namespace, value: { not: '' } },
       select: { key: true, value: true },
     });
 
-    const result: Record<string, string> = {};
+    const result: Record<string, any> = {};
     for (const { key, value } of rows) {
       this.setNested(result, key, value);
     }
+
+    this.nsCache.set(cacheKey, { data: result, expiresAt: Date.now() + this.NS_CACHE_TTL_MS });
     return result;
+  }
+
+  async getBundle(locale: string): Promise<{ version: string; data: Record<string, Record<string, any>> }> {
+    const cacheKey = `bundle::${locale}`;
+    const hit = this.nsCache.get(cacheKey);
+    if (hit && hit.expiresAt > Date.now()) return hit.data as any;
+
+    const [rows, latest] = await Promise.all([
+      this.prisma.translation.findMany({
+        where: { locale, value: { not: '' } },
+        select: { namespace: true, key: true, value: true },
+      }),
+      this.prisma.translation.findFirst({
+        where: { locale },
+        orderBy: { updatedAt: 'desc' },
+        select: { updatedAt: true },
+      }),
+    ]);
+
+    const data: Record<string, Record<string, any>> = {};
+    for (const { namespace, key, value } of rows) {
+      if (!data[namespace]) data[namespace] = {};
+      this.setNested(data[namespace], key, value);
+    }
+
+    const result = { version: latest?.updatedAt.getTime().toString() ?? '0', data };
+    this.nsCache.set(cacheKey, { data: result as any, expiresAt: Date.now() + this.NS_CACHE_TTL_MS });
+    return result;
+  }
+
+  invalidateCache(locale?: string, namespace?: string): void {
+    if (!locale && !namespace) {
+      this.nsCache.clear();
+      return;
+    }
+    for (const key of this.nsCache.keys()) {
+      const matchesLocale = !locale || key.startsWith(`${locale}::`) || key === `bundle::${locale}`;
+      const matchesNamespace = !namespace || key.endsWith(`::${namespace}`);
+      if (matchesLocale && matchesNamespace) {
+        this.nsCache.delete(key);
+      }
+    }
+    // Always invalidate the bundle when any namespace/locale changes
+    if (locale) this.nsCache.delete(`bundle::${locale}`);
+    else for (const key of [...this.nsCache.keys()]) { if (key.startsWith('bundle::')) this.nsCache.delete(key); }
   }
 
   // ─── Backoffice ─────────────────────────────────────────────────────────────
@@ -159,11 +213,13 @@ export class I18nService {
   }
 
   async upsertTranslation(locale: string, namespace: string, key: string, dto: UpsertTranslationDto) {
-    return this.prisma.translation.upsert({
+    const result = await this.prisma.translation.upsert({
       where: { locale_namespace_key: { locale, namespace, key } },
       create: { locale, namespace, key, value: dto.value, status: dto.status ?? TranslationStatus.APPROVED },
       update: { value: dto.value, ...(dto.status ? { status: dto.status } : {}) },
     });
+    this.invalidateCache(locale, namespace);
+    return result;
   }
 
   async createKey(namespace: string, dto: CreateKeyDto) {
@@ -184,11 +240,18 @@ export class I18nService {
         })
       )
     );
+    // Auto-resolve any pending MissingTranslation rows for this (namespace, key)
+    await this.prisma.missingTranslation.updateMany({
+      where: { namespace, key: dto.key, resolved: false },
+      data: { resolved: true },
+    });
+    this.invalidateCache(undefined, namespace);
     return results;
   }
 
   async deleteKey(namespace: string, key: string) {
     await this.prisma.translation.deleteMany({ where: { namespace, key } });
+    this.invalidateCache(undefined, namespace);
   }
 
   async approveAll(namespace: string) {
@@ -196,16 +259,98 @@ export class I18nService {
       where: { namespace, status: TranslationStatus.AI_SUGGESTED },
       data: { status: TranslationStatus.APPROVED },
     });
+    this.invalidateCache(undefined, namespace);
   }
 
   // ─── Missing keys ────────────────────────────────────────────────────────────
 
   async reportMissing(dto: ReportMissingDto) {
+    // Loop-breaker: once the key exists in `Translation` (in any locale of the
+    // namespace), it is no longer "missing" — it became "translation incomplete",
+    // a category already managed by the `Missing` sub-tab in /translations.
+    const exists = await this.prisma.translation.findFirst({
+      where: { namespace: dto.namespace, key: dto.key },
+      select: { id: true },
+    });
+    if (exists) return;
+
     await this.prisma.missingTranslation.upsert({
       where: { locale_namespace_key: { locale: dto.locale, namespace: dto.namespace, key: dto.key } },
       create: { locale: dto.locale, namespace: dto.namespace, key: dto.key },
       update: { seenAt: new Date(), resolved: false },
     });
+  }
+
+  async listMissing(opts: { resolved?: boolean; namespace?: string; limit?: number; offset?: number }) {
+    const limit = Math.max(1, Math.min(opts.limit ?? 50, 200));
+    const offset = Math.max(0, opts.offset ?? 0);
+    const where: { resolved?: boolean; namespace?: string } = {};
+    if (opts.resolved !== undefined) where.resolved = opts.resolved;
+    if (opts.namespace) where.namespace = opts.namespace;
+
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.missingTranslation.findMany({
+        where,
+        orderBy: { seenAt: 'desc' },
+        take: limit,
+        skip: offset,
+      }),
+      this.prisma.missingTranslation.count({ where }),
+    ]);
+
+    return {
+      items: items.map(({ publicId, locale, namespace, key, seenAt, resolved }) => ({
+        publicId, locale, namespace, key, seenAt, resolved,
+      })),
+      total,
+    };
+  }
+
+  async getMissingStats() {
+    const [pending, resolved, byNamespaceRaw] = await this.prisma.$transaction([
+      this.prisma.missingTranslation.count({ where: { resolved: false } }),
+      this.prisma.missingTranslation.count({ where: { resolved: true } }),
+      this.prisma.missingTranslation.groupBy({
+        by: ['namespace'],
+        where: { resolved: false },
+        _count: true,
+        orderBy: { namespace: 'asc' },
+      }),
+    ]);
+    const byNamespace: Record<string, number> = {};
+    for (const row of byNamespaceRaw) {
+      byNamespace[row.namespace] = typeof row._count === 'number' ? row._count : 0;
+    }
+    return { pending, resolved, byNamespace };
+  }
+
+  async promoteMissing(publicId: string) {
+    const missing = await this.prisma.missingTranslation.findUnique({ where: { publicId } });
+    if (!missing) throw new AppException('MISSING_KEY_NOT_FOUND', HttpStatus.NOT_FOUND);
+
+    const locales = await this.prisma.locale.findMany({ select: { code: true } });
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.translation.createMany({
+        data: locales.map(({ code }) => ({
+          locale: code,
+          namespace: missing.namespace,
+          key: missing.key,
+          value: '',
+          status: TranslationStatus.APPROVED,
+        })),
+        skipDuplicates: true,
+      });
+      // Resolve all rows for the same (namespace, key), covering the other locales
+      // that may have been independently reported.
+      await tx.missingTranslation.updateMany({
+        where: { namespace: missing.namespace, key: missing.key },
+        data: { resolved: true },
+      });
+    });
+
+    this.invalidateCache(undefined, missing.namespace);
+    return { promoted: true, namespace: missing.namespace, key: missing.key };
   }
 
   // ─── Export ──────────────────────────────────────────────────────────────────

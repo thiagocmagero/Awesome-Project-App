@@ -4,21 +4,27 @@ import {
   Delete,
   Get,
   Header,
+  Headers,
   Param,
   Patch,
   Post,
+  Query,
+  Res,
   UseGuards,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { SkipThrottle } from '@nestjs/throttler';
 import { I18nService } from './i18n.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { ProfilesGuard } from '../auth/guards/profiles.guard';
 import { RequireProfiles } from '../auth/decorators/require-profiles.decorator';
+import { Audit } from '../audit-log/decorators/audit.decorator';
 import { CreateLocaleDto } from './dto/create-locale.dto';
 import { UpdateLocaleDto } from './dto/update-locale.dto';
 import { UpsertTranslationDto } from './dto/upsert-translation.dto';
 import { CreateKeyDto } from './dto/create-key.dto';
 import { ReportMissingDto } from './dto/report-missing.dto';
+import { MissingQueryDto } from './dto/missing-query.dto';
 
 @Controller('i18n')
 export class I18nController {
@@ -28,7 +34,7 @@ export class I18nController {
   // Skip-throttle + cache HTTP curto: o LanguageSelector chama isto ao montar
   // do AppLayout em todas as páginas; F5 spam saturava o throttler global.
   @SkipThrottle()
-  @Header('Cache-Control', 'public, max-age=60')
+  @Header('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400')
   @Get('locales/active')
   getActiveLocales() {
     return this.i18nService.getActiveLocales();
@@ -82,6 +88,43 @@ export class I18nController {
     return this.i18nService.getStats();
   }
 
+  // ── 7a. GET /backoffice/missing — PLATFORM_ADMIN ─────────────────────────────
+  // Declarado ANTES de /backoffice/:namespace senão "missing" cairia em
+  // getBackofficeNamespace('missing'). Lista chaves reportadas em runtime
+  // (MissingTranslation), com filtros por resolved + namespace + paginação.
+  @UseGuards(JwtAuthGuard, ProfilesGuard)
+  @RequireProfiles('PLATFORM_ADMIN')
+  @Get('backoffice/missing')
+  listMissing(@Query() query: MissingQueryDto) {
+    return this.i18nService.listMissing({
+      resolved: query.resolved,
+      namespace: query.namespace,
+      limit: query.limit,
+      offset: query.offset,
+    });
+  }
+
+  // ── 7b. GET /backoffice/missing/stats — PLATFORM_ADMIN ───────────────────────
+  @UseGuards(JwtAuthGuard, ProfilesGuard)
+  @RequireProfiles('PLATFORM_ADMIN')
+  @Get('backoffice/missing/stats')
+  getMissingStats() {
+    return this.i18nService.getMissingStats();
+  }
+
+  // ── 7c. POST /backoffice/missing/:publicId/promote — PLATFORM_ADMIN ──────────
+  @UseGuards(JwtAuthGuard, ProfilesGuard)
+  @RequireProfiles('PLATFORM_ADMIN')
+  @Audit({
+    action: 'I18N_MISSING_PROMOTED',
+    resourceType: 'i18n_missing',
+    resourceId: (req) => req.params.publicId,
+  })
+  @Post('backoffice/missing/:publicId/promote')
+  promoteMissing(@Param('publicId') publicId: string) {
+    return this.i18nService.promoteMissing(publicId);
+  }
+
   // ── 8. GET /backoffice/:namespace — PLATFORM_ADMIN ───────────────────────────
   @UseGuards(JwtAuthGuard, ProfilesGuard)
   @RequireProfiles('PLATFORM_ADMIN')
@@ -122,14 +165,34 @@ export class I18nController {
     return this.i18nService.reportMissing(dto);
   }
 
-  // ── 13. GET /:locale/:namespace — public ─────────────────────────────────────
-  // Skip-throttle + cache HTTP: o i18next-http-backend faz fan-out de ~17
-  // requests em paralelo no boot/F5 (um por namespace registado) e isto
-  // saturava rapidamente o limit global de 300/min — sobretudo com múltiplas
-  // tabs ou hot-reload em dev. Como é read-only puro, o cache de 60s é seguro;
-  // edições no backoffice ficam visíveis em ≤60s.
+  // ── 13. GET /:locale — public (bundle: todos os namespaces + ETag) ──────────
+  // Declarado ANTES de /:locale/:namespace — NestJS respeita a ordem.
+  // Um único request substitui os 22 anteriores. ETag + 304 garante que
+  // re-loads sem mudanças não transferem bytes.
   @SkipThrottle()
-  @Header('Cache-Control', 'public, max-age=60')
+  @Get(':locale')
+  async getBundle(
+    @Param('locale') locale: string,
+    @Headers('if-none-match') ifNoneMatch: string,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const bundle = await this.i18nService.getBundle(locale);
+    const etag = `"${bundle.version}"`;
+
+    if (ifNoneMatch === etag) {
+      res.status(304);
+      return;
+    }
+
+    res.setHeader('ETag', etag);
+    res.setHeader('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400');
+    return bundle;
+  }
+
+  // ── 14. GET /:locale/:namespace — public ─────────────────────────────────────
+  // Mantido como fallback e para o backoffice. Cache alargado para 1h + SWR.
+  @SkipThrottle()
+  @Header('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400')
   @Get(':locale/:namespace')
   getNamespace(
     @Param('locale') locale: string,

@@ -126,7 +126,20 @@
     "teams.col.team": "Team",
     "teams.empty": "No teams associated.",
     "teams.form.label": "Team",
-    "teams.form.select_placeholder": "Select team..."
+    "teams.form.select_placeholder": "Select team...",
+    "modal.deactivate.body": "This action will hide the project. You can reactivate it later.",
+    "modal.teams.title": "Teams of {{name}}",
+    "modal.teams.subtitle_one": "1 team associated",
+    "modal.teams.subtitle_other": "{{count}} teams associated",
+    "modal.teams.subtitle_many": "{{count}} teams associated",
+    "modal.holidays.title": "Holidays of {{name}}",
+    "modal.holidays.subtitle_one": "1 holiday list associated",
+    "modal.holidays.subtitle_other": "{{count}} holiday lists associated",
+    "modal.holidays.subtitle_many": "{{count}} holiday lists associated",
+    "modal.members.title": "Members of {{name}}",
+    "modal.members.subtitle_one": "1 member",
+    "modal.members.subtitle_other": "{{count}} members",
+    "modal.members.subtitle_many": "{{count}} members"
   },
   "es": {
     "action.holidays": "Festivos",
@@ -255,7 +268,20 @@
     "teams.col.team": "Equipo",
     "teams.empty": "Sin equipos asociados.",
     "teams.form.label": "Equipo",
-    "teams.form.select_placeholder": "Seleccionar equipo..."
+    "teams.form.select_placeholder": "Seleccionar equipo...",
+    "modal.deactivate.body": "Esta acción ocultará el proyecto. Podrás reactivarlo más tarde.",
+    "modal.teams.title": "Equipos de {{name}}",
+    "modal.teams.subtitle_one": "1 equipo asociado",
+    "modal.teams.subtitle_other": "{{count}} equipos asociados",
+    "modal.teams.subtitle_many": "{{count}} equipos asociados",
+    "modal.holidays.title": "Festivos de {{name}}",
+    "modal.holidays.subtitle_one": "1 lista de festivos asociada",
+    "modal.holidays.subtitle_other": "{{count}} listas de festivos asociadas",
+    "modal.holidays.subtitle_many": "{{count}} listas de festivos asociadas",
+    "modal.members.title": "Miembros de {{name}}",
+    "modal.members.subtitle_one": "1 miembro",
+    "modal.members.subtitle_other": "{{count}} miembros",
+    "modal.members.subtitle_many": "{{count}} miembros"
   },
   "pt-BR": {
     "action.holidays": "Feriados",
@@ -384,7 +410,20 @@
     "teams.col.team": "Equipe",
     "teams.empty": "Sem equipes associadas.",
     "teams.form.label": "Equipe",
-    "teams.form.select_placeholder": "Selecionar equipe..."
+    "teams.form.select_placeholder": "Selecionar equipe...",
+    "modal.deactivate.body": "Esta ação irá ocultar o projeto. Você poderá reativá-lo depois.",
+    "modal.teams.title": "Equipes de {{name}}",
+    "modal.teams.subtitle_one": "1 equipe associada",
+    "modal.teams.subtitle_other": "{{count}} equipes associadas",
+    "modal.teams.subtitle_many": "{{count}} equipes associadas",
+    "modal.holidays.title": "Feriados de {{name}}",
+    "modal.holidays.subtitle_one": "1 lista de feriados associada",
+    "modal.holidays.subtitle_other": "{{count}} listas de feriados associadas",
+    "modal.holidays.subtitle_many": "{{count}} listas de feriados associadas",
+    "modal.members.title": "Membros de {{name}}",
+    "modal.members.subtitle_one": "1 membro",
+    "modal.members.subtitle_other": "{{count}} membros",
+    "modal.members.subtitle_many": "{{count}} membros"
   },
   "pt-PT": {
     "action.holidays": "Feriados",
@@ -513,6 +552,19 @@
     "teams.col.team": "Equipa",
     "teams.empty": "Sem equipas associadas.",
     "teams.form.label": "Equipa",
-    "teams.form.select_placeholder": "Seleccionar equipa..."
+    "teams.form.select_placeholder": "Seleccionar equipa...",
+    "modal.deactivate.body": "Esta acção irá ocultar o projecto. Podes reactivá-lo mais tarde.",
+    "modal.teams.title": "Equipas de {{name}}",
+    "modal.teams.subtitle_one": "1 equipa associada",
+    "modal.teams.subtitle_other": "{{count}} equipas associadas",
+    "modal.teams.subtitle_many": "{{count}} equipas associadas",
+    "modal.holidays.title": "Feriados de {{name}}",
+    "modal.holidays.subtitle_one": "1 lista de feriados associada",
+    "modal.holidays.subtitle_other": "{{count}} listas de feriados associadas",
+    "modal.holidays.subtitle_many": "{{count}} listas de feriados associadas",
+    "modal.members.title": "Membros de {{name}}",
+    "modal.members.subtitle_one": "1 membro",
+    "modal.members.subtitle_other": "{{count}} membros",
+    "modal.members.subtitle_many": "{{count}} membros"
   }
 }
