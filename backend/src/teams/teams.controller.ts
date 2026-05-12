@@ -22,6 +22,7 @@ import { UpdateTeamDto } from './dto/update-team.dto';
 import { AddMemberDto } from './dto/add-member.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
 import { LimitKey } from '../common/entitlements';
+import { Audit } from '../audit-log/decorators/audit.decorator';
 
 @Controller('teams')
 @UseGuards(JwtAuthGuard, BlockProfilesGuard)
@@ -50,6 +51,7 @@ export class TeamsController {
   @Post()
   @UseGuards(PlanLimitGuard)
   @CheckPlanLimit(LimitKey.MAX_TEAMS)
+  @Audit({ action: 'TEAM_CREATED', resourceType: 'team' })
   create(
     @Body() dto: CreateTeamDto,
     @CurrentUser() currentUser: JwtPayload,
@@ -59,6 +61,7 @@ export class TeamsController {
 
   /** Atualiza equipa — validação de ownership no service */
   @Patch(':id')
+  @Audit({ action: 'TEAM_UPDATED', resourceType: 'team', resourceId: (req) => req.params.id })
   update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateTeamDto,
@@ -69,6 +72,7 @@ export class TeamsController {
 
   /** Soft delete — validação de ownership no service */
   @Delete(':id')
+  @Audit({ action: 'TEAM_DELETED', resourceType: 'team', resourceId: (req) => req.params.id })
   remove(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() currentUser: JwtPayload,
@@ -80,6 +84,7 @@ export class TeamsController {
 
   /** Adiciona membro — valida ownership da equipa e do workspace */
   @Post(':id/members')
+  @Audit({ action: 'TEAM_MEMBER_ADDED', resourceType: 'team', resourceId: (req) => req.params.id })
   addMember(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: AddMemberDto,
@@ -90,6 +95,7 @@ export class TeamsController {
 
   /** Atualiza membro (isLead, role) — valida ownership da equipa */
   @Patch(':id/members/:userId')
+  @Audit({ action: 'TEAM_MEMBER_UPDATED', resourceType: 'team', resourceId: (req) => req.params.id })
   updateMember(
     @Param('id', ParseUUIDPipe) id: string,
     @Param('userId', ParseUUIDPipe) userId: string,
@@ -101,6 +107,7 @@ export class TeamsController {
 
   /** Remove membro — valida ownership da equipa */
   @Delete(':id/members/:userId')
+  @Audit({ action: 'TEAM_MEMBER_REMOVED', resourceType: 'team', resourceId: (req) => req.params.id })
   removeMember(
     @Param('id', ParseUUIDPipe) id: string,
     @Param('userId', ParseUUIDPipe) userId: string,

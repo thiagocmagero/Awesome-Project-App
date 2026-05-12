@@ -361,8 +361,12 @@ export default function TeamsPage() {
     select.addEventListener('change', handleChange);
     return () => {
       select.removeEventListener('change', handleChange);
-      c.destroy();
-      while (select.firstChild) select.removeChild(select.firstChild);
+      try { c.destroy(); } catch { /* Choices may be torn down already */ }
+      // Choices.destroy() already removes the nodes it injected.
+      // A manual `while (select.firstChild) select.removeChild(...)` here is
+      // the source of the "Failed to execute 'removeChild' on 'Node'" crash
+      // when this effect re-runs after `availableUsers` mutates and the
+      // <select> remounts via its key. Leave the cleanup to React.
     };
   }, [showMembers, availableUsers]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -777,7 +781,7 @@ export default function TeamsPage() {
                               {t('member.user_label')} <span className="text-danger">*</span>
                             </label>
                             <select
-                              key={`${selectedTeam.publicId}:${selectedTeam.members.length}`}
+                              key={`${selectedTeam.publicId}:${selectedTeam.members.length}:${availableUsers.length}`}
                               ref={choicesMemberUserRef}
                               className="form-select form-select-sm"
                             />

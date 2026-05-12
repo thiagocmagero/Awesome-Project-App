@@ -302,10 +302,26 @@ export class UsersService {
       subscriptionStatus?: SubscriptionStatus;
     },
   ) {
-    // BASIC_USER sees: users they created + themselves (so they can add themselves to teams/projects)
+    // BASIC_USER sees: users they created + themselves + ACCEPTED members of
+    // any workspace they own (workspace members may have been created by
+    // another flow but are part of the owner's workspace and must be
+    // addable to teams/projects).
     const ownershipFilter: Prisma.UserWhereInput = IS_ADMIN(requestingUser)
       ? {}
-      : { OR: [{ createdById: requestingUser.sub }, { id: requestingUser.sub }] };
+      : {
+          OR: [
+            { createdById: requestingUser.sub },
+            { id: requestingUser.sub },
+            {
+              workspaceMemberships: {
+                some: {
+                  status: 'ACCEPTED',
+                  workspace: { ownerId: requestingUser.sub },
+                },
+              },
+            },
+          ],
+        };
 
     const statusFilter: Prisma.UserWhereInput = filters?.status
       ? { status: filters.status }

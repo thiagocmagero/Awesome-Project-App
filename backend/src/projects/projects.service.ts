@@ -3,7 +3,7 @@ import {
   Injectable,
 } from '@nestjs/common';
 import { AppException } from '../common/exceptions/app.exception';
-import { InviteStatus, ProjectRole, Status } from '@prisma/client';
+import { InviteStatus, Prisma, ProjectRole, Status } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import type { JwtPayload } from '../auth/jwt.strategy';
 import { CreateProjectDto } from './dto/create-project.dto';
@@ -125,7 +125,7 @@ export class ProjectsService {
           OR: [
             { ownerId: requestingUser.sub },
             { members: { some: { userId: requestingUser.sub, status: InviteStatus.ACCEPTED } } },
-            { teams: { some: { team: { members: { some: { userId: requestingUser.sub } } } } } },
+            { teams: { some: { team: { status: Status.ACTIVE, members: { some: { userId: requestingUser.sub } } } } } },
           ],
         };
 
@@ -179,7 +179,7 @@ export class ProjectsService {
       });
       if (!membership) {
         const teamAccess = await this.prisma.teamMember.findFirst({
-          where: { userId: requestingUser.sub, team: { projects: { some: { projectId: project.id } } } },
+          where: { userId: requestingUser.sub, team: { status: Status.ACTIVE, projects: { some: { projectId: project.id } } } },
           select: { userId: true },
         });
         if (!teamAccess) throw new AppException('FORBIDDEN', HttpStatus.FORBIDDEN);
@@ -214,7 +214,7 @@ export class ProjectsService {
         const teamAccess = await this.prisma.teamMember.findFirst({
           where: {
             userId: requestingUser.sub,
-            team: { projects: { some: { projectId: project.id } } },
+            team: { status: Status.ACTIVE, projects: { some: { projectId: project.id } } },
           },
           select: { userId: true },
         });
@@ -368,11 +368,95 @@ export class ProjectsService {
     });
     if (!assoc) throw new AppException('NOT_FOUND', HttpStatus.NOT_FOUND);
 
-    await this.prisma.projectTeam.delete({
-      where: { projectId_teamId: { projectId, teamId } },
+    // Snapshot the team's members BEFORE breaking the ProjectTeam link —
+    // the helper queries the same ProjectTeam table to find affected projects.
+    const memberUserIds = (
+      await this.prisma.teamMember.findMany({
+        where: { teamId },
+        select: { userId: true },
+      })
+    ).map((m) => m.userId);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.projectTeam.delete({
+        where: { projectId_teamId: { projectId, teamId } },
+      });
+      // Reconcile ProjectMember rows that joined THIS project via the team
+      // we just unlinked. Other projects this team is still linked to are
+      // not affected — only this projectId matters here, but the helper
+      // iterates by ProjectTeam links which now exclude us, so we run a
+      // scoped reconciliation manually.
+      await this.reconcileProjectMembershipsForUnlinkedTeam(
+        tx,
+        projectId,
+        teamId,
+        memberUserIds,
+      );
     });
 
     return this.findOne(projectPublicId, requestingUser);
+  }
+
+  /**
+   * Variant of TeamsService.reconcileProjectMembershipsForTeam scoped to a
+   * single project, used when a ProjectTeam link is removed (the team still
+   * exists and may be linked to other projects). The semantics mirror the
+   * generic helper: only touches ProjectMember rows where teamId === teamId,
+   * and tries to re-point or delete based on owner/manager and remaining
+   * team memberships.
+   */
+  private async reconcileProjectMembershipsForUnlinkedTeam(
+    tx: Prisma.TransactionClient,
+    projectId: number,
+    teamId: number,
+    affectedUserIds: number[],
+  ): Promise<void> {
+    if (affectedUserIds.length === 0) return;
+
+    const project = await tx.project.findUnique({
+      where: { id: projectId },
+      select: { ownerId: true, managerId: true },
+    });
+    if (!project) return;
+
+    const memberships = await tx.projectMember.findMany({
+      where: {
+        projectId,
+        userId: { in: affectedUserIds },
+        teamId,
+      },
+      select: { id: true, userId: true },
+    });
+
+    for (const pm of memberships) {
+      if (pm.userId === null) continue;
+
+      if (project.ownerId === pm.userId || project.managerId === pm.userId) {
+        await tx.projectMember.update({ where: { id: pm.id }, data: { teamId: null } });
+        continue;
+      }
+
+      const fallback = await tx.teamMember.findFirst({
+        where: {
+          userId: pm.userId,
+          teamId: { not: teamId },
+          team: {
+            status: Status.ACTIVE,
+            projects: { some: { projectId } },
+          },
+        },
+        select: { teamId: true },
+      });
+
+      if (fallback) {
+        await tx.projectMember.update({
+          where: { id: pm.id },
+          data: { teamId: fallback.teamId },
+        });
+      } else {
+        await tx.projectMember.delete({ where: { id: pm.id } });
+      }
+    }
   }
 
   // ── Project members (invitations) ───────────────────────────────────────────

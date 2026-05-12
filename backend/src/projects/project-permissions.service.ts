@@ -1,5 +1,5 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
-import { InviteStatus, ProjectRole } from '@prisma/client';
+import { InviteStatus, ProjectRole, Status } from '@prisma/client';
 import { AppException } from '../common/exceptions/app.exception';
 import { PrismaService } from '../prisma/prisma.service';
 import type { JwtPayload } from '../auth/jwt.strategy';
@@ -444,7 +444,7 @@ export class ProjectPermissionsService {
     // Team-based projects (READER role by default) — only if action is in READER defaults
     if (DEFAULT_PERMISSIONS.READER.includes(action)) {
       const teamProjects = await this.prisma.projectTeam.findMany({
-        where: { team: { members: { some: { userId } } } },
+        where: { team: { status: Status.ACTIVE, members: { some: { userId } } } },
         select: { projectId: true },
       });
       for (const tp of teamProjects) ids.add(tp.projectId);

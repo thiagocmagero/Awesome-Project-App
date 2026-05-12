@@ -103,6 +103,7 @@ export class ProjectsController {
   @Post(':id/teams')
   @UseGuards(ProjectPermissionGuard)
   @RequireProjectPermission(ProjectAction.MEMBER_MANAGE_TEAMS)
+  @Audit({ action: 'PROJECT_TEAM_ADDED', resourceType: 'project', resourceId: (req) => req.params.id })
   addTeam(
     @Param('id', ParseUUIDPipe) publicId: string,
     @Body() dto: AddTeamDto,
@@ -115,6 +116,7 @@ export class ProjectsController {
   @Delete(':id/teams/:teamId')
   @UseGuards(ProjectPermissionGuard)
   @RequireProjectPermission(ProjectAction.MEMBER_MANAGE_TEAMS)
+  @Audit({ action: 'PROJECT_TEAM_REMOVED', resourceType: 'project', resourceId: (req) => req.params.id })
   removeTeam(
     @Param('id', ParseUUIDPipe) publicId: string,
     @Param('teamId', ParseUUIDPipe) teamPublicId: string,
