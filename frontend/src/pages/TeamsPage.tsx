@@ -341,6 +341,10 @@ export default function TeamsPage() {
     if (!showMembers || typeof Choices === 'undefined') return;
     if (!choicesMemberUserRef.current) return;
     const select = choicesMemberUserRef.current;
+    // Clear any options left from a previous run (Choices.destroy() restores
+    // the original <select> with its options intact, so without this we'd
+    // accumulate duplicates on every re-init).
+    while (select.firstChild) select.removeChild(select.firstChild);
     const emptyOpt = document.createElement('option');
     emptyOpt.value = '';
     emptyOpt.textContent = t('member.user_label');
@@ -781,7 +785,7 @@ export default function TeamsPage() {
                               {t('member.user_label')} <span className="text-danger">*</span>
                             </label>
                             <select
-                              key={`${selectedTeam.publicId}:${selectedTeam.members.length}:${availableUsers.length}`}
+                              key={selectedTeam.publicId}
                               ref={choicesMemberUserRef}
                               className="form-select form-select-sm"
                             />

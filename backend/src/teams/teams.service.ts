@@ -178,8 +178,20 @@ export class TeamsService {
     // `users.findAll` (OR: createdById = me, id = me) para que tudo o que
     // aparece em /users também possa ser adicionado a teams.
     const isSelf = userId === requestingUser.sub;
-    const isWorkspaceUser = user.createdById === requestingUser.sub;
-    if (!IS_ADMIN(requestingUser) && !isSelf && !isWorkspaceUser) {
+    const isCreatedByMe = user.createdById === requestingUser.sub;
+    let isMyWorkspaceMember = false;
+    if (!IS_ADMIN(requestingUser) && !isSelf && !isCreatedByMe) {
+      const wm = await this.prisma.workspaceMember.findFirst({
+        where: {
+          userId,
+          status: 'ACCEPTED',
+          workspace: { ownerId: requestingUser.sub },
+        },
+        select: { id: true },
+      });
+      isMyWorkspaceMember = !!wm;
+    }
+    if (!IS_ADMIN(requestingUser) && !isSelf && !isCreatedByMe && !isMyWorkspaceMember) {
       throw new AppException('FORBIDDEN', HttpStatus.FORBIDDEN);
     }
 
