@@ -3,7 +3,31 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Awesome Project App — Frontend 2</title>
+    <title>Awesome Project App</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <style id="boot-css">
+      html, body, #root { height: 100%; margin: 0; font-family: 'Geist', 'Inter', system-ui, sans-serif; }
+      html { background: #f7f7f9; color: #1c1d24; }
+      html[data-theme="dark"] { background: #0f1117; color: #e5e6ea; }
+    </style>
+    <script>
+      // Apply persisted theme + chrome before React mounts to prevent flash.
+      (function () {
+        try {
+          var t = localStorage.getItem('awp-theme') || 'light';
+          document.documentElement.setAttribute('data-theme', t);
+          var c = localStorage.getItem('awp-chrome');
+          if (t === 'light' && c === 'super-light') {
+            document.documentElement.setAttribute('data-chrome', 'super-light');
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

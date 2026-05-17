@@ -1,0 +1,133 @@
+/* ============================================================
+   THEME TOKENS — light (default) and dark.
+   Every color used by the app is plumbed through these CSS
+   custom properties so the toggle swaps the whole palette.
+   Ported 1:1 from NewTemplate/app-dark.jsx (linhas 38-136, 896-916).
+   ============================================================ */
+
+:root {
+  --bg:        oklch(0.985 0.003 250);
+  --panel:     #ffffff;
+  --panel2:    oklch(0.965 0.006 250);
+  --panel3:    oklch(0.945 0.008 250);
+  --line:      oklch(0.92 0.008 250);
+  --lineSoft:  oklch(0.95 0.005 250);
+  --ink:       oklch(0.22 0.02 250);
+  --ink2:      oklch(0.35 0.018 250);
+  --dim:       oklch(0.48 0.014 250);
+  --mute:      oklch(0.62 0.012 250);
+  --brand:       oklch(0.55 0.20 264);
+  --brandHover:  oklch(0.50 0.22 264);
+  --brandSoft:   oklch(0.95 0.04 264);
+  --brandSoft2:  oklch(0.92 0.06 264);
+  --st-todo:    oklch(0.94 0.008 250); --st-todoInk:    oklch(0.42 0.020 250);
+  --st-doing:   oklch(0.95 0.045 70);   --st-doingInk:   oklch(0.44 0.110 60);
+  --st-done:    oklch(0.95 0.050 155);  --st-doneInk:    oklch(0.40 0.110 155);
+  --st-blocked: oklch(0.94 0.060 25);   --st-blockedInk: oklch(0.46 0.140 25);
+  --st-review:  oklch(0.95 0.045 295);  --st-reviewInk:  oklch(0.42 0.120 295);
+  --pri-high: oklch(0.65 0.20 25);
+  --pri-med:  oklch(0.72 0.16 70);
+  --pri-low:  oklch(0.70 0.10 220);
+
+  /* Chrome (sidebar + topbar) — dark indigo in BOTH themes,
+     this is the design intent of the "app-dark" variant. Slightly
+     adjusted in dark mode for cohesion. */
+  --chrome-bg:        oklch(0.21 0.026 264);
+  --chrome-bg2:       oklch(0.26 0.030 264);
+  --chrome-bg3:       oklch(0.30 0.032 264);
+  --chrome-line:      oklch(0.33 0.026 264);
+  --chrome-ink:       oklch(0.96 0.008 250);
+  --chrome-dim:       oklch(0.74 0.015 250);
+  --chrome-mute:      oklch(0.56 0.014 250);
+  --chrome-active-bg: oklch(0.34 0.10 264);
+  --chrome-brand-soft: oklch(0.40 0.12 264 / 0.35);
+
+  /* Accent tints used across home/project views — themed here so
+     hardcoded oklch() calls in component CSS can switch too. */
+  --notes-bg:    oklch(0.97 0.04 90);
+  --notes-line:  oklch(0.90 0.06 90);
+  --notes-ink:   oklch(0.32 0.05 80);
+  --notes-ink2:  oklch(0.32 0.08 80);
+  --notes-mute:  oklch(0.50 0.06 80);
+  --notes-place: oklch(0.55 0.05 80);
+
+  --shadow-card: 0 6px 16px -8px rgba(20, 20, 40, 0.18);
+  --shadow-pop:  0 20px 50px -10px rgba(20, 20, 40, 0.18), 0 4px 12px rgba(20, 20, 40, 0.06);
+  --backdrop-rgb: 15, 15, 28;
+
+  --font: "Geist", "Inter", -apple-system, system-ui, sans-serif;
+  --mono: "Geist Mono", "JetBrains Mono", ui-monospace, monospace;
+}
+
+[data-theme="dark"] {
+  --bg:        oklch(0.155 0.012 260);
+  --panel:     oklch(0.205 0.018 260);
+  --panel2:    oklch(0.245 0.020 260);
+  --panel3:    oklch(0.290 0.022 260);
+  --line:      oklch(0.32 0.020 260);
+  --lineSoft:  oklch(0.265 0.020 260);
+  --ink:       oklch(0.97 0.006 250);
+  --ink2:      oklch(0.85 0.010 250);
+  --dim:       oklch(0.66 0.014 250);
+  --mute:      oklch(0.52 0.014 250);
+  --brand:       oklch(0.72 0.18 264);
+  --brandHover:  oklch(0.78 0.20 264);
+  --brandSoft:   oklch(0.34 0.12 264 / 0.32);
+  --brandSoft2:  oklch(0.42 0.14 264 / 0.45);
+  --st-todo:    oklch(0.34 0.020 250); --st-todoInk:    oklch(0.85 0.014 250);
+  --st-doing:   oklch(0.38 0.080 70);   --st-doingInk:   oklch(0.94 0.050 70);
+  --st-done:    oklch(0.36 0.090 155);  --st-doneInk:    oklch(0.94 0.060 155);
+  --st-blocked: oklch(0.40 0.110 25);   --st-blockedInk: oklch(0.95 0.050 25);
+  --st-review:  oklch(0.40 0.090 295);  --st-reviewInk:  oklch(0.95 0.060 295);
+  --pri-high: oklch(0.74 0.20 25);
+  --pri-med:  oklch(0.80 0.16 70);
+  --pri-low:  oklch(0.74 0.12 220);
+
+  --chrome-bg:        oklch(0.165 0.020 264);
+  --chrome-bg2:       oklch(0.215 0.024 264);
+  --chrome-bg3:       oklch(0.265 0.026 264);
+  --chrome-line:      oklch(0.295 0.022 264);
+  --chrome-ink:       oklch(0.96 0.008 250);
+  --chrome-dim:       oklch(0.76 0.015 250);
+  --chrome-mute:      oklch(0.56 0.014 250);
+  --chrome-active-bg: oklch(0.36 0.12 264);
+  --chrome-brand-soft: oklch(0.46 0.14 264 / 0.40);
+
+  --notes-bg:    oklch(0.26 0.04 90);
+  --notes-line:  oklch(0.34 0.06 90);
+  --notes-ink:   oklch(0.92 0.04 90);
+  --notes-ink2:  oklch(0.94 0.06 90);
+  --notes-mute:  oklch(0.74 0.04 90);
+  --notes-place: oklch(0.62 0.04 90);
+
+  --shadow-card: 0 6px 18px -8px rgba(0, 0, 0, 0.6);
+  --shadow-pop:  0 24px 56px -12px rgba(0, 0, 0, 0.7), 0 4px 12px rgba(0, 0, 0, 0.4);
+  --backdrop-rgb: 0, 0, 0;
+}
+
+/* ============================================================
+   Super Claro — flatten the chrome (topbar + sidebar) to match the
+   light app-shell variant. Only applies when the base theme is light
+   AND the user opted into the super-light chrome from account settings.
+   ============================================================ */
+:root[data-theme="light"][data-chrome="super-light"] {
+  --chrome-bg:         #ffffff;
+  --chrome-bg2:        oklch(0.965 0.006 250);
+  --chrome-bg3:        oklch(0.945 0.008 250);
+  --chrome-line:       oklch(0.92 0.008 250);
+  --chrome-ink:        oklch(0.22 0.02 250);
+  --chrome-dim:        oklch(0.48 0.014 250);
+  --chrome-mute:       oklch(0.62 0.012 250);
+  --chrome-active-bg:  oklch(0.55 0.20 264);
+  --chrome-brand-soft: oklch(0.95 0.04 264);
+}
+:root[data-theme="light"][data-chrome="super-light"] .topbar .create-btn {
+  box-shadow: 0 1px 0 oklch(0.40 0.18 264 / 0.35);
+}
+:root[data-theme="light"][data-chrome="super-light"] .sidebar .user-card .plan {
+  background: oklch(0.92 0.06 264);
+  color: oklch(0.50 0.22 264);
+}
+:root[data-theme="light"][data-chrome="super-light"] .topbar .search:focus-within {
+  border-color: oklch(0.55 0.20 264);
+}

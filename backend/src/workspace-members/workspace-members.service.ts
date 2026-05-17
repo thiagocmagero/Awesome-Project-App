@@ -21,11 +21,12 @@ export class WorkspaceMembersService {
     private readonly notifications: NotificationsService,
   ) {}
 
-  /** Resolve o workspaceId default do owner (V1: 1:1 com User). */
+  /** Resolve o workspaceId default do owner (V2: mais antigo de N possíveis). */
   private async resolveOwnerWorkspaceId(ownerId: number): Promise<number> {
-    const ws = await this.prisma.workspace.findUnique({
+    const ws = await this.prisma.workspace.findFirst({
       where: { ownerId },
       select: { id: true },
+      orderBy: { createdAt: 'asc' },
     });
     if (!ws) {
       throw new AppException('WORKSPACE_NOT_FOUND', HttpStatus.NOT_FOUND);
@@ -42,9 +43,26 @@ export class WorkspaceMembersService {
       orderBy: [{ memberType: 'desc' }, { createdAt: 'asc' }],
       include: {
         user: { select: { publicId: true, name: true, email: true, avatarKey: true } },
+        userType: { select: { publicId: true, code: true, label: true } },
       },
     });
-    return rows.map((r) => this.toPublic(r));
+    // Count projects per member (real ProjectMember rows in owner's projects)
+    const ownerProjectIds = (
+      await this.prisma.project.findMany({
+        where: { ownerId, status: 'ACTIVE' },
+        select: { id: true },
+      })
+    ).map((p) => p.id);
+    const projectCounts = new Map<string, number>();
+    if (ownerProjectIds.length > 0) {
+      const grouped = await this.prisma.projectMember.groupBy({
+        by: ['email'],
+        where: { projectId: { in: ownerProjectIds }, email: { in: rows.map((r) => r.email) } },
+        _count: { email: true },
+      });
+      for (const g of grouped) projectCounts.set(g.email, g._count.email);
+    }
+    return rows.map((r) => this.toPublic(r, projectCounts.get(r.email) ?? 0));
   }
 
   async listSeatsSummary(ownerId: number) {
@@ -97,26 +115,101 @@ export class WorkspaceMembersService {
       throw new AppException('ALREADY_MEMBER', HttpStatus.CONFLICT);
     }
 
-    const member = await this.prisma.workspaceMember.upsert({
-      where: { workspaceId_email: { workspaceId, email: dto.email } },
-      create: {
-        workspaceId,
-        userId: existingUser?.id ?? null,
-        email: dto.email,
-        name: dto.name ?? existingUser?.name ?? null,
-        memberType: dto.memberType ?? 'BASIC',
-        status: 'INVITED',
-        invitedById: ownerId,
-      },
-      update: {
-        userId: existingUser?.id ?? undefined,
-        name: dto.name ?? existingUser?.name ?? undefined,
-        memberType: dto.memberType ?? undefined,
-        status: 'INVITED',
-        acceptedAt: null,
-        declinedAt: null,
-        invitedById: ownerId,
-      },
+    // Resolve UserType (workspace-scoped or platform-level). Only used if
+    // `projects` is non-empty — guarded but resolved upfront so a bad
+    // publicId fails fast before any write.
+    let userTypeId: number | null = null;
+    if (dto.userTypePublicId) {
+      const ut = await this.prisma.userType.findUnique({
+        where: { publicId: dto.userTypePublicId },
+        select: { id: true, workspaceId: true },
+      });
+      if (!ut || (ut.workspaceId !== null && ut.workspaceId !== workspaceId)) {
+        throw new AppException('USER_TYPE_NOT_FOUND', HttpStatus.NOT_FOUND);
+      }
+      userTypeId = ut.id;
+    }
+
+    // Resolve projects (must belong to ownerId's workspace). Atomic with the
+    // workspace upsert below.
+    const projectAssignments = dto.projects ?? [];
+    const projectsById = new Map<string, { id: number; publicId: string }>();
+    if (projectAssignments.length > 0) {
+      const rows = await this.prisma.project.findMany({
+        where: {
+          publicId: { in: projectAssignments.map((p) => p.projectPublicId) },
+          workspaceId,
+          status: 'ACTIVE',
+        },
+        select: { id: true, publicId: true },
+      });
+      for (const r of rows) projectsById.set(r.publicId, r);
+      for (const a of projectAssignments) {
+        if (!projectsById.has(a.projectPublicId)) {
+          throw new AppException('PROJECT_NOT_FOUND', HttpStatus.NOT_FOUND);
+        }
+      }
+    }
+
+    const member = await this.prisma.$transaction(async (tx) => {
+      const upserted = await tx.workspaceMember.upsert({
+        where: { workspaceId_email: { workspaceId, email: dto.email } },
+        create: {
+          workspaceId,
+          userId: existingUser?.id ?? null,
+          email: dto.email,
+          name: dto.name ?? existingUser?.name ?? null,
+          memberType: dto.memberType ?? 'BASIC',
+          userTypeId,
+          status: 'INVITED',
+          invitedById: ownerId,
+        },
+        update: {
+          userId: existingUser?.id ?? undefined,
+          name: dto.name ?? existingUser?.name ?? undefined,
+          memberType: dto.memberType ?? undefined,
+          userTypeId: dto.userTypePublicId !== undefined ? userTypeId : undefined,
+          status: 'INVITED',
+          acceptedAt: null,
+          declinedAt: null,
+          invitedById: ownerId,
+        },
+      });
+
+      // For each selected project: upsert ProjectMember on (projectId, email).
+      // Skip rows already ACCEPTED — don't downgrade an existing membership.
+      for (const a of projectAssignments) {
+        const proj = projectsById.get(a.projectPublicId)!;
+        const existingPm = await tx.projectMember.findUnique({
+          where: { projectId_email: { projectId: proj.id, email: dto.email } },
+          select: { id: true, status: true },
+        });
+        if (existingPm?.status === 'ACCEPTED') continue;
+
+        await tx.projectMember.upsert({
+          where: { projectId_email: { projectId: proj.id, email: dto.email } },
+          create: {
+            projectId: proj.id,
+            userId: existingUser?.id ?? null,
+            email: dto.email,
+            name: dto.name ?? existingUser?.name ?? null,
+            role: a.role,
+            status: 'INVITED',
+            userTypeId,
+            invitedById: ownerId,
+          },
+          update: {
+            userId: existingUser?.id ?? undefined,
+            name: dto.name ?? existingUser?.name ?? undefined,
+            role: a.role,
+            status: 'INVITED',
+            userTypeId,
+            invitedById: ownerId,
+          },
+        });
+      }
+
+      return upserted;
     });
 
     await this.sendInvite(member.id, ownerId, existingUser);
@@ -191,19 +284,41 @@ export class WorkspaceMembersService {
     }
   }
 
-  // ── Member type (BASIC ↔ LICENSED) ───────────────────────────────────────
+  // ── Member type (BASIC ↔ LICENSED) + UserType ────────────────────────────
 
   async updateMemberType(ownerId: number, publicId: string, dto: UpdateWorkspaceMemberDto) {
     const member = await this.findOwnedMember(ownerId, publicId);
-    if (member.memberType === dto.memberType) return this.getById(member.id);
+    const workspaceId = member.workspaceId;
 
-    if (dto.memberType === 'LICENSED') {
-      await this.assertCanLicense(ownerId);
+    const data: { memberType?: 'BASIC' | 'LICENSED'; userTypeId?: number | null } = {};
+
+    if (dto.memberType !== undefined && member.memberType !== dto.memberType) {
+      if (dto.memberType === 'LICENSED') {
+        await this.assertCanLicense(ownerId);
+      }
+      data.memberType = dto.memberType;
     }
+
+    if (dto.userTypePublicId !== undefined) {
+      if (dto.userTypePublicId === null) {
+        data.userTypeId = null;
+      } else {
+        const ut = await this.prisma.userType.findUnique({
+          where: { publicId: dto.userTypePublicId },
+          select: { id: true, workspaceId: true },
+        });
+        if (!ut || (ut.workspaceId !== null && ut.workspaceId !== workspaceId)) {
+          throw new AppException('USER_TYPE_NOT_FOUND', HttpStatus.NOT_FOUND);
+        }
+        data.userTypeId = ut.id;
+      }
+    }
+
+    if (Object.keys(data).length === 0) return this.getById(member.id);
 
     await this.prisma.workspaceMember.update({
       where: { id: member.id },
-      data: { memberType: dto.memberType },
+      data,
     });
     return this.getById(member.id);
   }
@@ -357,23 +472,28 @@ export class WorkspaceMembersService {
       where: { id },
       include: {
         user: { select: { publicId: true, name: true, email: true, avatarKey: true } },
+        userType: { select: { publicId: true, code: true, label: true } },
       },
     });
     return this.toPublic(row);
   }
 
-  private toPublic(row: {
-    publicId: string;
-    email: string;
-    name: string | null;
-    memberType: 'BASIC' | 'LICENSED';
-    status: 'INVITED' | 'ACCEPTED' | 'DECLINED';
-    acceptedAt: Date | null;
-    declinedAt: Date | null;
-    createdAt: Date;
-    updatedAt: Date;
-    user: { publicId: string; name: string; email: string; avatarKey: string | null } | null;
-  }) {
+  private toPublic(
+    row: {
+      publicId: string;
+      email: string;
+      name: string | null;
+      memberType: 'BASIC' | 'LICENSED';
+      status: 'INVITED' | 'ACCEPTED' | 'DECLINED';
+      acceptedAt: Date | null;
+      declinedAt: Date | null;
+      createdAt: Date;
+      updatedAt: Date;
+      user: { publicId: string; name: string; email: string; avatarKey: string | null } | null;
+      userType?: { publicId: string; code: string; label: string } | null;
+    },
+    projectCount?: number,
+  ) {
     return {
       publicId: row.publicId,
       email: row.email,
@@ -392,6 +512,10 @@ export class WorkspaceMembersService {
             avatarKey: row.user.avatarKey,
           }
         : null,
+      userType: row.userType
+        ? { publicId: row.userType.publicId, code: row.userType.code, label: row.userType.label }
+        : null,
+      ...(typeof projectCount === 'number' ? { projectCount } : {}),
     };
   }
 }

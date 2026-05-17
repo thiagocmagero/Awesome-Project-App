@@ -102,11 +102,12 @@ export class NotificationsService {
     return wsPublicId ? `/${wsPublicId}` : '';
   }
 
-  /** Resolve workspace do user (V1: 1:1). Fallback `''` se não existir. */
+  /** Resolve workspace default do user (V2: mais antigo). Fallback `''` se não existir. */
   private async resolveWorkspacePrefixForUser(userId: number): Promise<string> {
-    const ws = await this.prisma.workspace.findUnique({
+    const ws = await this.prisma.workspace.findFirst({
       where: { ownerId: userId },
       select: { publicId: true },
+      orderBy: { createdAt: 'asc' },
     });
     return ws?.publicId ? `/${ws.publicId}` : '';
   }

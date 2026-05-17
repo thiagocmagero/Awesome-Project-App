@@ -107,11 +107,12 @@ export class FeatureFlagsService {
     return user.id;
   }
 
-  /** Resolve workspace default do user (V1: único). Lança se não existir. */
+  /** Resolve workspace default do user (V2: mais antigo de N possíveis). */
   private async resolveDefaultWorkspaceIdForUser(userId: number): Promise<number> {
-    const ws = await this.prisma.workspace.findUnique({
+    const ws = await this.prisma.workspace.findFirst({
       where: { ownerId: userId },
       select: { id: true },
+      orderBy: { createdAt: 'asc' },
     });
     if (!ws) throw new NotFoundException(`Workspace para user ${userId} não encontrado.`);
     return ws.id;
@@ -214,10 +215,11 @@ export class FeatureFlagsService {
     // 1. Global switch
     if (flag.enabledGlobally) return true;
 
-    // 2. Per-workspace override (do default workspace do requesting user)
-    const ws = await this.prisma.workspace.findUnique({
+    // 2. Per-workspace override (do default workspace do requesting user — V2: mais antigo)
+    const ws = await this.prisma.workspace.findFirst({
       where: { ownerId: userId },
       select: { id: true },
+      orderBy: { createdAt: 'asc' },
     });
     if (ws) {
       const override = await this.prisma.userFeatureFlag.findUnique({

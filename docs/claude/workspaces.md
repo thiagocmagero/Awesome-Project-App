@@ -6,12 +6,16 @@
 projectos, equipas, feriados, tipos de utilizador, billing/subscription, quotas
 e membros convidados. Introduzido em Maio 2026.
 
-**V1** (estado actual): cada utilizador tem **exactamente 1 workspace**, criado
-automaticamente nos hooks de criação de User. Sem CRUD: o user não pode criar
-mais nem eliminar o existente. Constraint `@@unique([ownerId])` impede mais.
+**V2** (estado actual, Maio 2026 — migração `20260517100000_workspaces_v2_drop_owner_unique`):
+utilizadores podem ter **múltiplos workspaces**. O unique em `Workspace.ownerId` foi
+removido. CRUD parcial exposto: `GET /workspaces` (lista todos a que o user tem acesso),
+`POST /workspaces { name }` (cria), `GET /workspaces/me` (devolve o default).
+Hooks de criação de User continuam a auto-criar 1 workspace inicial. "Workspace
+default" = o mais antigo (orderBy createdAt asc) — preserva semântica V1 para users
+com 1 workspace, e dá um default determinístico para users com vários.
 
-**V2** (futuro): drop unique → utilizadores podem ter múltiplos workspaces.
-Schema já está preparado (toda a infraestrutura é workspace-scoped).
+**V1** (histórico): cada utilizador tinha exactamente 1 workspace. Sem CRUD. Constraint
+`@@unique([ownerId])` impedia mais. Substituída pela V2 acima.
 
 ## Filosofia de URLs (estilo Asana)
 
@@ -98,10 +102,9 @@ Aplicado em:
 
 | Método | Rota | Auth | Descrição |
 |---|---|---|---|
-| GET | `/api/v1/workspaces/me` | JWT | Devolve workspace default do user (`{ publicId, name, status, createdAt }`) |
-
-Sem CRUD adicional em V1. Outros endpoints (resolver via header em V2) ficam
-para quando multi-workspace ship.
+| GET | `/api/v1/workspaces/me` | JWT | Devolve workspace default do user (mais antigo) — `{ publicId, name, status, createdAt }` |
+| GET | `/api/v1/workspaces` | JWT | Lista todos os workspaces acessíveis ao user: owned (ownerId) + WorkspaceMember(ACCEPTED). Cada item: `{ publicId, name, status, createdAt, role }` onde `role ∈ { OWNER, BASIC, LICENSED }` |
+| POST | `/api/v1/workspaces` | JWT | Cria workspace novo com o user autenticado como owner. Body `{ name: string }` (1-80 chars). Em transacção: cria Workspace + Subscription default. Audit: `WORKSPACE_CREATED` |
 
 ## Hard delete cascade
 
@@ -126,7 +129,9 @@ Ver `docs/claude/db.md` secção "User cascade rule" para política completa.
 
 `backend/src/workspaces/workspaces.service.ts`:
 
-- `getDefaultForUser(userId): Promise<Workspace>` — V1: o único workspace.
+- `getDefaultForUser(userId): Promise<Workspace>` — V2: `findFirst orderBy createdAt asc` (mais antigo). Lança 404 se user não tiver workspace.
+- `findAllForUser(userId): Promise<Item[]>` — V2: union owned + WorkspaceMember(ACCEPTED), cada item com `role`. Owned vêm primeiro (orderBy createdAt asc).
+- `createWorkspace(userId, name): Promise<Workspace>` — V2: transacção cria Workspace + Subscription default (com plano `isDefault=true`). Valida `1 ≤ name ≤ 80`.
 - `findByPublicId(publicId): Promise<Workspace | null>`
 - `assertAccess(workspaceId, userId)` — owner OR `WorkspaceMember(ACCEPTED)`.
 
@@ -153,36 +158,48 @@ Mantém-se também `resolveEffectiveOwnerId` como compat alias — devolve
 
 ## V1 → V2 — caminho de upgrade
 
-Quando V2 (multi-workspace) for shippado:
+**Estado actual: V2 parcial entregue (Maio 2026 — migração `20260517100000`).**
 
-1. **Schema**: `ALTER TABLE Workspace DROP CONSTRAINT Workspace_ownerId_key;`
-   (drop unique constraint sobre `ownerId`).
-2. **WorkspaceContextGuard**: ativar como `APP_GUARD` global. Requer também
-   promover `JwtAuthGuard` a global + adicionar `@Public()` decorator nas
-   rotas abertas.
-3. **Browser URLs**: introduzir `/<workspacePublicId>/...` no React Router.
-4. **CRUD UI**: `/workspaces/new`, sidebar workspace switcher, etc.
-5. **`getDefaultForUser`** evolui para `findManyForUser` ou aceita um
-   `defaultWorkspaceId` no User para retrocompatibilidade.
+Feito:
+- ✅ **Schema**: `DROP INDEX Workspace_ownerId_key` (a constraint era um índice único).
+- ✅ **Endpoints CRUD parcial**: `GET /workspaces`, `POST /workspaces`. Sem `PATCH`/`DELETE` ainda.
+- ✅ **`getDefaultForUser`** + 10 outros call-sites refactored de
+  `findUnique({where:{ownerId}})` para `findFirst(...orderBy: createdAt asc)`,
+  preservando semântica V1 para users com 1 workspace.
+- ✅ **Frontend** (`frontend2`): `WorkspacesProvider` + `useWorkspaces` hook + Sidebar
+  workspace switcher; modal "Novo Workspace" ligado a `POST /workspaces`.
 
-A infraestrutura V1 não bloqueia nenhuma destas evoluções — o
-`WorkspaceContextGuard` já está scaffolded em
-`backend/src/workspaces/guards/workspace-context.guard.ts` pronto a activar.
+Por fazer (futuro):
+- 🔲 `PATCH /workspaces/:publicId` (renomear) e `DELETE /workspaces/:publicId` (eliminar).
+- 🔲 **WorkspaceContextGuard**: ativar como `APP_GUARD` global. Requer promover
+  `JwtAuthGuard` a global + adicionar `@Public()` decorator nas rotas abertas.
+- 🔲 **Browser URLs `/<workspacePublicId>/...`** no React Router (estilo Asana). Hoje
+  o frontend2 navega para `/w/{publicId}` para "abrir um workspace" mas as outras
+  rotas continuam workspace-agnostic.
+- 🔲 Validação anti-spam: rate-limit do `POST /workspaces` por user.
+- 🔲 UI de WS settings real (`/w/:id/settings`) — Fase 2.1 do frontend2.
 
-## Frontend — V1 minimal
+## Frontend (frontend2 — V2)
 
-- `AuthUser.workspacePublicId` populado pela resposta de login (`/auth/login`)
-  e `/auth/me` (transposto em `UsersService.attachAvatarUrl` a partir de
-  `user.workspaces[0].publicId`).
-- `apiFetch` injecta header `X-Workspace-Id` lendo do localStorage
-  (`app_user.workspacePublicId`). Em V1 o backend ignora — no-op informativo.
-- Sem `WorkspaceProvider` ou `useApiFetch` hook em V1 — adia para V2 quando
-  for preciso seleccionar workspace activo.
+- `AuthUser.workspacePublicId` populado por `/auth/me`. Continua a representar o
+  **default** do user (mais antigo). Usado como fallback quando a URL não tem `:workspaceId`.
+- `WorkspacesProvider` em [`frontend2/src/workspaces/WorkspacesContext.tsx`](frontend2/src/workspaces/WorkspacesContext.tsx)
+  envolve o `AppShell` e:
+  - Faz `GET /api/v1/workspaces` ao montar (após boot do auth)
+  - Expõe `{ workspaces, loading, activeWorkspace, refresh, create }`
+  - `activeWorkspace` resolve-se por URL (`:workspaceId`) → `user.workspacePublicId` → primeiro da lista
+- Sidebar (UserCard topo + WS context) e UserMenu (lista de "Conta") consomem
+  `useWorkspaces()` — sem mais `mockData.workspaces`.
+- `NewWorkspaceModal` chama `useWorkspaces().create(name)` (async), aguarda OK
+  e navega para `/w/{novoPublicId}`. Erros mostrados inline no modal.
+- Frontend antigo (`frontend/`) ainda usa o pattern V1 (`WorkspaceContext`
+  1:1 com user) — continua a funcionar porque `GET /workspaces/me` mantém a
+  semântica.
 
 ## Anti-padrões
 
-- ❌ Criar `Workspace` em código que não seja um dos 4 hooks de criação de User
-  — em V1, 1 workspace por user é invariant absoluto.
+- ❌ Em V2: usar `workspace.findUnique({ where: { ownerId } })` — o constraint unique foi removido, este where deixou de existir no `WhereUniqueInput`. Usar sempre `findFirst({ where: { ownerId }, orderBy: { createdAt: 'asc' } })`.
+- ❌ Criar `Workspace` directamente em código novo — fora dos 4 hooks de criação de User e do `WorkspacesService.createWorkspace`, não há justificação. O service garante criação consistente (transacção com Subscription default).
 - ❌ Eliminar `Workspace` directamente — só via cascade do `User.delete`.
 - ❌ Filtrar por `Project.ownerId` em vez de `Project.workspaceId` em queries
   novas — `ownerId` é audit, `workspaceId` é o scope correcto. Excepção:

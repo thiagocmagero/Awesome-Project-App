@@ -18,9 +18,11 @@ export async function createDefaultBilling(
   client: PrismaLike,
   userId: number,
 ): Promise<void> {
-  const workspace = await client.workspace.findUnique({
+  // V2: user pode ownar N workspaces. Default = mais antigo.
+  const workspace = await client.workspace.findFirst({
     where: { ownerId: userId },
     select: { id: true },
+    orderBy: { createdAt: 'asc' },
   });
   if (!workspace) return;
 
@@ -69,9 +71,11 @@ export async function upsertWorkspaceMemberFromProjectAccept(
 ): Promise<void> {
   if (args.ownerId === args.userId) return;
 
-  const ownerWorkspace = await client.workspace.findUnique({
+  // V2: default workspace do owner = mais antigo.
+  const ownerWorkspace = await client.workspace.findFirst({
     where: { ownerId: args.ownerId },
     select: { id: true },
+    orderBy: { createdAt: 'asc' },
   });
   if (!ownerWorkspace) return;
 

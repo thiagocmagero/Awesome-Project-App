@@ -32,10 +32,11 @@ const USER_BRIEF = {
   },
 } as const;
 
-/** Full project include — owner, manager, teams with members (for planning resources) */
+/** Full project include — owner, manager, workspace (publicId só), teams com members. */
 const PROJECT_INCLUDE = {
   owner: USER_BRIEF,
   manager: USER_BRIEF,
+  workspace: { select: { publicId: true } },
   teams: {
     include: {
       team: {

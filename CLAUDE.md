@@ -255,6 +255,52 @@ Antes de implementar qualquer nova funcionalidade, consultar @docs/claude/new-fe
 Quando o utilizador não especificar quais regras aplicar, PERGUNTAR SEMPRE antes de avançar.
 Nunca assumir que uma regra não se aplica — em caso de dúvida, perguntar.
 
+## Regra obrigatória — i18n: usar o mecanismo existente
+
+TODO frontend (`frontend/` actual e `frontend2/` migrado) usa o mesmo mecanismo
+de i18n: `i18next` + `react-i18next` + namespaces seeded no backend em
+`backend/prisma/seeds/translations/*.json` + URL com prefixo locale
+(`/{locale}/...`) + helpers de canonicalização em `src/lib/locale.ts` +
+`LocaleContext`/`LocaleGuard`/`RedirectWithLocale`.
+
+**Qualquer string visível ao utilizador** (label, placeholder, mensagem de
+erro, título de modal, copy de email, etc.) **deve passar por `t()`**. Sem
+excepções.
+
+**Antes de criar uma nova chave i18n**, verificar SEMPRE se já existe equivalente:
+- Procurar em `backend/prisma/seeds/translations/*.json` (24 namespaces:
+  common, auth, dashboard, users, teams, projects, plans, holidays, planning,
+  permissions, translations, calendar, gantt, board, sessions, notifications,
+  timesheet, account, platform_config, workspace_members, files, audit, tags,
+  email).
+- Se existe equivalente exacto ou suficientemente próximo → reutilizar.
+- Se NÃO existe → **parar e perguntar ao utilizador antes de adicionar**.
+  Apresentar a chave proposta (namespace + path) + texto pt-PT + razão; só
+  criar com OK explícito.
+
+**Frontend a portar (`frontend2/`)**: aplicam-se as mesmas regras. Toda
+componente migrada do mockup tem de assumir o chaveamento de tradução
+existente. Marcar strings sem match exacto com `// TODO i18n` + chave
+proposta, e listar no fim de cada PR para aprovação batch.
+
+**Fluxo para adicionar chave nova (após autorização)**:
+1. Editar `backend/prisma/seeds/translations/<namespace>.json` nos 4 locales
+   (`pt-PT`, `pt-BR`, `en`, `es`).
+2. `docker exec awesome-project-app-backend npm run seed`.
+3. Frontend recebe via `LocalStorageBackend` automaticamente na próxima
+   sessão (ETag-based; cache em `localStorage`).
+
+**Anti-padrões**:
+- ❌ Hardcodar string em JSX/TSX sem `t()` em código novo.
+- ❌ Criar chave silenciosamente sem perguntar primeiro.
+- ❌ Duplicar chaves entre namespaces (`common:nav.projects` vs `projects:nav.list`).
+- ❌ Inventar namespaces fora dos 24 registados em `src/i18n/index.ts`.
+- ❌ Em `frontend2/`: usar `t()` com fallback inline (`t('x', 'PT default')`)
+  como atalho para evitar perguntar — quebra o controlo central do glossário
+  e o `missingKeyHandler` regista ruído na `MissingTranslation`.
+
+Detalhes completos do mecanismo em @docs/claude/i18n.md.
+
 ## Regra obrigatória — WebSocket sempre sob `/api/socket.io`
 
 Qualquer `@WebSocketGateway` novo **deve** declarar `path: '/api/socket.io'`
@@ -603,29 +649,37 @@ O campo legado `Task.status` foi renomeado para `legacyStatus` e será removido.
 
 ## Regra obrigatória — Workspace (entidade explícita)
 
-Toda a aplicação é **workspace-scoped**. Cada utilizador tem 1 workspace
-auto-criado no registo (V1 invariant: `@@unique([ownerId])`); V2 vai relaxar
-para N workspaces por user.
+Toda a aplicação é **workspace-scoped**. Cada utilizador tem ≥1 workspace
+(V2, Maio 2026 — migração `20260517100000_workspaces_v2_drop_owner_unique`
+removeu o unique em `Workspace.ownerId`). O primeiro workspace é auto-criado
+no registo; extras criados via `POST /api/v1/workspaces` autenticado.
 
 **Premissas máximas:**
 - 9 tabelas têm `workspaceId` como chave de scope: Project, Team, Holiday,
   UserType, WorkspaceMember, Subscription, Invoice, UsageRecord, UserFeatureFlag.
 - Em queries novas, filtrar por `workspaceId` em vez de `ownerId`. `ownerId` é
   audit field (preservado em Project/Team/Holiday/UserType).
-- `User.delete` (PLATFORM_ADMIN hard delete) cascades para Workspace e daí para
-  todas as 9 tabelas — ver `User cascade rule` em @docs/claude/db.md.
+- `User.delete` (PLATFORM_ADMIN hard delete) cascades para Workspace (e cada um
+  dos seus) e daí para todas as 9 tabelas — ver `User cascade rule` em @docs/claude/db.md.
 - Auto-criação obrigatória nos 4 hooks de criação de User
-  (`auth.register`, `createAccountFromInvite`, `users.service.create`, seed).
+  (`auth.register`, `createAccountFromInvite`, `users.service.create`, seed) —
+  garante que todo o user tem sempre pelo menos 1 workspace.
   Pattern: `prisma.user.create({ data: { ..., workspaces: { create: { name } } } })`.
 
 **Resolução de workspace em runtime**:
-- `WorkspacesService.getDefaultForUser(userId)` — V1: 1:1 com User.
+- `WorkspacesService.getDefaultForUser(userId)` — V2: `findFirst orderBy createdAt asc`
+  (workspace mais antigo). Preserva semântica V1 para users com 1 workspace.
+- `WorkspacesService.findAllForUser(userId)` — lista owned + WorkspaceMember(ACCEPTED).
+- `WorkspacesService.createWorkspace(userId, name)` — transacção: cria Workspace +
+  Subscription default. Audit `WORKSPACE_CREATED`.
 - `SubscriptionsService.resolveEffectiveWorkspaceId(userId, ctx)` — context-aware
   com LICENSED seats. Usado por UsageService, FeatureFlagsService, PlanLimitGuard.
+- **Anti-padrão**: `workspace.findUnique({ where: { ownerId } })` — não compila
+  desde V2 (constraint removida); usar sempre `findFirst({ ..., orderBy: { createdAt: 'asc' } })`.
 
 **API URLs versionadas sob `/api/v1`** (estilo Asana). Browser URLs ficam
-inalterados em V1 (V2 introduz `/<workspacePublicId>/...`). Frontend envia
-header `X-Workspace-Id` via apiFetch (informativo em V1; future-ready V2).
+inalterados (V2 futuro: `/<workspacePublicId>/...`). Frontend envia
+header `X-Workspace-Id` via apiFetch (informativo; backend resolve via JWT).
 
 Detalhes completos em @docs/claude/workspaces.md.
 

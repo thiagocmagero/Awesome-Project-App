@@ -20,11 +20,12 @@ const ACTIVE_STATUSES: SubscriptionStatus[] = ['ACTIVE', 'TRIALING', 'PAST_DUE']
 export class SubscriptionsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** Resolve o workspace default do user (V1: único; V2: o seleccionado no contexto). */
+  /** Resolve o workspace default do user (V2: mais antigo de N possíveis). */
   private async getDefaultWorkspaceIdForUser(userId: number): Promise<number | null> {
-    const ws = await this.prisma.workspace.findUnique({
+    const ws = await this.prisma.workspace.findFirst({
       where: { ownerId: userId },
       select: { id: true },
+      orderBy: { createdAt: 'asc' },
     });
     return ws?.id ?? null;
   }
@@ -115,9 +116,11 @@ export class SubscriptionsService {
 
     let workspaceId = args.workspaceId;
     if (!workspaceId && args.userId) {
-      const ws = await client.workspace.findUnique({
+      // V2: workspace default = mais antigo.
+      const ws = await client.workspace.findFirst({
         where: { ownerId: args.userId },
         select: { id: true },
+        orderBy: { createdAt: 'asc' },
       });
       if (!ws) {
         throw new Error(`No workspace for user ${args.userId} when setting subscription`);

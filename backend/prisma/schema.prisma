@@ -243,9 +243,11 @@ model UserType {
   workspaceId Int?
   workspace   Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
-  users             User[]
-  taskResources     TaskResource[]
-  taskResourceNodes TaskResourceNode[]
+  users                User[]
+  taskResources        TaskResource[]
+  taskResourceNodes    TaskResourceNode[]
+  projectMemberships   ProjectMember[]   @relation("ProjectMemberType")
+  workspaceMemberships WorkspaceMember[] @relation("WorkspaceMemberType")
 
   @@unique([code, workspaceId])
 }
@@ -443,7 +445,7 @@ model User {
   stripeCustomerId String? @unique
 
   /// Workspaces dos quais este utilizador é owner.
-  /// V1: 1 só (constraint @@unique([ownerId]) em Workspace). V2: N possíveis.
+  /// V2 (Maio 2026): unique em Workspace.ownerId removida — utilizador pode ownar N workspaces.
   workspaces Workspace[] @relation("UserWorkspaces")
 
   // Subscription, Invoice e ownedWorkspaceMembers migraram para Workspace.
@@ -642,6 +644,13 @@ model ProjectMember {
   /// Equipa que o convidado irá integrar quando aceitar — null se não definida
   teamId Int?
   team   Team? @relation("InvitedToTeam", fields: [teamId], references: [id])
+
+  /// Tipo funcional desempenhado neste projecto (ex.: DEVELOPER em A, QA em B).
+  /// Independente de `User.userTypeId` (que continua a ser o default global do
+  /// utilizador). `SetNull` porque é um label, não ownership — ver regra "User
+  /// cascade rule" em @docs/claude/db.md.
+  userTypeId Int?
+  userType   UserType? @relation("ProjectMemberType", fields: [userTypeId], references: [id], onDelete: SetNull)
 
   /// Quem enviou o convite — nullable para preservar membership após delete do inviter.
   invitedById Int?
@@ -915,16 +924,18 @@ model UsageRecord {
 
 /// Workspace — entidade explícita que agrupa projectos, equipas, feriados,
 /// tipos de utilizador, billing, quotas e membros convidados de um owner.
-/// V1: 1 workspace por User (constraint @@unique([ownerId])). V2: drop unique,
-/// um user pode possuir múltiplos workspaces.
-/// Auto-criação 1:1 nos hooks de criação de User (auth.register,
-/// createAccountFromInvite, admin POST /users, seed). Sem CRUD em V1.
+/// V2 (Maio 2026): user pode possuir múltiplos workspaces (unique em ownerId removida).
+/// Auto-criação de 1 workspace inicial nos hooks de criação de User (auth.register,
+/// createAccountFromInvite, admin POST /users, seed). Extras criados via POST /workspaces.
 /// Cascade no delete do owner: User.delete → Workspace.delete → todas as
 /// 9 tabelas com workspaceId.
 model Workspace {
   id        Int      @id @default(autoincrement())
   publicId  String   @unique @default(uuid(7))
-  ownerId   Int      @unique
+  /// V2 (Maio 2026): unique constraint removida para permitir múltiplos workspaces
+  /// por owner. "Workspace default" = workspace mais antigo (orderBy createdAt asc).
+  /// Ver docs/claude/workspaces.md secção V1→V2.
+  ownerId   Int
   owner     User     @relation("UserWorkspaces", fields: [ownerId], references: [id], onDelete: Cascade)
   name      String
   status    Status   @default(ACTIVE)
@@ -970,6 +981,12 @@ model WorkspaceMember {
   /// Nível de acesso. BASIC = features do plano base. LICENSED = consome 1 seat,
   /// herda features do plano do owner.
   memberType WorkspaceMemberType @default(BASIC)
+
+  /// Tipo funcional default desta pessoa dentro deste workspace (ex.: DEVELOPER,
+  /// QA, DESIGNER). Cada `ProjectMember` pode override-this com o seu próprio
+  /// `userTypeId` quando o tipo difere por projecto. `SetNull` porque é um label.
+  userTypeId Int?
+  userType   UserType? @relation("WorkspaceMemberType", fields: [userTypeId], references: [id], onDelete: SetNull)
 
   /// Estado do convite ao workspace
   status WorkspaceMemberStatus @default(INVITED)
