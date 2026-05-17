@@ -10,6 +10,7 @@ import { useWorkspaceLink } from '../hooks/useWorkspaceLink';
 import { getApiBase, apiFetch } from '../lib/api';
 import i18nInstance from '../i18n';
 import { useTranslation } from 'react-i18next';
+import { useLocale } from '../contexts/LocaleContext';
 import { TimezoneProvider, useTimezone } from '../contexts/TimezoneContext';
 import { relativeTimeInTimezone } from '../lib/dateFormatting';
 
@@ -40,41 +41,11 @@ function notifAvatarColor(str: string) {
 
 // ─── LanguageSelector ─────────────────────────────────────────────────────────
 
-interface ActiveLocale {
-  code: string;
-  name: string;
-  flag: string | null;
-}
-
 function LanguageSelector() {
-  const { i18n: i18nInstance } = useTranslation('common');
-  const currentLocale = i18nInstance.language;
-  const { user, refreshUser } = useAuth();
-  const [locales, setLocales] = useState<ActiveLocale[]>([]);
+  const { locale: currentLocale, activeLocales: locales, setLocale } = useLocale();
 
-  useEffect(() => {
-    fetch('/api/v1/i18n/locales/active')
-      .then((r) => r.json())
-      .then((data) => { if (Array.isArray(data)) setLocales(data); })
-      .catch(() => {});
-  }, []);
-
-  /**
-   * Muda o idioma activo. Se o user está autenticado, persiste em BD via
-   * PATCH /users/me/locale (fire-and-forget) — assim a preferência sincroniza
-   * entre dispositivos e o backend pode usar para escolher locale dos emails.
-   * Sem user (futura landing page sem login), apenas localStorage via i18next.
-   */
   function handleSelect(code: string) {
-    i18nInstance.changeLanguage(code).catch(() => {});
-    if (!user) return;
-    apiFetch(`${getApiBase()}/users/me/locale`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ locale: code }),
-    })
-      .then((r) => { if (r.ok) refreshUser().catch(() => {}); })
-      .catch(() => {/* silent — UI já reflectiu a mudança via i18next */});
+    setLocale(code);
   }
 
   if (locales.length === 0) return null;
@@ -144,6 +115,7 @@ function AppLayoutInner() {
   const { showToast } = useToast();
   const { t } = useTranslation('common');
   const wsLink = useWorkspaceLink();
+  const { urlLocale } = useLocale();
 
   const {
     notifications,
@@ -260,7 +232,7 @@ function AppLayoutInner() {
 
   async function handleLogout() {
     await logout();
-    navigate('/login', { replace: true });
+    navigate(`/${urlLocale}/login`, { replace: true });
   }
 
   const userInitials = user?.name
@@ -622,7 +594,7 @@ function AppLayoutInner() {
                 </li>
                 <li>
                   <NavLink
-                    to={isPlatformAdmin ? '/clients' : wsLink('/users')}
+                    to={isPlatformAdmin ? `/${urlLocale}/clients` : wsLink('/users')}
                     className="dropdown-item d-flex align-items-center gap-2 py-2"
                   >
                     <i className="ri-group-line fs-16 text-muted"></i>
@@ -630,13 +602,13 @@ function AppLayoutInner() {
                   </NavLink>
                 </li>
                 <li>
-                  <NavLink to="/settings/sessions" className="dropdown-item d-flex align-items-center gap-2 py-2">
+                  <NavLink to={`/${urlLocale}/settings/sessions`} className="dropdown-item d-flex align-items-center gap-2 py-2">
                     <i className="ri-computer-line fs-16 text-muted"></i>
                     {t('nav.sessions')}
                   </NavLink>
                 </li>
                 <li>
-                  <NavLink to="/settings/notifications" className="dropdown-item d-flex align-items-center gap-2 py-2">
+                  <NavLink to={`/${urlLocale}/settings/notifications`} className="dropdown-item d-flex align-items-center gap-2 py-2">
                     <i className="ri-notification-3-line fs-16 text-muted"></i>
                     {t('nav.notification_preferences')}
                   </NavLink>
@@ -720,7 +692,7 @@ function AppLayoutInner() {
                   do workspace em /<wsId>/users. */}
               <li className="slide">
                 <NavLink
-                  to={isPlatformAdmin ? '/clients' : wsLink('/users')}
+                  to={isPlatformAdmin ? `/${urlLocale}/clients` : wsLink('/users')}
                   className={({ isActive }) => `side-menu__item${isActive ? ' active' : ''}`}
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" className="side-menu__icon" viewBox="0 0 256 256">
@@ -806,7 +778,7 @@ function AppLayoutInner() {
                 <>
                   <li className="slide__category"><span className="category-name">{t('nav.section.platform')}</span></li>
                   <li className="slide">
-                    <NavLink to="/plans" className={({ isActive }) => `side-menu__item${isActive ? ' active' : ''}`}>
+                    <NavLink to={`/${urlLocale}/plans`} className={({ isActive }) => `side-menu__item${isActive ? ' active' : ''}`}>
                       <svg xmlns="http://www.w3.org/2000/svg" className="side-menu__icon" viewBox="0 0 256 256">
                         <rect width="256" height="256" fill="none" />
                         <path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216ZM172,128a44,44,0,1,1-44-44A44.05,44.05,0,0,1,172,128Z" />
@@ -815,13 +787,13 @@ function AppLayoutInner() {
                     </NavLink>
                   </li>
                   <li className="slide">
-                    <NavLink to="/audit" className={({ isActive }) => `side-menu__item${isActive ? ' active' : ''}`}>
+                    <NavLink to={`/${urlLocale}/audit`} className={({ isActive }) => `side-menu__item${isActive ? ' active' : ''}`}>
                       <i className="ri-shield-check-line side-menu__icon" />
                       <span className="side-menu__label">{t('nav.audit')}</span>
                     </NavLink>
                   </li>
                   <li className="slide">
-                    <NavLink to="/translations" className={({ isActive }) => `side-menu__item${isActive ? ' active' : ''}`}>
+                    <NavLink to={`/${urlLocale}/translations`} className={({ isActive }) => `side-menu__item${isActive ? ' active' : ''}`}>
                       <i className="ti ti-language side-menu__icon" />
                       <span className="side-menu__label">{t('nav.translations')}</span>
                     </NavLink>
@@ -847,7 +819,7 @@ function AppLayoutInner() {
                   </li>
                   <li className="slide">
                     <NavLink
-                      to="/settings/account"
+                      to={`/${urlLocale}/settings/account`}
                       className={({ isActive }) => `side-menu__item${isActive ? ' active' : ''}`}
                     >
                       {t('nav.account')}
@@ -887,7 +859,7 @@ function AppLayoutInner() {
                       <ul className="slide-menu child2">
                         <li className="slide">
                           <NavLink
-                            to="/settings/email"
+                            to={`/${urlLocale}/settings/email`}
                             className={({ isActive }) => `side-menu__item${isActive ? ' active' : ''}`}
                           >
                             {t('nav.email_settings')}
@@ -895,7 +867,7 @@ function AppLayoutInner() {
                         </li>
                         <li className="slide">
                           <NavLink
-                            to="/settings/limits"
+                            to={`/${urlLocale}/settings/limits`}
                             className={({ isActive }) => `side-menu__item${isActive ? ' active' : ''}`}
                           >
                             {t('nav.platform_limits')}
@@ -1140,21 +1112,20 @@ export default function AppLayout() {
       .catch(() => {});
   }, [user, refreshUser]);
 
-  // Sync do locale entre BD e i18next — corre uma vez por sessão.
+  // Sync do locale entre URL/BD/i18next — corre uma vez por sessão.
+  //
+  // O LocaleGuard já alinhou i18next com o locale do path. Aqui só
+  // precisamos de garantir que o `User.locale` em BD reflecte a realidade:
+  //  - Cenário B (BD ≠ path): BD wins → o LocaleGuard redirecciona via
+  //    setLocale na próxima navegação; aqui apenas garantimos que i18next
+  //    está alinhado com BD. Implementado pelo LocaleGuard ao mudar para
+  //    `user.locale` no próximo render do path correcto. Esta secção lida
+  //    apenas com Cenário A.
+  //  - Cenário A (BD vazia): persiste o locale do path. Sem isto, emails
+  //    enviados ao user iriam em fallback `en` até o user mudar manualmente.
   useEffect(() => {
     if (!user || localeSyncAttempted.current) return;
     const current = i18nInstance.language;
-
-    // Cenário B: BD tem locale e difere do i18next → BD wins (ex.: user
-    // mudou de idioma noutro dispositivo, queremos reflectir aqui).
-    if (user.locale && user.locale !== current) {
-      localeSyncAttempted.current = true;
-      i18nInstance.changeLanguage(user.locale).catch(() => {});
-      return;
-    }
-
-    // Cenário A: BD vazia e i18next já resolveu (de localStorage ou navigator).
-    // Persiste para que o backend conheça a preferência (necessário p/ emails).
     if (!user.locale && current) {
       localeSyncAttempted.current = true;
       apiFetch(`${getApiBase()}/users/me/locale`, {

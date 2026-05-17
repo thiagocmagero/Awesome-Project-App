@@ -2,6 +2,7 @@ import { useEffect, useState, FormEvent } from 'react';
 import { Navigate, NavLink } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
+import { useLocale } from '../contexts/LocaleContext';
 import { useIsPlatformAdmin } from '../hooks/useIsPlatformAdmin';
 import { useToast } from '../contexts/ToastContext';
 import { getApiBase, apiFetch } from '../lib/api';
@@ -40,6 +41,7 @@ export default function EmailSettingsPage() {
   const { showToast } = useToast();
   const { t } = useTranslation('platform_config');
   const { t: tc } = useTranslation('common');
+  const { urlLocale } = useLocale();
 
   const [form, setForm] = useState<FormState>({ ...EMPTY });
   const [smtp, setSmtp] = useState<SmtpStatus | null>(null);
@@ -49,7 +51,7 @@ export default function EmailSettingsPage() {
   // Gate: PLATFORM_ADMIN only — redireciona para dashboard caso contrário.
   // `user &&` evita redirect durante o loading inicial (user ainda undefined).
   if (user && !isAdmin) {
-    return <Navigate to="/" replace />;
+    return <Navigate to={`/${urlLocale}/`} replace />;
   }
 
   // Load config + smtp status em paralelo
@@ -122,7 +124,7 @@ export default function EmailSettingsPage() {
           <nav aria-label="breadcrumb">
             <ol className="breadcrumb mb-0 breadcrumb-style2">
               <li className="breadcrumb-item">
-                <NavLink to="/">{tc('nav.dashboard')}</NavLink>
+                <NavLink to={`/${urlLocale}/`}>{tc('nav.dashboard')}</NavLink>
               </li>
               <li className="breadcrumb-item">{tc('nav.section.platform')}</li>
               <li className="breadcrumb-item active" aria-current="page">

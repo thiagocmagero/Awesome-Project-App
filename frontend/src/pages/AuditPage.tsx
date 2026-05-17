@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocalizedNavigate } from '../hooks/useLocalizedNavigate';
 import { useTranslation } from 'react-i18next';
 import { useIsPlatformAdmin } from '../hooks/useIsPlatformAdmin';
 import { useAuth } from '../contexts/AuthContext';
@@ -17,7 +17,7 @@ export default function AuditPage() {
   const { t: tc } = useTranslation('common');
   const isAdmin = useIsPlatformAdmin();
   const { user } = useAuth();
-  const navigate = useNavigate();
+  const navigate = useLocalizedNavigate();
 
   // `user === null` enquanto AuthProvider arranca — não fazer nada.
   // Só redirecciona quando confirmamos que NÃO é admin.

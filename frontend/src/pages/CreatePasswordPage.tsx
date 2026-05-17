@@ -1,10 +1,11 @@
 import { useState, useEffect, FormEvent } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth, toAuthUser } from '../contexts/AuthContext';
 import type { ApiAuthUser } from '../contexts/AuthContext';
 import { getApiBase, apiFetch } from '../lib/api';
 import { useParticles } from '../hooks/useParticles';
+import { useLocalizedNavigate } from '../hooks/useLocalizedNavigate';
 
 type InviteCheckResult = { requiresAccount: boolean };
 
@@ -12,7 +13,7 @@ export default function CreatePasswordPage() {
   const { t } = useTranslation('auth');
   const { login } = useAuth();
   const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
+  const navigate = useLocalizedNavigate();
 
   const token = searchParams.get('token') ?? '';
 

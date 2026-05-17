@@ -161,7 +161,8 @@ export class WorkspaceMembersService {
       email: existingUser ? undefined : member.email,
       expiresInMs: INVITE_TOKEN_MS,
     });
-    const inviteUrl = `${this.emailService.appUrl}/create-account?token=${token}`;
+    const recipientLocale = existingUser?.locale ?? 'pt-PT';
+    const inviteUrl = `${this.emailService.appUrl}/${recipientLocale.toLowerCase()}/create-account?token=${token}`;
 
     if (existingUser) {
       // Notify in-app + email via NotificationsService.

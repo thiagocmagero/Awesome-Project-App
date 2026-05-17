@@ -211,12 +211,17 @@ export class EmailService implements OnModuleInit {
     return this.interpolate(bundle[key] ?? '', vars);
   }
 
-  /** Constrói o objecto `CommonEmailTexts` partilhado por todos os templates. */
+  /** Constrói o objecto `CommonEmailTexts` partilhado por todos os templates.
+   * `locale` é injectado no path do `prefsUrl` para coerência com o resto
+   * dos URLs (toda a app vive sob `/<locale>/...`). Fallback `pt-PT`. */
   private buildCommon(
     bundle: Record<string, string>,
     vars: Record<string, string | number>,
+    locale: string | null | undefined = 'pt-PT',
   ): CommonEmailTexts {
-    const prefsUrl = `${this.appUrl}/settings/notifications`;
+    // Canónico para BD/conteúdo; lowercase no path do URL.
+    const localeSegment = (locale ?? 'pt-PT').toLowerCase();
+    const prefsUrl = `${this.appUrl}/${localeSegment}/settings/notifications`;
     return {
       greeting: this.t(bundle, 'common.greeting', vars),
       footer_text: this.t(bundle, 'common.footer_text', vars),
@@ -314,7 +319,7 @@ export class EmailService implements OnModuleInit {
     const subject = this.t(bundle, 'mention.subject', vars);
 
     const props: CommentMentionEmailProps = {
-      common: this.buildCommon(bundle, vars),
+      common: this.buildCommon(bundle, vars, localeUsed),
       preview: subject,
       body_p1: this.t(bundle, 'mention.body_p1', vars),
       cta_label: bundle['mention.cta'] ?? 'View comment',
@@ -353,7 +358,7 @@ export class EmailService implements OnModuleInit {
     const subject = this.t(bundle, 'task_assigned.subject', vars);
 
     const props: TaskAssignedEmailProps = {
-      common: this.buildCommon(bundle, vars),
+      common: this.buildCommon(bundle, vars, localeUsed),
       preview: subject,
       body_p1: this.t(bundle, 'task_assigned.body_p1', vars),
       cta_label: bundle['task_assigned.cta'] ?? 'View task',
@@ -389,7 +394,7 @@ export class EmailService implements OnModuleInit {
     const subject = this.t(bundle, 'invitation_received.subject', vars);
 
     const props: InvitationReceivedEmailProps = {
-      common: this.buildCommon(bundle, vars),
+      common: this.buildCommon(bundle, vars, localeUsed),
       preview: subject,
       body_p1: this.t(bundle, 'invitation_received.body_p1', vars),
       body_p2: this.t(bundle, 'invitation_received.body_p2', vars),
@@ -426,7 +431,7 @@ export class EmailService implements OnModuleInit {
     const subject = this.t(bundle, 'invitation_accepted.subject', vars);
 
     const props: InvitationAcceptedEmailProps = {
-      common: this.buildCommon(bundle, vars),
+      common: this.buildCommon(bundle, vars, localeUsed),
       preview: subject,
       body_p1: this.t(bundle, 'invitation_accepted.body_p1', vars),
       cta_label: bundle['invitation_accepted.cta'] ?? 'View project',
@@ -461,7 +466,7 @@ export class EmailService implements OnModuleInit {
     const subject = this.t(bundle, 'invitation_declined.subject', vars);
 
     const props: InvitationDeclinedEmailProps = {
-      common: this.buildCommon(bundle, vars),
+      common: this.buildCommon(bundle, vars, localeUsed),
       preview: subject,
       body_p1: this.t(bundle, 'invitation_declined.body_p1', vars),
       appUrl: this.appUrl,
@@ -499,7 +504,7 @@ export class EmailService implements OnModuleInit {
     const subject = this.t(bundle, 'comment_reaction.subject', vars);
 
     const props: CommentReactionEmailProps = {
-      common: this.buildCommon(bundle, vars),
+      common: this.buildCommon(bundle, vars, localeUsed),
       preview: subject,
       body_p1: this.t(bundle, 'comment_reaction.body_p1', vars),
       cta_label: bundle['comment_reaction.cta'] ?? 'View comment',
@@ -537,7 +542,7 @@ export class EmailService implements OnModuleInit {
     const subject = this.t(bundle, 'timesheet_submitted.subject', vars);
 
     const props: TimesheetSubmittedEmailProps = {
-      common: this.buildCommon(bundle, vars),
+      common: this.buildCommon(bundle, vars, localeUsed),
       preview: subject,
       body_p1: this.t(bundle, 'timesheet_submitted.body_p1', vars),
       cta_label: bundle['timesheet_submitted.cta'] ?? 'Review timesheet',
@@ -575,7 +580,7 @@ export class EmailService implements OnModuleInit {
     const subject = this.t(bundle, 'timesheet_approved.subject', vars);
 
     const props: TimesheetApprovedEmailProps = {
-      common: this.buildCommon(bundle, vars),
+      common: this.buildCommon(bundle, vars, localeUsed),
       preview: subject,
       body_p1: this.t(bundle, 'timesheet_approved.body_p1', vars),
       cta_label: bundle['timesheet_approved.cta'] ?? 'View timesheet',
@@ -613,7 +618,7 @@ export class EmailService implements OnModuleInit {
     const subject = this.t(bundle, 'timesheet_partially_approved.subject', vars);
 
     const props: TimesheetPartiallyApprovedEmailProps = {
-      common: this.buildCommon(bundle, vars),
+      common: this.buildCommon(bundle, vars, localeUsed),
       preview: subject,
       body_p1: this.t(bundle, 'timesheet_partially_approved.body_p1', vars),
       body_p2: this.t(bundle, 'timesheet_partially_approved.body_p2', vars),
@@ -653,7 +658,7 @@ export class EmailService implements OnModuleInit {
     const subject = this.t(bundle, 'timesheet_rejected.subject', vars);
 
     const props: TimesheetRejectedEmailProps = {
-      common: this.buildCommon(bundle, vars),
+      common: this.buildCommon(bundle, vars, localeUsed),
       preview: subject,
       body_p1: this.t(bundle, 'timesheet_rejected.body_p1', vars),
       quote_intro: this.t(bundle, 'timesheet_rejected.quote_intro', vars),
@@ -685,7 +690,7 @@ export class EmailService implements OnModuleInit {
     const subject = this.t(bundle, 'confirmation.subject', vars);
 
     const props: EmailConfirmationEmailProps = {
-      common: this.buildCommon(bundle, vars),
+      common: this.buildCommon(bundle, vars, localeUsed),
       preview: subject,
       body_p1: this.t(bundle, 'confirmation.body_p1', vars),
       cta_label: bundle['confirmation.cta'] ?? 'Confirm email',
@@ -718,7 +723,7 @@ export class EmailService implements OnModuleInit {
     const subject = this.t(bundle, 'file_infected.subject', vars);
 
     const props: FileInfectedEmailProps = {
-      common: this.buildCommon(bundle, vars),
+      common: this.buildCommon(bundle, vars, localeUsed),
       preview: subject,
       body_p1: this.t(bundle, 'file_infected.body_p1', vars),
       body_p2: this.t(bundle, 'file_infected.body_p2', vars),
@@ -748,7 +753,7 @@ export class EmailService implements OnModuleInit {
     const subject = this.t(bundle, 'password_reset.subject', vars);
 
     const props: PasswordResetEmailProps = {
-      common: this.buildCommon(bundle, vars),
+      common: this.buildCommon(bundle, vars, localeUsed),
       preview: subject,
       body_p1: this.t(bundle, 'password_reset.body_p1', vars),
       cta_label: bundle['password_reset.cta'] ?? 'Reset password',

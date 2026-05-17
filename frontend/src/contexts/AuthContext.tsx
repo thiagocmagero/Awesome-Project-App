@@ -128,11 +128,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // user clicar em "Entrar" e o promise da apiFetch nunca chegava a resolver
   // (causa do bug "tela branca pós-login").
   useEffect(() => {
-    const PUBLIC_PATHS = [
-      '/login', '/signup', '/confirm-email', '/forgot-password',
-      '/reset-password', '/create-account', '/error/',
+    // Detecta rotas públicas independentemente do prefixo de locale.
+    // Path actual pode ser `/login` (legacy) ou `/pt-PT/login` (novo schema).
+    const PUBLIC_PATH_SEGMENTS = [
+      'login', 'signup', 'confirm-email', 'forgot-password',
+      'reset-password', 'create-account', 'error',
     ];
-    const isPublic = PUBLIC_PATHS.some((p) => window.location.pathname.startsWith(p));
+    const segments = window.location.pathname.split('/').filter(Boolean);
+    // Saltar o primeiro segmento se parecer locale BCP 47.
+    const head = segments[0] && /^[a-z]{2}(-[a-z]{2})?$/i.test(segments[0])
+      ? segments[1]
+      : segments[0];
+    const isPublic = head !== undefined && PUBLIC_PATH_SEGMENTS.includes(head);
     if (isPublic) {
       setLoading(false);
       return;

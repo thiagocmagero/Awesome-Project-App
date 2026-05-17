@@ -1,13 +1,16 @@
 import { useState, useEffect, FormEvent } from 'react';
-import { Link, useSearchParams, useNavigate } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { getApiBase, apiFetch } from '../lib/api';
 import { useParticles } from '../hooks/useParticles';
+import { useLocale } from '../contexts/LocaleContext';
+import { useLocalizedNavigate } from '../hooks/useLocalizedNavigate';
 
 export default function ResetPasswordPage() {
   const { t } = useTranslation('auth');
   const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
+  const navigate = useLocalizedNavigate();
+  const { urlLocale } = useLocale();
 
   const [checking, setChecking] = useState(true);
   const [password, setPassword] = useState('');
@@ -192,7 +195,7 @@ export default function ResetPasswordPage() {
                   </form>
 
                   <div className="text-center mt-3">
-                    <Link to="/login" className="text-primary fs-14">{t('reset_password.back_login')}</Link>
+                    <Link to={`/${urlLocale}/login`} className="text-primary fs-14">{t('reset_password.back_login')}</Link>
                   </div>
 
                 </div>

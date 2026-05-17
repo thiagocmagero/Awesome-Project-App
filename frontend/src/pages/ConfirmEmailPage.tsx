@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { getApiBase, apiFetch } from '../lib/api';
 import { useParticles } from '../hooks/useParticles';
+import { useLocalizedNavigate } from '../hooks/useLocalizedNavigate';
 
 export default function ConfirmEmailPage() {
   const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
+  const navigate = useLocalizedNavigate();
   const { t } = useTranslation('auth');
   const [status, setStatus] = useState<'verifying' | 'done' | 'error'>('verifying');
 

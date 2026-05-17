@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Recuperar senha · Awesome Project App</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="auth.css" rel="stylesheet">
+</head>
+<body>
+
+<div class="auth-shell">
+  <main class="auth-card narrow" role="main">
+    <a href="index.html" class="brand" aria-label="Awesome Project App">
+      <span class="mark" aria-hidden="true">
+        <svg width="44" height="44" viewBox="0 0 24 24" fill="none">
+          <defs>
+            <linearGradient id="m1" x1="0" x2="1" y1="0" y2="1">
+              <stop offset="0%"  stop-color="oklch(0.62 0.20 264)"/>
+              <stop offset="100%" stop-color="oklch(0.50 0.22 264)"/>
+            </linearGradient>
+            <linearGradient id="m2" x1="0" x2="1" y1="0" y2="1">
+              <stop offset="0%"  stop-color="oklch(0.74 0.16 290)"/>
+              <stop offset="100%" stop-color="oklch(0.60 0.20 270)"/>
+            </linearGradient>
+          </defs>
+          <rect x="1.5"  y="1.5"  width="9" height="9" rx="2.2" fill="url(#m1)"/>
+          <rect x="13.5" y="1.5"  width="9" height="9" rx="2.2" fill="url(#m2)"/>
+          <rect x="1.5"  y="13.5" width="9" height="9" rx="2.2" fill="url(#m2)"/>
+          <rect x="13.5" y="13.5" width="9" height="9" rx="2.2" fill="url(#m1)"/>
+        </svg>
+      </span>
+      <span class="name">Awesome Project App</span>
+    </a>
+
+    <!-- ============================================================
+         STATE 1 — Request password reset (default)
+         ============================================================ -->
+    <section class="state" id="state-request">
+      <h1 class="auth-title">Esqueceu sua senha?</h1>
+      <p class="auth-sub">Lembra a senha? <a href="login.html">Entrar</a></p>
+
+      <form id="request-form" novalidate>
+        <div class="form-row">
+          <input type="email" class="input" name="email" id="email"
+                 placeholder="E-mail de trabalho" autocomplete="email" required>
+        </div>
+        <button type="submit" class="btn-primary" id="request-submit" disabled>
+          Enviar o link para mim
+        </button>
+      </form>
+    </section>
+
+    <!-- ============================================================
+         STATE 2 — Link sent confirmation
+         ============================================================ -->
+    <section class="state" id="state-sent" hidden>
+      <div class="success-icon" aria-hidden="true">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+          <polyline points="22,6 12,13 2,6"/>
+        </svg>
+      </div>
+      <h1 class="auth-title">Link de recuperação enviado</h1>
+      <p class="auth-sub">
+        Enviámos um e-mail para <b id="sent-email" style="color: var(--ink); font-weight: 600;">você</b>
+        com instruções para criar uma nova senha.
+      </p>
+      <p class="auth-sub" style="margin-bottom: 14px;">
+        Lembra a senha? <a href="login.html">Entrar</a>
+      </p>
+      <button type="button" class="provider-btn" id="resend-btn" style="margin-top: 4px;">
+        Não recebi — reenviar
+      </button>
+    </section>
+
+    <!-- ============================================================
+         STATE 3 — Set a new password (linked from email)
+         Activate via #reset in the URL.
+         ============================================================ -->
+    <section class="state" id="state-reset" hidden>
+      <h1 class="auth-title">Crie uma nova senha</h1>
+      <p class="helper">
+        Por motivos de segurança, vamos desconectar sua conta de todos os
+        dispositivos após a alteração da senha.
+      </p>
+
+      <form id="reset-form" novalidate>
+        <div class="form-row tight">
+          <div class="input-wrap">
+            <input type="password" class="input has-action" name="pwd1" id="pwd1"
+                   placeholder="Insira a senha" autocomplete="new-password" required minlength="8">
+            <button type="button" class="input-action" data-toggle="pwd1" aria-label="Mostrar senha">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+              </svg>
+            </button>
+          </div>
+          <div class="field-error">A senha é obrigatória</div>
+        </div>
+        <div class="form-row">
+          <div class="input-wrap">
+            <input type="password" class="input has-action" name="pwd2" id="pwd2"
+                   placeholder="Confirmar senha" autocomplete="new-password" required minlength="8">
+            <button type="button" class="input-action" data-toggle="pwd2" aria-label="Mostrar senha">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+              </svg>
+            </button>
+          </div>
+          <div class="field-error">As senhas não coincidem</div>
+        </div>
+        <button type="submit" class="btn-primary" id="reset-submit" disabled>
+          Criar senha
+        </button>
+      </form>
+    </section>
+  </main>
+</div>
+
+<footer class="auth-footer">
+  <a href="#">Termos de serviço</a>
+  <span class="sep"></span>
+  <a href="#">Política de privacidade</a>
+  <span class="sep"></span>
+  <a href="#">Precisa de ajuda?</a>
+</footer>
+
+<script>
+  (function () {
+    const states = {
+      request: document.getElementById('state-request'),
+      sent:    document.getElementById('state-sent'),
+      reset:   document.getElementById('state-reset'),
+    };
+
+    function showState(key) {
+      Object.entries(states).forEach(([k, el]) => {
+        el.hidden = k !== key;
+      });
+    }
+
+    // Allow deep-linking to the reset state (e.g. clicked from the email).
+    if (window.location.hash === '#reset') showState('reset');
+
+    // ----- Request state -----
+    const requestForm = document.getElementById('request-form');
+    const email = document.getElementById('email');
+    const requestSubmit = document.getElementById('request-submit');
+    email.addEventListener('input', () => {
+      requestSubmit.disabled = !email.value.trim().includes('@');
+    });
+    requestForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      document.getElementById('sent-email').textContent = email.value.trim();
+      showState('sent');
+    });
+
+    // ----- Sent state -----
+    document.getElementById('resend-btn').addEventListener('click', () => {
+      showState('request');
+    });
+
+    // ----- Reset state -----
+    const resetForm = document.getElementById('reset-form');
+    const pwd1 = document.getElementById('pwd1');
+    const pwd2 = document.getElementById('pwd2');
+    const resetSubmit = document.getElementById('reset-submit');
+    function updateReset() {
+      const ok1 = pwd1.value.length >= 8;
+      const ok2 = pwd2.value.length >= 8;
+      const match = pwd1.value === pwd2.value;
+      pwd1.classList.toggle('error', pwd1.value.length > 0 && pwd1.value.length < 8);
+      pwd2.classList.toggle('error', ok1 && ok2 && !match);
+      resetSubmit.disabled = !(ok1 && ok2 && match);
+    }
+    [pwd1, pwd2].forEach(el => el.addEventListener('input', updateReset));
+    resetForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      window.location.href = 'login.html';
+    });
+
+    // ----- Password show/hide toggle (works for any input with data-toggle) -----
+    document.querySelectorAll('[data-toggle]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-toggle');
+        const el = document.getElementById(id);
+        const wasPwd = el.type === 'password';
+        el.type = wasPwd ? 'text' : 'password';
+        btn.setAttribute('aria-label', wasPwd ? 'Ocultar senha' : 'Mostrar senha');
+      });
+    });
+  })();
+</script>
+
+</body>
+</html>

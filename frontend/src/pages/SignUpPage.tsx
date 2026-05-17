@@ -1,10 +1,12 @@
 import { useState, useEffect, FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import { getApiBase, apiFetch } from '../lib/api';
 import type { AuthUser } from '../contexts/AuthContext';
 import { useParticles } from '../hooks/useParticles';
+import { useLocale } from '../contexts/LocaleContext';
+import { useLocalizedNavigate } from '../hooks/useLocalizedNavigate';
 
 interface ApiRegisterUser {
   publicId: string;
@@ -30,7 +32,8 @@ interface ApiRegisterUser {
 
 export default function SignUpPage() {
   const { login, user } = useAuth();
-  const navigate = useNavigate();
+  const navigate = useLocalizedNavigate();
+  const { urlLocale } = useLocale();
   const { t } = useTranslation('auth');
 
   const [name, setName] = useState('');
@@ -189,7 +192,7 @@ export default function SignUpPage() {
                       </button>
                     )}
                     <div>
-                      <Link to="/login" className="text-primary fs-14">{t('signup.check_email.go_login')}</Link>
+                      <Link to={`/${urlLocale}/login`} className="text-primary fs-14">{t('signup.check_email.go_login')}</Link>
                     </div>
                   </div>
                 </div>
@@ -368,7 +371,7 @@ export default function SignUpPage() {
                   {/* Login link */}
                   <div className="text-center mt-3">
                     <span className="text-muted fs-14">{t('signup.link.login_hint')} </span>
-                    <Link to="/login" className="text-primary fw-medium fs-14">
+                    <Link to={`/${urlLocale}/login`} className="text-primary fw-medium fs-14">
                       {t('signup.link.login')}
                     </Link>
                   </div>

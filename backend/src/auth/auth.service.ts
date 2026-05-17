@@ -160,7 +160,10 @@ export class AuthService {
       expiresInMs: CONFIRMATION_TOKEN_MS,
     });
 
-    const confirmUrl = `${this.emailService.appUrl}/confirm-email?token=${token}`;
+    // Locale canónico para conteúdo do email + lowercase no path do URL
+    // (alinhado com a convenção da app: `/<locale-lowercase>/...`).
+    const recipientLocale = pendingUser.locale ?? 'pt-PT';
+    const confirmUrl = `${this.emailService.appUrl}/${recipientLocale.toLowerCase()}/confirm-email?token=${token}`;
     this.emailService.sendEmailConfirmationEmail({
       recipientEmail: pendingUser.email,
       recipientName: pendingUser.name,
@@ -218,7 +221,8 @@ export class AuthService {
         expiresInMs: CONFIRMATION_TOKEN_MS,
       });
 
-      const confirmUrl = `${this.emailService.appUrl}/confirm-email?token=${token}`;
+      const recipientLocale = user.locale ?? 'pt-PT';
+      const confirmUrl = `${this.emailService.appUrl}/${recipientLocale.toLowerCase()}/confirm-email?token=${token}`;
       this.emailService.sendEmailConfirmationEmail({
         recipientEmail: user.email,
         recipientName: user.name,
@@ -296,7 +300,8 @@ export class AuthService {
           expiresInMs: PASSWORD_RESET_TOKEN_MS,
         });
 
-        const resetUrl = `${this.emailService.appUrl}/reset-password?token=${token}`;
+        const recipientLocale = user.locale ?? 'pt-PT';
+        const resetUrl = `${this.emailService.appUrl}/${recipientLocale.toLowerCase()}/reset-password?token=${token}`;
         this.emailService.sendPasswordResetEmail({
           recipientEmail: user.email,
           recipientName: user.name,

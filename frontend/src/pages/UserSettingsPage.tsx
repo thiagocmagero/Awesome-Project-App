@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useLocale } from '../contexts/LocaleContext';
 import { useToast } from '../contexts/ToastContext';
 import { getApiBase, apiFetch } from '../lib/api';
 import { TimezoneSelect } from '../components/TimezoneSelect';
@@ -12,12 +13,6 @@ import {
   NotificationChannel,
   isEnabled,
 } from '../features/notifications/types';
-
-interface ActiveLocale {
-  code: string;
-  name: string;
-  flag: string | null;
-}
 
 function initialsOf(name: string): string {
   return name
@@ -31,7 +26,7 @@ export default function UserSettingsPage() {
   const { user, refreshUser, token } = useAuth();
   const api = getApiBase();
   const { showToast } = useToast();
-  const { t, i18n } = useTranslation('account');
+  const { t } = useTranslation('account');
   const { t: tc } = useTranslation('common');
   const { t: tn } = useTranslation('notifications');
 
@@ -72,40 +67,23 @@ export default function UserSettingsPage() {
   // ── Locale ────────────────────────────────────────────────────────────────
   const [savingLocale, setSavingLocale] = useState(false);
   const [localeValue, setLocaleValue] = useState<string | null>(user?.locale ?? null);
-  const [locales, setLocales] = useState<ActiveLocale[]>([]);
+  const { urlLocale: currentUrlLocale, activeLocales: locales, setLocale: applyLocale } = useLocale();
 
   useEffect(() => {
     setLocaleValue(user?.locale ?? null);
   }, [user?.locale]);
 
-  useEffect(() => {
-    fetch('/api/v1/i18n/locales/active')
-      .then((r) => r.json())
-      .then((data) => { if (Array.isArray(data)) setLocales(data); })
-      .catch(() => {});
-  }, []);
-
-  async function handleLocaleChange(next: string) {
+  function handleLocaleChange(next: string) {
     if (next === localeValue) return;
-    const previous = localeValue;
     setLocaleValue(next);
     setSavingLocale(true);
-    try {
-      const res = await apiFetch(`${api}/users/me/locale`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ locale: next }),
-      });
-      if (!res.ok) throw new Error('save failed');
-      i18n.changeLanguage(next).catch(() => {});
-      await refreshUser();
-      showToast('success', t('success.language_saved'));
-    } catch {
-      setLocaleValue(previous);
-      showToast('danger', t('error.language_save'));
-    } finally {
-      setSavingLocale(false);
-    }
+    // applyLocale orquestra navigate(replace) + i18n.changeLanguage + PATCH
+    // (fire-and-forget). Mostra toast optimista — em caso de falha o PATCH
+    // fica silencioso e o user pode tentar de novo (raro: locale válido na
+    // lista activa não falha o backend).
+    applyLocale(next);
+    showToast('success', t('success.language_saved'));
+    setSavingLocale(false);
   }
 
   // ── Profile (name, phone, website, address) ───────────────────────────────
@@ -348,7 +326,7 @@ export default function UserSettingsPage() {
             <nav aria-label="breadcrumb">
               <ol className="breadcrumb mb-0">
                 <li className="breadcrumb-item">
-                  <NavLink to="/">{tc('nav.dashboard')}</NavLink>
+                  <NavLink to={`/${currentUrlLocale}/`}>{tc('nav.dashboard')}</NavLink>
                 </li>
                 <li className="breadcrumb-item active" aria-current="page">
                   {t('page.title')}
@@ -870,7 +848,7 @@ export default function UserSettingsPage() {
                           {t('security.sessions.title')}
                         </p>
                       </div>
-                      <NavLink to="/settings/sessions" className="btn btn-sm btn-light">
+                      <NavLink to={`/${currentUrlLocale}/settings/sessions`} className="btn btn-sm btn-light">
                         {t('security.sessions.link')}
                         <i className="ri-arrow-right-line ms-1" />
                       </NavLink>

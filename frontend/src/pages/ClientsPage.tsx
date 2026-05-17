@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, FormEvent, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useLocale } from '../contexts/LocaleContext';
 import { useIsPlatformAdmin, isPlatformAdminProfileCode } from '../hooks/useIsPlatformAdmin';
 import { getApiBase, apiFetch } from '../lib/api';
 import { formatDate } from '../lib/dateFormatting';
@@ -97,11 +98,12 @@ export default function ClientsPage() {
   const api = getApiBase();
   const isPlatformAdmin = useIsPlatformAdmin();
   const { showToast } = useToast();
+  const { urlLocale } = useLocale();
 
   // Página exclusiva de PLATFORM_ADMIN. Outros vão para a vista do workspace.
   if (authUser && !isPlatformAdmin) {
     const wsId = authUser.workspacePublicId;
-    return <Navigate to={wsId ? `/${wsId}/users` : '/'} replace />;
+    return <Navigate to={wsId ? `/${urlLocale}/${wsId}/users` : `/${urlLocale}/`} replace />;
   }
 
   // Data

@@ -1,15 +1,18 @@
 import { useState, useEffect, useRef, FormEvent } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth, toAuthUser } from '../contexts/AuthContext';
 import type { ApiAuthUser } from '../contexts/AuthContext';
 import { getApiBase, apiFetch } from '../lib/api';
 import { useTranslation } from 'react-i18next';
 import { useToast } from '../contexts/ToastContext';
 import { useParticles } from '../hooks/useParticles';
+import { useLocale } from '../contexts/LocaleContext';
+import { useLocalizedNavigate } from '../hooks/useLocalizedNavigate';
 
 export default function LoginPage() {
   const { login, user } = useAuth();
-  const navigate = useNavigate();
+  const navigate = useLocalizedNavigate();
+  const { urlLocale } = useLocale();
   const { t } = useTranslation('auth');
   const { showToast } = useToast();
   const [searchParams] = useSearchParams();
@@ -159,7 +162,7 @@ export default function LoginPage() {
                       <div className="col-xl-12 mb-2">
                         <label htmlFor="login-password" className="form-label text-default d-flex justify-content-between align-items-center">
                           {t('form.password')}
-                          <Link to="/forgot-password" className="text-primary fs-13 fw-normal">{t('links.forgot_password')}</Link>
+                          <Link to={`/${urlLocale}/forgot-password`} className="text-primary fs-13 fw-normal">{t('links.forgot_password')}</Link>
                         </label>
                         <div className="position-relative">
                           <input
@@ -206,7 +209,7 @@ export default function LoginPage() {
                   {/* Signup link */}
                   <div className="text-center mt-3">
                     <span className="text-muted fs-14">{t('links.no_account')}</span>
-                    <Link to="/signup" className="text-primary fw-medium fs-14">
+                    <Link to={`/${urlLocale}/signup`} className="text-primary fw-medium fs-14">
                       {t('links.register')}
                     </Link>
                   </div>

@@ -523,7 +523,7 @@ export class ProjectsService {
     // Check if the invited email belongs to an existing platform user
     const existingUser = await this.prisma.user.findUnique({
       where: { email },
-      select: { id: true },
+      select: { id: true, locale: true },
     });
 
     const member = await this.prisma.projectMember.create({
@@ -551,7 +551,10 @@ export class ProjectsService {
       email: existingUser ? undefined : email,
       expiresInMs: INVITE_TOKEN_MS,
     });
-    const inviteUrl = `${this.emailService.appUrl}/create-account?token=${inviteToken}`;
+    // Locale do convidado (preferência) ou fallback pt-PT — coerência entre
+    // email e landing page após click no convite.
+    const recipientLocale = existingUser?.locale ?? 'pt-PT';
+    const inviteUrl = `${this.emailService.appUrl}/${recipientLocale.toLowerCase()}/create-account?token=${inviteToken}`;
 
     // Fallback "Sistema" para o inviter caso tenha sido removido (FK SetNull).
     const inviterName = member.invitedBy?.name ?? 'Sistema';

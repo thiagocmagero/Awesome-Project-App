@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
+import { useLocalizedNavigate } from '../hooks/useLocalizedNavigate';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
@@ -496,7 +497,7 @@ export function PermissionsModal({ projectId, projectName, onClose }: Permission
 
 export default function ProjectPermissionsPage() {
   const { id: projectId } = useParams<{ id: string }>();
-  const navigate = useNavigate();
+  const navigate = useLocalizedNavigate();
   const wsLink = useWorkspaceLink();
   const { t } = useTranslation('permissions');
   const { t: tc } = useTranslation('common');

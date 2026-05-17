@@ -3,9 +3,11 @@ import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { getApiBase, apiFetch } from '../lib/api';
 import { useParticles } from '../hooks/useParticles';
+import { useLocale } from '../contexts/LocaleContext';
 
 export default function ForgotPasswordPage() {
   const { t } = useTranslation('auth');
+  const { urlLocale } = useLocale();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
@@ -55,7 +57,7 @@ export default function ForgotPasswordPage() {
                     <div className="text-center">
                       <p className="h4 fw-semibold mb-2">{t('forgot_password.sent_title')}</p>
                       <p className="text-muted fs-14 mb-4">{t('forgot_password.sent_message')}</p>
-                      <Link to="/login" className="btn btn-primary">{t('forgot_password.back_login')}</Link>
+                      <Link to={`/${urlLocale}/login`} className="btn btn-primary">{t('forgot_password.back_login')}</Link>
                     </div>
                   ) : (
                     <>
@@ -88,7 +90,7 @@ export default function ForgotPasswordPage() {
                       </form>
 
                       <div className="text-center mt-3">
-                        <Link to="/login" className="text-primary fs-14">{t('forgot_password.back_login')}</Link>
+                        <Link to={`/${urlLocale}/login`} className="text-primary fs-14">{t('forgot_password.back_login')}</Link>
                       </div>
                     </>
                   )}

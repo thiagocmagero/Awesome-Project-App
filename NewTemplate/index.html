@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Awesome Project App</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style id="boot-css">html,body,#root{height:100%;margin:0;font-family:'Geist','Inter',system-ui,sans-serif}html{background:#f7f7f9;color:#1c1d24}html[data-theme="dark"]{background:#0f1117;color:#e5e6ea}</style>
+<script>
+  // Apply persisted theme + chrome before React mounts to prevent flash.
+  (function(){
+    try {
+      var t = localStorage.getItem('awp-theme') || 'light';
+      document.documentElement.setAttribute('data-theme', t);
+      var c = localStorage.getItem('awp-chrome');
+      if (c === 'super-light') document.documentElement.setAttribute('data-chrome', 'super-light');
+    } catch (e) {}
+  })();
+</script>
+</head>
+<body>
+<div id="root"></div>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="app-dark.jsx"></script>
+<script type="text/babel" src="views-home.jsx"></script>
+<script type="text/babel" src="views-project.jsx"></script>
+<script type="text/babel" src="views-task-modal.jsx"></script>
+<script type="text/babel" src="views-ws-settings.jsx"></script>
+<script type="text/babel" src="views-people.jsx"></script>
+<script type="text/babel" src="views-account.jsx"></script>
+<script type="text/babel" src="views-project-modal.jsx"></script>
+<script type="text/babel" src="views-board.jsx"></script>
+<script type="text/babel" src="views-shared.jsx"></script>
+<script type="text/babel" src="views-gantt.jsx"></script>
+<script type="text/babel" src="views-calendar.jsx"></script>
+<script type="text/babel" src="views-files.jsx"></script>
+<script type="text/babel" src="views-permissions.jsx"></script>
+<script type="text/babel">
+  // Inject component CSS once the app modules have loaded their tokens.
+  const styleEl = document.createElement('style');
+  styleEl.id = 'awp-css';
+  styleEl.textContent = window.awpCss + '\n' + (window.homeCss || '') + '\n' + (window.projectCss || '') + '\n' + (window.taskModalCss || '') + '\n' + (window.wsCss || '') + '\n' + (window.peopleCss || '') + '\n' + (window.accountCss || '') + '\n' + (window.npCss || '') + '\n' + (window.boardCss || '') + '\n' + (window.sharedCss || '') + '\n' + (window.ganttCss || '') + '\n' + (window.calendarCss || '') + '\n' + (window.filesCss || '') + '\n' + (window.permissionsCss || '');
+  document.head.appendChild(styleEl);
+  ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

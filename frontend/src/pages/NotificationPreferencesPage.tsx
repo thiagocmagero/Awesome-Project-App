@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useLocale } from '../contexts/LocaleContext';
 import { getApiBase, apiFetch } from '../lib/api';
 import { useToast } from '../contexts/ToastContext';
 import {
@@ -18,6 +19,7 @@ export default function NotificationPreferencesPage() {
   const { showToast } = useToast();
   const { t } = useTranslation('notifications');
   const { t: tc } = useTranslation('common');
+  const { urlLocale } = useLocale();
 
   const [prefs, setPrefs] = useState<NotificationPreference[]>([]);
   const [loading, setLoading] = useState(true);
@@ -104,7 +106,7 @@ export default function NotificationPreferencesPage() {
           <nav aria-label="breadcrumb">
             <ol className="breadcrumb mb-1 breadcrumb-style2">
               <li className="breadcrumb-item">
-                <NavLink to="/">{tc('nav.dashboard')}</NavLink>
+                <NavLink to={`/${urlLocale}/`}>{tc('nav.dashboard')}</NavLink>
               </li>
               <li className="breadcrumb-item active" aria-current="page">
                 {t('page.title')}

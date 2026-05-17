@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback, type CSSProperties } from 'react';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
+import { useLocalizedNavigate } from '../hooks/useLocalizedNavigate';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import { useWorkspaceLink } from '../hooks/useWorkspaceLink';
@@ -71,7 +72,7 @@ import {
 export default function PlanningPage() {
   const { id: projectId, taskId: deepLinkTaskId } = useParams<{ id: string; taskId?: string }>();
   const { token, user } = useAuth();
-  const navigate = useNavigate();
+  const navigate = useLocalizedNavigate();
   const wsLink = useWorkspaceLink();
   const api = getApiBase();
   const { showToast } = useToast();
