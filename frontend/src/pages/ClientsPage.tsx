@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, FormEvent, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { useIsPlatformAdmin } from '../hooks/useIsPlatformAdmin';
+import { useIsPlatformAdmin, isPlatformAdminProfileCode } from '../hooks/useIsPlatformAdmin';
 import { getApiBase, apiFetch } from '../lib/api';
 import { formatDate } from '../lib/dateFormatting';
 import { useToast } from '../contexts/ToastContext';
@@ -68,7 +68,7 @@ function StatusBadge({ status }: { status: string }) {
 
 function AccessLevelBadge({ profileCode }: { profileCode: string }) {
   const { t } = useTranslation('users');
-  const isAdmin = profileCode === 'PLATFORM_ADMIN';
+  const isAdmin = isPlatformAdminProfileCode(profileCode);
   return (
     <span className={`badge ${isAdmin ? 'bg-primary-transparent text-primary' : 'bg-secondary-transparent text-secondary'}`}>
       {isAdmin ? t('form.access_level_admin') : t('form.access_level_client')}
@@ -257,7 +257,7 @@ export default function ClientsPage() {
   // ── Modal open/close ─────────────────────────────────────────────────────
 
   function resolveAccessLevelProfileId(profileCode: string): string {
-    return profileCode === 'PLATFORM_ADMIN'
+    return isPlatformAdminProfileCode(profileCode)
       ? profileIdMap.adminPublicId
       : profileIdMap.clientPublicId;
   }
