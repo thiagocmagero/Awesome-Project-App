@@ -6,7 +6,7 @@ import { PasswordField } from '../components/PasswordField';
 import { apiPost } from '../lib/api';
 import { useLocale } from '../contexts/LocaleContext';
 
-export function RegisterPage() {
+export function SignUpPage() {
   const { t } = useTranslation('auth');
   const { t: tc } = useTranslation('common');
   const { urlLocale } = useLocale();

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { apiPost } from '../lib/api';
 import { useWorkspaces } from '../contexts/WorkspacesContext';
 import { useWorkspaceProjects } from '../contexts/ProjectsContext';
+import { useToast } from '../contexts/ToastContext';
 import { useWorkspaceUserTypes } from '../hooks/useWorkspaceUserTypes';
 import { avatarColorFor } from '../lib/avatars';
 import { T } from './tokens';
@@ -43,6 +44,7 @@ export function InvitePersonModal({ onClose, onInvited }: {
   const { activeWorkspace } = useWorkspaces();
   const projects = useWorkspaceProjects(activeWorkspace?.publicId ?? null);
   const { types: userTypes } = useWorkspaceUserTypes();
+  const { showToast } = useToast();
 
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
@@ -90,26 +92,36 @@ export function InvitePersonModal({ onClose, onInvited }: {
         payload.projects = projEntries.map(([projectPublicId, role]) => ({ projectPublicId, role }));
       }
       await apiPost('/workspace-members', payload);
+      const projCount = payload.projects?.length ?? 0;
+      showToast(
+        'success',
+        projCount > 0
+          ? tw('toast.invite_sent_with_projects', { email: payload.email, count: projCount })
+          : tw('toast.invite_sent', { email: payload.email }),
+      );
       onInvited?.();
       onClose();
     } catch (err) {
       const e = err as ApiError;
       const code = e.body?.error_code ?? e.message;
+      let msg: string;
       if (code === 'SEAT_LIMIT_REACHED') {
-        setError(tw('error.seat_limit', { used: e.body?.used ?? 0, total: e.body?.total ?? 0 }));
+        msg = tw('error.seat_limit', { used: e.body?.used ?? 0, total: e.body?.total ?? 0 });
       } else if (code === 'ALREADY_MEMBER') {
-        setError(tw('error.already_member'));
+        msg = tw('error.already_member');
       } else if (code === 'CANNOT_INVITE_SELF') {
-        setError(tw('error.cannot_invite_self'));
+        msg = tw('error.cannot_invite_self');
       } else if (code === 'USER_TYPE_NOT_FOUND') {
-        setError(tw('error.user_type_not_found'));
+        msg = tw('error.user_type_not_found');
       } else if (code === 'PROJECT_NOT_FOUND') {
-        setError(tw('error.project_not_found'));
+        msg = tw('error.project_not_found');
       } else if (e.status === 403) {
-        setError(tc('errors.forbidden'));
+        msg = tc('errors.forbidden');
       } else {
-        setError(e.message || tc('errors.generic'));
+        msg = e.message || tc('errors.generic');
       }
+      setError(msg);          // inline error preserva-se para acessibilidade
+      showToast('danger', msg);
       setSubmitting(false);
     }
   }

@@ -1,86 +1,108 @@
 import { useCallback, useEffect, useState } from 'react';
-import { apiGet } from '../lib/api';
+import { apiDelete, apiGet, apiPatch, apiPost } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
+
+export type UserTypeStatus = 'ACTIVE' | 'INACTIVE' | 'ARCHIVED';
 
 export interface WorkspaceUserType {
   publicId: string;
   code: string;
   label: string;
+  status: UserTypeStatus;
+  isSystem: boolean;
+  /** Soma de referências em User+WorkspaceMember+ProjectMember+TaskResource+TaskResourceNode. */
+  usageCount: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 interface ApiUserType {
   publicId: string;
   code: string;
   label: string;
-  status?: string;
+  status: UserTypeStatus;
+  isSystem: boolean;
+  usageCount: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
-let _cache: WorkspaceUserType[] | null = null;
-let _pending: Promise<WorkspaceUserType[]> | null = null;
+interface CreatePayload {
+  code: string;
+  label: string;
+  description?: string;
+}
 
-function fetchOnce(): Promise<WorkspaceUserType[]> {
-  if (_cache) return Promise.resolve(_cache);
-  if (_pending) return _pending;
-  _pending = apiGet<ApiUserType[]>('/user-types')
-    .then((items) => {
-      _cache = (items ?? []).map((t) => ({ publicId: t.publicId, code: t.code, label: t.label }));
-      return _cache;
-    })
-    .catch(() => {
-      _cache = [];
-      return _cache;
-    })
-    .finally(() => {
-      _pending = null;
-    });
-  return _pending;
+interface UpdatePayload {
+  label?: string;
+  description?: string;
+  status?: UserTypeStatus;
 }
 
 /**
- * Lista de UserTypes acessíveis ao utilizador autenticado.
+ * Lista de UserTypes acessíveis ao utilizador autenticado + CRUD.
  *
  * Endpoint `GET /api/v1/user-types`: o backend filtra por `ownerId` para
- * utilizadores não-admin (ver `user-types.service.ts`), pelo que devolve os
- * tipos do workspace do owner — exactamente o que o modal de convite precisa.
+ * BASIC_USER (devolve os do workspace), e tudo para PLATFORM_ADMIN.
  *
- * Cache em memória partilhada entre instâncias do hook (1 fetch por sessão).
+ * Mutações: `POST /user-types`, `PATCH /user-types/:id`, `DELETE /user-types/:id`
+ * (soft delete — backend devolve item com status `INACTIVE`).
  */
-export function useWorkspaceUserTypes(): {
-  types: WorkspaceUserType[];
-  loading: boolean;
-  refresh: () => Promise<void>;
-} {
+export function useWorkspaceUserTypes() {
   const { user, loading: authLoading } = useAuth();
-  const [types, setTypes] = useState<WorkspaceUserType[]>(_cache ?? []);
-  const [loading, setLoading] = useState(_cache === null);
+  const [types, setTypes] = useState<WorkspaceUserType[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (authLoading) return;
+  const refresh = useCallback(async () => {
     if (!user) {
       setTypes([]);
       setLoading(false);
       return;
     }
-    let cancelled = false;
-    fetchOnce()
-      .then((list) => {
-        if (!cancelled) setTypes(list);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [authLoading, user]);
+    setError(null);
+    try {
+      const list = await apiGet<ApiUserType[]>('/user-types');
+      setTypes(list);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }, [user]);
 
-  const refresh = useCallback(async () => {
-    _cache = null;
+  useEffect(() => {
+    if (authLoading) return;
     setLoading(true);
-    const list = await fetchOnce();
-    setTypes(list);
-    setLoading(false);
+    refresh();
+  }, [authLoading, refresh]);
+
+  const create = useCallback(async (payload: CreatePayload): Promise<WorkspaceUserType> => {
+    const created = await apiPost<ApiUserType>('/user-types', payload);
+    setTypes((prev) => [...prev, created].sort((a, b) => a.label.localeCompare(b.label)));
+    return created;
   }, []);
 
-  return { types, loading, refresh };
+  const update = useCallback(async (publicId: string, payload: UpdatePayload): Promise<WorkspaceUserType> => {
+    const updated = await apiPatch<ApiUserType>(`/user-types/${publicId}`, payload);
+    setTypes((prev) => prev.map((t) => (t.publicId === publicId ? updated : t)).sort((a, b) => a.label.localeCompare(b.label)));
+    return updated;
+  }, []);
+
+  const toggleActive = useCallback(async (t: WorkspaceUserType): Promise<WorkspaceUserType> => {
+    const nextStatus: UserTypeStatus = t.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+    return update(t.publicId, { status: nextStatus });
+  }, [update]);
+
+  const remove = useCallback(async (publicId: string): Promise<{ usageCount: number; reassignedTo: string | null }> => {
+    // Backend faz HARD delete (com reassignment automático para "Sem Tipo"
+    // quando há referências). Removemos sempre da lista local.
+    const result = await apiDelete<{ deleted: string; usageCount: number; reassignedTo: string | null }>(
+      `/user-types/${publicId}`,
+    );
+    setTypes((prev) => prev.filter((t) => t.publicId !== publicId));
+    return { usageCount: result.usageCount, reassignedTo: result.reassignedTo };
+  }, []);
+
+  return { types, loading, error, refresh, create, update, toggleActive, remove };
 }

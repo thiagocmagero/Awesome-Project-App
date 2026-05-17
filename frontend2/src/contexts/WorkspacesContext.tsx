@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { apiGet, apiPost } from '../lib/api';
+import { apiGet, apiPost, setActiveWorkspaceId } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 
 export type WorkspaceRole = 'OWNER' | 'BASIC' | 'LICENSED';
@@ -91,6 +91,12 @@ export function WorkspacesProvider({ children }: { children: ReactNode }) {
     }
     return workspaces[0];
   }, [workspaces, paramWsId, user?.workspacePublicId]);
+
+  // Propaga o workspace activo para o `apiFetch` (header `X-Workspace-Id`).
+  // Endpoints como `/holidays` resolvem o workspace via este header.
+  useEffect(() => {
+    setActiveWorkspaceId(activeWorkspace?.publicId ?? null);
+  }, [activeWorkspace?.publicId]);
 
   return (
     <WorkspacesContext.Provider value={{ workspaces, loading, activeWorkspace, refresh, create }}>

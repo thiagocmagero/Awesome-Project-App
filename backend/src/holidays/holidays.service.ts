@@ -14,6 +14,15 @@ import { LimitKey } from '../common/entitlements';
 interface HolCtx {
   userId: number;
   isAdmin: boolean;
+  /**
+   * Workspace activo do request — resolvido no controller via header
+   * `X-Workspace-Id` (com fallback para `WorkspacesService.getDefaultForUser`).
+   *
+   * PLATFORM_ADMIN tem este campo, mas o serviço ignora-o em `findAll`/`findOne`
+   * (admin vê tudo). Para mutações continua sempre a guardar `workspaceId` para
+   * que a `Holiday` criada por admin fique scoped.
+   */
+  workspaceId: number;
 }
 
 @Injectable()
@@ -36,10 +45,10 @@ export class HolidaysService {
 
   private async resolveHolidayWithOwnership(
     publicId: string,
-  ): Promise<{ id: number; ownerId: number | null }> {
+  ): Promise<{ id: number; ownerId: number | null; workspaceId: number | null }> {
     const h = await this.prisma.holiday.findUnique({
       where: { publicId },
-      select: { id: true, ownerId: true },
+      select: { id: true, ownerId: true, workspaceId: true },
     });
     if (!h) throw new AppException('HOLIDAY_NOT_FOUND', HttpStatus.NOT_FOUND);
     return h;
@@ -55,11 +64,16 @@ export class HolidaysService {
   }
 
   private assertMutate(
-    holiday: { ownerId: number | null },
+    holiday: { ownerId: number | null; workspaceId: number | null },
     ctx: HolCtx,
   ): void {
     if (ctx.isAdmin) return;
     if (holiday.ownerId !== ctx.userId) {
+      throw new AppException('FORBIDDEN', HttpStatus.FORBIDDEN);
+    }
+    // Defesa em profundidade: utilizador autenticado em workspace A não pode
+    // mutar holiday que pertence ao seu workspace B (mesmo sendo owner).
+    if (holiday.workspaceId !== null && holiday.workspaceId !== ctx.workspaceId) {
       throw new AppException('FORBIDDEN', HttpStatus.FORBIDDEN);
     }
   }
@@ -97,7 +111,17 @@ export class HolidaysService {
   // ── Holidays CRUD ─────────────────────────────────────────────────────────────
 
   async findAll(ctx: HolCtx) {
-    const where = ctx.isAdmin ? {} : { ownerId: ctx.userId };
+    // PLATFORM_ADMIN: vê tudo. Não-admin: scope ao workspace activo —
+    // `CUSTOM` deste utilizador no workspace, OU holidays `GLOBAL`/`REGIONAL`
+    // (platform-level, seed admin) que ficam visíveis a todos.
+    const where = ctx.isAdmin
+      ? {}
+      : {
+          OR: [
+            { scope: 'CUSTOM' as const, ownerId: ctx.userId, workspaceId: ctx.workspaceId },
+            { scope: { in: ['GLOBAL' as const, 'REGIONAL' as const] } },
+          ],
+        };
     const holidays = await this.prisma.holiday.findMany({
       where,
       orderBy: [{ name: 'asc' }],
@@ -116,9 +140,15 @@ export class HolidaysService {
     });
     if (!h) throw new AppException('HOLIDAY_NOT_FOUND', HttpStatus.NOT_FOUND);
 
-    // Verify access
-    if (!ctx.isAdmin && h.ownerId !== ctx.userId) {
-      throw new AppException('FORBIDDEN', HttpStatus.FORBIDDEN);
+    // Verify access — admin vê tudo; non-admin precisa ser owner E estar no
+    // workspace, OU ser holiday platform-level (GLOBAL/REGIONAL).
+    if (!ctx.isAdmin) {
+      const isPlatformLevel = h.scope === 'GLOBAL' || h.scope === 'REGIONAL';
+      const isOwnerInWorkspace =
+        h.ownerId === ctx.userId && h.workspaceId === ctx.workspaceId;
+      if (!isPlatformLevel && !isOwnerInWorkspace) {
+        throw new AppException('FORBIDDEN', HttpStatus.FORBIDDEN);
+      }
     }
 
     return this.serializeHolidayDetail(h);
@@ -130,6 +160,7 @@ export class HolidaysService {
         name: dto.name,
         description: dto.description,
         ownerId: ctx.userId,
+        workspaceId: ctx.workspaceId,
       },
       include: { _count: { select: { dates: true } } },
     });

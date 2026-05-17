@@ -43,7 +43,7 @@ export class WorkspaceMembersService {
       orderBy: [{ memberType: 'desc' }, { createdAt: 'asc' }],
       include: {
         user: { select: { publicId: true, name: true, email: true, avatarKey: true } },
-        userType: { select: { publicId: true, code: true, label: true } },
+        userType: { select: { publicId: true, code: true, label: true, isSystem: true } },
       },
     });
     // Count projects per member (real ProjectMember rows in owner's projects)
@@ -472,7 +472,7 @@ export class WorkspaceMembersService {
       where: { id },
       include: {
         user: { select: { publicId: true, name: true, email: true, avatarKey: true } },
-        userType: { select: { publicId: true, code: true, label: true } },
+        userType: { select: { publicId: true, code: true, label: true, isSystem: true } },
       },
     });
     return this.toPublic(row);
@@ -490,7 +490,7 @@ export class WorkspaceMembersService {
       createdAt: Date;
       updatedAt: Date;
       user: { publicId: string; name: string; email: string; avatarKey: string | null } | null;
-      userType?: { publicId: string; code: string; label: string } | null;
+      userType?: { publicId: string; code: string; label: string; isSystem: boolean } | null;
     },
     projectCount?: number,
   ) {
@@ -512,7 +512,9 @@ export class WorkspaceMembersService {
             avatarKey: row.user.avatarKey,
           }
         : null,
-      userType: row.userType
+      // System types (e.g., "Sem Tipo") são detalhes internos — escondidos
+      // do frontend. Membros com type system aparecem como "sem tipo" na UI.
+      userType: row.userType && !row.userType.isSystem
         ? { publicId: row.userType.publicId, code: row.userType.code, label: row.userType.label }
         : null,
       ...(typeof projectCount === 'number' ? { projectCount } : {}),

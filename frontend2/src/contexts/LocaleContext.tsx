@@ -1,8 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { apiFetch } from '../lib/api';
-import { getApiBase } from '../lib/env';
+import { apiFetch, getApiBase } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import {
   FALLBACK_ACTIVE_LOCALES,

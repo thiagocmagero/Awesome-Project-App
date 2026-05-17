@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { apiFetch } from '../lib/api';
-import { getApiBase } from '../lib/env';
+import { getApiBase } from '../lib/api';
+import { stripLocaleFromPath } from '../lib/locale';
 
 export interface AuthUser {
   publicId: string;
@@ -71,7 +72,7 @@ function readCsrfCookie(): string | null {
 }
 
 const PUBLIC_PATH_SEGMENTS = new Set([
-  'login', 'register', 'confirm-email', 'forgot-password',
+  'login', 'signup', 'confirm-email', 'forgot-password',
   'reset-password', 'create-account', 'resend-confirmation', 'error',
 ]);
 
@@ -86,8 +87,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Boot — valida cookie via /auth/me. SKIP em rotas públicas para evitar
   // o pitfall "tela branca pós-login" (ver memória project_auth_boot_pitfall).
+  //
+  // O `stripLocaleFromPath` é obrigatório porque toda a app vive sob
+  // `/{locale}/...` — sem strip, `segments[0]` seria `pt-pt` em vez de
+  // `create-account`, e o check falhava em todas as páginas públicas
+  // (loop entre `/login` e `/pt-pt/login` ao clicar no link do email
+  // de convite, Mai 2026).
   useEffect(() => {
-    const segments = window.location.pathname.split('/').filter(Boolean);
+    const stripped = stripLocaleFromPath(window.location.pathname);
+    const segments = stripped.split('/').filter(Boolean);
     const isPublic = segments[0] !== undefined && PUBLIC_PATH_SEGMENTS.has(segments[0]);
     if (isPublic) {
       setLoading(false);

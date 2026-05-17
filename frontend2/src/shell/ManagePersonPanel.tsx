@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useToast } from '../contexts/ToastContext';
 import { useWorkspaceUserTypes } from '../hooks/useWorkspaceUserTypes';
 import { useMemberProjects, type ProjectRole } from '../hooks/useMemberProjects';
 import type { AccessLevel, WorkspaceMember } from '../hooks/useWorkspaceMembers';
@@ -25,6 +26,7 @@ interface Props {
 export function ManagePersonPanel({ member, onClose, onUpdate, onRemove, onAfterProjectsSave }: Props) {
   const { t: tw } = useTranslation('workspace_members');
   const { t: tc } = useTranslation('common');
+  const { showToast } = useToast();
   const { types: userTypes } = useWorkspaceUserTypes();
   const { projects, save: saveProjects } = useMemberProjects(member.publicId);
 
@@ -109,22 +111,28 @@ export function ManagePersonPanel({ member, onClose, onUpdate, onRemove, onAfter
         const assignments = Object.entries(projectSel).map(([projectPublicId, role]) => ({ projectPublicId, role }));
         await saveProjects(assignments);
         await onAfterProjectsSave?.();
+        showToast('success', tw('toast.projects_saved'));
+      } else if (memberChanged) {
+        showToast('success', tw('toast.member_updated'));
       }
       onClose();
     } catch (err) {
       const e = err as { status?: number; body?: { error_code?: string; used?: number; total?: number }; message?: string };
       const code = e.body?.error_code ?? e.message;
+      let msg: string;
       if (code === 'SEAT_LIMIT_REACHED') {
-        setError(tw('error.seat_limit', { used: e.body?.used ?? 0, total: e.body?.total ?? 0 }));
+        msg = tw('error.seat_limit', { used: e.body?.used ?? 0, total: e.body?.total ?? 0 });
       } else if (code === 'USER_TYPE_NOT_FOUND') {
-        setError(tw('error.user_type_not_found'));
+        msg = tw('error.user_type_not_found');
       } else if (code === 'MEMBER_NOT_REGISTERED') {
-        setError(tw('info.projects_pending_accept'));
+        msg = tw('info.projects_pending_accept');
       } else if (e.status === 403) {
-        setError(tc('errors.forbidden'));
+        msg = tc('errors.forbidden');
       } else {
-        setError(e.message || tc('errors.generic'));
+        msg = e.message || tc('errors.generic');
       }
+      setError(msg);
+      showToast('danger', msg);
       setSaving(false);
     }
   }
@@ -135,8 +143,11 @@ export function ManagePersonPanel({ member, onClose, onUpdate, onRemove, onAfter
     setSaving(true);
     try {
       await onRemove(member.publicId);
+      showToast('success', tw('toast.member_removed', { name: displayName }));
     } catch (err) {
-      setError((err as Error).message || tc('errors.generic'));
+      const msg = (err as Error).message || tc('errors.generic');
+      setError(msg);
+      showToast('danger', msg);
       setSaving(false);
     }
   }

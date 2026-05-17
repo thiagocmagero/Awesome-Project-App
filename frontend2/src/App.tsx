@@ -1,10 +1,12 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppShell } from './shell/AppShell';
-import { Placeholder } from './views/Placeholder';
-import { WorkspacePeoplePage } from './pages/WorkspacePeoplePage';
+import { Placeholder } from './components/Placeholder';
+import { WorkspaceUsersPage } from './pages/WorkspaceUsersPage';
+import { UserTypesPage } from './pages/UserTypesPage';
+import { CalendarsPage } from './pages/CalendarsPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { LoginPage } from './pages/LoginPage';
-import { RegisterPage } from './pages/RegisterPage';
+import { SignUpPage } from './pages/SignUpPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { ConfirmEmailPage } from './pages/ConfirmEmailPage';
@@ -26,7 +28,7 @@ export default function App() {
       <Route path="/:locale" element={<LocaleGuard />}>
         {/* Public auth pages */}
         <Route path="login"                element={<LoginPage />} />
-        <Route path="register"             element={<RegisterPage />} />
+        <Route path="signup"               element={<SignUpPage />} />
         <Route path="forgot-password"      element={<ForgotPasswordPage />} />
         <Route path="reset-password"       element={<ResetPasswordPage />} />
         <Route path="confirm-email"        element={<ConfirmEmailPage />} />
@@ -47,9 +49,9 @@ export default function App() {
           <Route path="account" element={<Placeholder titleKey="nav.account_settings" />} />
 
           <Route path=":workspaceId/dashboard"  element={<Placeholder titleKey="nav.workspace_overview" />} />
-          <Route path=":workspaceId/users"      element={<WorkspacePeoplePage />} />
-          <Route path=":workspaceId/user-types" element={<Placeholder titleKey="nav.member_types" />} />
-          <Route path=":workspaceId/holidays"   element={<Placeholder titleKey="nav.calendars" />} />
+          <Route path=":workspaceId/users"      element={<WorkspaceUsersPage />} />
+          <Route path=":workspaceId/user-types" element={<UserTypesPage />} />
+          <Route path=":workspaceId/calendars"  element={<CalendarsPage />} />
           <Route path=":workspaceId/teams"      element={<Placeholder titleKey="nav.teams" />} />
           <Route path=":workspaceId/projects"   element={<Placeholder titleKey="nav.projects" />} />
 

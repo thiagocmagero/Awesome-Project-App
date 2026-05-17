@@ -11,14 +11,19 @@
  * Port adaptado de frontend/src/lib/api.ts.
  */
 
-import { getApiBase } from './env';
+import { looksLikeLocale, stripLocaleFromPath } from './locale';
+
+/** API base path — todas as rotas vivem sob /api/v1 (alinhado com backend). */
+export function getApiBase(): string {
+  return '/api/v1';
+}
 
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 const AUTH_SKIP_REFRESH_PATHS = ['/auth/login', '/auth/register', '/auth/refresh', '/auth/create-account-from-invite'];
 
 const PUBLIC_PATHS = [
   '/login',
-  '/register',
+  '/signup',
   '/confirm-email',
   '/forgot-password',
   '/reset-password',
@@ -30,6 +35,20 @@ const PUBLIC_PATHS = [
 function readCsrfCookie(): string | null {
   const match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/);
   return match ? decodeURIComponent(match[1]) : null;
+}
+
+/**
+ * Workspace activo do request — usado para injectar `X-Workspace-Id` em todas
+ * as chamadas HTTP. Mantido como módulo-level porque `apiFetch` não tem acesso
+ * a React state. O `WorkspacesProvider` chama `setActiveWorkspaceId(publicId)`
+ * cada vez que o `activeWorkspace` muda.
+ *
+ * Backend (V2) resolve `workspaceId` via este header e, sem ele, cai no
+ * workspace default do user.
+ */
+let activeWorkspacePublicId: string | null = null;
+export function setActiveWorkspaceId(publicId: string | null): void {
+  activeWorkspacePublicId = publicId;
 }
 
 function urlOf(input: RequestInfo | URL): string {
@@ -56,6 +75,10 @@ function buildRequestInit(init: RequestInit): RequestInit {
 
   if (init.body && typeof init.body === 'string' && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
+  }
+
+  if (activeWorkspacePublicId && !headers.has('X-Workspace-Id')) {
+    headers.set('X-Workspace-Id', activeWorkspacePublicId);
   }
 
   return { ...init, headers, credentials: 'include' };
@@ -94,10 +117,20 @@ function redirectToLogin(): boolean {
   } catch {
     /* ignore */
   }
+  // Path tem prefixo `/{locale}/...` — stripa antes de comparar com
+  // PUBLIC_PATHS (que são `/login`, `/create-account`, ...). Sem strip,
+  // `/pt-pt/login` não match-ava `/login` e o redirect disparava em loop
+  // entre `/pt-pt/login` ↔ `/login` (bug Mai 2026 no fluxo do email de
+  // convite).
   const path = window.location.pathname;
-  const isPublic = PUBLIC_PATHS.some((p) => path.startsWith(p));
+  const stripped = stripLocaleFromPath(path);
+  const isPublic = PUBLIC_PATHS.some((p) => stripped.startsWith(p));
   if (!isPublic) {
-    window.location.href = '/login';
+    // Preserva o segmento de locale se existir, para evitar a hop extra
+    // pelo `RedirectWithLocale`.
+    const firstSegment = path.split('/').filter(Boolean)[0];
+    const localePrefix = looksLikeLocale(firstSegment) ? `/${firstSegment}` : '';
+    window.location.href = `${localePrefix}/login`;
     return true;
   }
   return false;

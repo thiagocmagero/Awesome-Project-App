@@ -70,7 +70,7 @@ export function LoginPage() {
   return (
     <AuthLayout pageTitle={t('actions.login')}>
       <h1 className="auth-title">{t('page.welcome_back')}</h1>
-      <p className="auth-sub">{t('links.no_account')} <Link to={`/${urlLocale}/register`}>{t('actions.signup')}</Link></p>
+      <p className="auth-sub">{t('links.no_account')} <Link to={`/${urlLocale}/signup`}>{t('actions.signup')}</Link></p>
 
       {confirmedBanner && (
         <div style={{

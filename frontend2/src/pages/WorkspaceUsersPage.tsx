@@ -20,7 +20,7 @@ type TabKey = 'all' | 'licensed' | 'basic' | 'pending';
  * Mantém classes `pp-*` para preservar layout idêntico ao mockup.
  * Dados reais vêm de `useWorkspaceMembers` (backend `/workspace-members`).
  */
-export function WorkspacePeoplePage() {
+export function WorkspaceUsersPage() {
   const { t: tw } = useTranslation('workspace_members');
   const { activeWorkspace } = useWorkspaces();
   const projects = useWorkspaceProjects(activeWorkspace?.publicId ?? null);

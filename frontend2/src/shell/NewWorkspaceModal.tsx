@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useToast } from '../contexts/ToastContext';
 import { T } from './tokens';
 
 /** Port de NewTemplate/app-dark.jsx:1796-1854.
@@ -10,6 +11,7 @@ export function NewWorkspaceModal({ onClose, onCreate }: {
   onCreate: (name: string) => Promise<void>;
 }) {
   const { t: tc } = useTranslation('common');
+  const { showToast } = useToast();
   const [name, setName] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -25,15 +27,20 @@ export function NewWorkspaceModal({ onClose, onCreate }: {
     if (!valid) return;
     setError(null);
     setSubmitting(true);
+    const trimmed = name.trim();
     try {
-      await onCreate(name.trim());
+      await onCreate(trimmed);
+      showToast('success', tc('workspaces.toast.created', { name: trimmed }));
       // caller fecha o modal e navega — não tocamos no setSubmitting depois disso.
     } catch (err) {
       const status = (err as { status?: number }).status;
       const msg = (err as Error).message;
-      if (status === 403) setError(tc('errors.forbidden'));
-      else if (msg === 'WORKSPACE_NAME_TOO_LONG') setError(tc('workspaces.errors.name_too_long'));
-      else setError(msg || tc('errors.generic'));
+      let txt: string;
+      if (status === 403) txt = tc('errors.forbidden');
+      else if (msg === 'WORKSPACE_NAME_TOO_LONG') txt = tc('workspaces.errors.name_too_long');
+      else txt = msg || tc('errors.generic');
+      setError(txt);
+      showToast('danger', txt);
       setSubmitting(false);
     }
   };

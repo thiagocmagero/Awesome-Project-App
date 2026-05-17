@@ -231,6 +231,11 @@ model UserType {
   label       String
   description String?
   status      Status   @default(ACTIVE)
+  /// Tipo de sistema (ex.: "Sem Tipo"). Não pode ser editado nem eliminado pelo
+  /// utilizador, não aparece em listas/dropdowns, e é o destino default quando
+  /// um membro perde o seu tipo via DELETE de outro UserType.
+  /// Auto-criado lazy quando preciso (1× por workspace, code: 'NO_TYPE').
+  isSystem    Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

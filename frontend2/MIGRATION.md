@@ -5,6 +5,8 @@
 > versionado-localmente junto ao código (`*.md` é gitignored excepto `README.md` — fica
 > só local como contexto de trabalho).
 
+> A estrutura de pastas de frontend2 deve ser fiel a frontend. Qualquer diferença deve ser questionada.
+
 ## Contexto
 
 `frontend2/` é hoje um scaffold Vite+React+TS quase vazio (só um placeholder em `App.tsx`).
@@ -65,7 +67,7 @@ para serem partidos quando a respectiva sub-fase de Fase 2 entrar em desenvolvim
 - [x] **0.7** `shell/TopBar.tsx` + dropdowns separados (`Popover.tsx`, `NotificationPanel.tsx`, `UserMenu.tsx`, `CreateMenu.tsx`, `LanguageMenu.tsx`, `NewWorkspaceModal.tsx`)
 - [x] **0.8** `shell/Sidebar.tsx` + nested `MenuTree`/`MenuNode` + UserCard
 - [x] **0.9** `shell/useCollapsedSidebar.ts` — media query `<1024px` auto-collapse + drawer + backdrop
-- [ ] **0.10** `views/` — port 1:1 dos 13 `views-*.jsx`. **Diferido (ver 0.10b).** Em Fase 0 só entregue `views/Placeholder.tsx` — cada rota mostra placeholder que identifica a sub-fase em que será portada.
+- [ ] **0.10** ~~`views/`~~ — port 1:1 dos 13 `views-*.jsx`. **Diferido (ver 0.10b).** *(Mai 2026: pasta `views/` eliminada — `Placeholder.tsx` movido para `components/Placeholder.tsx`. Os ports dos `views-*.jsx` do NewTemplate vão directamente para `pages/` ou `features/` conforme alinhamento com `frontend/`.)*
 - [x] **0.11** `App.tsx` (rotas aninhadas) + `main.tsx` (providers `BrowserRouter`, `ThemeProvider` + injecção única do `shellCss`)
 - [x] **0.12** `lib/env.ts` — `getApiBase()` → `'/api/v1'`
 - [x] **0.13** Cópia do plano para `frontend2/MIGRATION.md`
@@ -84,31 +86,49 @@ src/
 ├── styles/                                 # tokens.css + reset.css + globals.css
 ├── theme/                                  # ThemeContext.tsx + useTheme.ts
 ├── shell/                                  # AppShell.tsx + TopBar/ + Sidebar/ + useCollapsedSidebar.ts
-├── views/                                  # 13 ports 1:1 + modals/
-└── lib/                                    # env.ts
+└── lib/                                    # env.ts (mergeado em api.ts em Mai 2026)
+
+# Nota Mai 2026: a pasta `views/` originalmente planeada foi eliminada.
+# Páginas reais vivem em `pages/` (alinhamento com `frontend/`). O único
+# componente que lá ficou (`Placeholder.tsx`) foi movido para `components/`.
 ```
 
-### Tabela de rotas (item 0.11)
+### Tabela de rotas — **estado real (Mai 2026)**
+
+> Originalmente o plano usava prefixos `/w/` e `/p/` (estilo Asana). O código
+> real alinhou-se com `frontend/` (sem prefixos), conforme memory
+> `feedback_url_paths_match_legacy`. Toda rota está sob `/:locale/` desde 2.0.2.
 
 ```
-/                                            → /home
-/home                                        → views/home
-/w/:workspaceId                              → views/home (modo workspace)
-/w/:workspaceId/people                       → views/people
-/w/:workspaceId/types                        → placeholder
-/w/:workspaceId/holidays                     → placeholder
-/w/:workspaceId/settings                     → views/ws-settings
-/w/:workspaceId/p/:projectId                 → /overview
-/w/:workspaceId/p/:projectId/overview        → views/project
-/w/:workspaceId/p/:projectId/board           → views/board
-/w/:workspaceId/p/:projectId/gantt           → views/gantt
-/w/:workspaceId/p/:projectId/calendar        → views/calendar
-/w/:workspaceId/p/:projectId/files           → views/files
-/w/:workspaceId/p/:projectId/permissions     → views/permissions
-/w/:workspaceId/p/:projectId/shared          → views/shared
-/account                                     → views/account
-/login, /register, /forgot-password          → fora do AppShell (Fase 1)
+/                                                      → redirect /:locale/home
+/:locale/login                                         → LoginPage (Fase 1 ✓)
+/:locale/signup                                        → SignUpPage (Fase 1 ✓ — path /register foi renomeado para /signup em Mai 2026 para alinhar com frontend/)
+/:locale/forgot-password                               → ForgotPasswordPage (Fase 1 ✓)
+/:locale/reset-password                                → ResetPasswordPage (Fase 1 ✓)
+/:locale/confirm-email                                 → ConfirmEmailPage (Fase 1 ✓)
+/:locale/resend-confirmation                           → ResendConfirmationPage (Fase 1 ✓)
+/:locale/create-account                                → CreateAccountFromInvitePage (Fase 1 ✓)
+/:locale/error/token-expired                           → TokenExpiredPage (Fase 1 ✓)
+/:locale/error/token-used                              → TokenUsedPage (Fase 1 ✓)
+/:locale/home                                          → <Placeholder> (pessoal cross-workspace — NewTemplate concept)
+/:locale/account                                       → <Placeholder> (top-level user account — NewTemplate concept; Fase 2.4)
+/:locale/:workspaceId/dashboard                        → <Placeholder> (Fase 2.7.1)
+/:locale/:workspaceId/users                            → WorkspaceUsersPage (Fase 2.2 — entregue, parcial — modais ainda em shell/)
+/:locale/:workspaceId/user-types                       → UserTypesPage (Fase 2.3 — entregue)
+/:locale/:workspaceId/calendars                        → CalendarsPage (Fase 2.6 — em curso; rota é `calendars`, não `/holidays` como o plano original previa)
+/:locale/:workspaceId/teams                            → <Placeholder>
+/:locale/:workspaceId/projects                         → <Placeholder>
+/:locale/:workspaceId/projects/:projectId/planning     → <Placeholder> (Fase 2.7.1)
+/:locale/:workspaceId/projects/:projectId/permissions  → <Placeholder> (Fase 2.7.3)
 ```
+
+> **Decisões registadas (Mai 2026)**:
+> - `/home` e `/account` top-level **mantêm-se** — NewTemplate é fonte de verdade.
+> - `/signup` (não `/register`) — alinha com `frontend/SignUpPage`.
+> - `:workspaceId/users` (não `/people`) — alinha com `frontend/WorkspaceUsersPage`.
+> - `:workspaceId/user-types` (não `/types`) — alinha com `frontend/`.
+> - `:workspaceId/calendars` vs `frontend/` `/holidays`: divergência pendente
+>   (a confirmar antes de portar feature completa).
 
 ### Verificação Fase 0 (item 0.14)
 
@@ -167,13 +187,13 @@ cada sub-fase, confirmar com o utilizador o âmbito e qualquer pergunta de backe
   - `contexts/` — AuthContext, ThemeContext, LocaleContext, WorkspacesContext, ProjectsContext (era `auth/` + `theme/` + `workspaces/` + `projects/`).
   - `pages/` — Login, Register, Forgot, Reset, Confirm, Resend, CreateAccount (era `auth/`).
   - `styles/auth.css` (era `auth/auth.css`).
-  - Mantidos: `shell/`, `views/`, `errors/`, `lib/`, `hooks/`, `i18n/`, `styles/` (excepções legítimas: `shell/` é especifico do NewTemplate, `views/` são placeholders temporários).
+  - Mantidos: `shell/`, `views/`, `errors/`, `lib/`, `hooks/`, `i18n/`, `styles/` (excepções legítimas: `shell/` é especifico do NewTemplate, `views/` são placeholders temporários). *(Mai 2026: `views/` eliminada — `Placeholder.tsx` movido para `components/`.)*
   - ~15 ficheiros tiveram imports actualizados (batch via `sed`). Regra 4 da migração reforçada para incluir topologia de pastas.
-- [ ] **2.0.3** Hook `useFeatureFlag` (resolução context-aware via Subscription/seats; PLATFORM_ADMIN bypassa internamente)
-- [ ] **2.0.4** Hook `useIsPlatformAdmin`
+- [x] **2.0.3** Hook `useFeatureFlag` (resolução context-aware via Subscription/seats; PLATFORM_ADMIN bypassa internamente) — [`frontend2/src/hooks/useFeatureFlag.ts`](src/hooks/useFeatureFlag.ts)
+- [x] **2.0.4** Hook `useIsPlatformAdmin` — [`frontend2/src/hooks/useIsPlatformAdmin.ts`](src/hooks/useIsPlatformAdmin.ts) (port literal de `frontend/`)
 - [ ] **2.0.5** Hook `useProjectPermissions().canDo(...)` (cache por sessão)
 - [ ] **2.0.6** `WebSocketProvider` (`/api/socket.io`, namespace `/notifications`, API `on(event, handler)` genérica)
-- [ ] **2.0.7** `ToastContext` (`react-hot-toast`, top-right, 4000ms; `showToast(variant, msg)`)
+- [x] **2.0.7** `ToastContext` (`react-hot-toast`, top-center, 4000ms; `showToast(variant, msg)`) — [`frontend2/src/contexts/ToastContext.tsx`](src/contexts/ToastContext.tsx) (port literal de `frontend/`)
 - [ ] **2.0.8** Formalizar toggle super-light em `views/account` ligado ao `useTheme`
 
 ### Sub-fase 2.1 — Workspaces
@@ -182,7 +202,7 @@ cada sub-fase, confirmar com o utilizador o âmbito e qualquer pergunta de backe
 - [x] **2.1.2** Backend V2 — migração `20260517100000_workspaces_v2_drop_owner_unique` (drop index `Workspace_ownerId_key`); 11 call-sites refactorados de `workspace.findUnique({where:{ownerId}})` para `findFirst(...orderBy:{createdAt:'asc'})` preservando semântica V1 ("default" = mais antigo).
 - [x] **2.1.3** Backend endpoints: `GET /api/v1/workspaces` (lista owned + WorkspaceMember(ACCEPTED) com `role`), `POST /api/v1/workspaces { name }` (cria + Subscription default em transacção, audit `WORKSPACE_CREATED`).
 - [x] **2.1.4** Backend env: `APP_URL=http://localhost:5174` (emails de auth passam a apontar para frontend2) + `FRONTEND_ORIGIN=http://localhost:5173,http://localhost:5174` (CORS aceita ambos durante a transição). Container backend recriado para apanhar.
-- [x] **2.1.5** Frontend2 `LocaleStripper` em `src/routing/LocaleStripper.tsx` — strip síncrono de prefixo BCP47 do URL (`/pt-pt/reset-password?token=...` → `/reset-password?token=...`); resolve o problema de links de email do backend que vêm com prefixo locale.
+- [x] **2.1.5** *(integrado em 2.0.2 — histórico)* Frontend2 implementou inicialmente `LocaleStripper` em `src/routing/LocaleStripper.tsx` para strip síncrono de prefixo BCP47 do URL. A funcionalidade foi absorvida pelo `LocaleGuard` em 2.0.2 (routing locale-prefixed). `LocaleStripper.tsx` e a pasta `src/routing/` foram removidos em 2.0.2c. Validado Mai 2026: nem `src/routing/` nem `LocaleStripper*` existem no código.
 - [x] **2.1.6** Frontend2 `WorkspacesProvider` + `useWorkspaces()` em `src/workspaces/WorkspacesContext.tsx`: fetch `/workspaces` ao montar; expõe `{ workspaces, loading, activeWorkspace, refresh, create }`; `activeWorkspace` resolve por URL `:workspaceId` → `user.workspacePublicId` → primeiro.
 - [x] **2.1.7** Sidebar (UserCard topo + secção de workspace) e UserMenu (lista "Conta") deixam de usar `mockData.workspaces`; consomem `useWorkspaces()`. Glyph = `initialsOf(ws.name)`; cor = `avatarColorFor(ws.publicId)`. Role label PT via `workspaceRoleLabel(role)`.
 - [x] **2.1.8** `NewWorkspaceModal` async + tratamento de erro inline; `AppShell` injecta `onCreate` que chama `create(name)` e navega para `/w/{novoPublicId}`. Botão "+ Novo workspace" no UserMenu e no CreateMenu funcionais.
@@ -191,23 +211,34 @@ cada sub-fase, confirmar com o utilizador o âmbito e qualquer pergunta de backe
 
 ### Sub-fase 2.2 — Pessoas (People) + Convites
 
-- [ ] **2.2.1** Componentizar `views/people`
-- [ ] **2.2.2** Lista de membros: `GET /workspaces/:id/members` + `/projects/:id/members`
-- [ ] **2.2.3** Modal de convite (`setInviteOpen` no mockup) — `POST /projects/:id/members`
-- [ ] **2.2.4** Aceitar/recusar: `POST /invitations/:id/accept|decline`
-- [ ] **2.2.5** Reenviar: `POST /invitations/:id/resend`
-- [ ] **2.2.6** SweetAlert de convites pendentes no boot (replicar `usePendingInvitations` do frontend actual)
-- [ ] **2.2.7** i18n + permissões + verificação
+> **Estado real (validação Mai 2026)**: a página foi entregue como
+> `WorkspaceUsersPage.tsx` (rota `:workspaceId/users`, alinhada com
+> `frontend/`). Modais `InvitePersonModal.tsx` (406 linhas) e
+> `ManagePersonPanel.tsx` (345 linhas) vivem em `shell/` — pendente mover
+> para `features/workspace-members/components/` (recomendação #9 do
+> relatório de divergências de estrutura).
+
+- [~] **2.2.1** Componentizar `views/people` — entregue como `pages/WorkspaceUsersPage.tsx`; modais ainda em `shell/`
+- [x] **2.2.2** Lista de membros (`useWorkspaceMembers`)
+- [x] **2.2.3** Modal de convite (`InvitePersonModal.tsx` em `shell/`)
+- [~] **2.2.4** Aceitar/recusar: confirmar wire dos endpoints `POST /invitations/:id/accept|decline`
+- [~] **2.2.5** Reenviar: confirmar wire `POST /invitations/:id/resend`
+- [x] **2.2.6** SweetAlert de convites pendentes no boot — [`frontend2/src/hooks/usePendingInvitations.ts`](src/hooks/usePendingInvitations.ts) (port literal de `frontend/`)
+- [~] **2.2.7** i18n aplicado; permissões e verificação ponta-a-ponta pendentes
 
 ### Sub-fase 2.3 — Tipos de Membros (Member Types)
 
 > Antigo "Tipos de Usuário". Renomeação **só de UI** (label i18n muda); modelo backend
 > mantém-se `UserType` para não tocar no schema.
+>
+> **Estado real (validação Mai 2026)**: página `UserTypesPage.tsx` (264
+> linhas, CRUD funcional) e `TipoModal.tsx` shell entregues. Rota
+> `:workspaceId/user-types` alinhada com `frontend/`.
 
-- [ ] **2.3.1** Página/secção (provavelmente em ws-settings ou rota dedicada)
-- [ ] **2.3.2** CRUD ligado a `/api/v1/user-types`
-- [ ] **2.3.3** Labels i18n "Tipos de Membros" nos 4 locales
-- [ ] **2.3.4** Verificação
+- [x] **2.3.1** Página/secção — [`frontend2/src/pages/UserTypesPage.tsx`](src/pages/UserTypesPage.tsx) (rota `:workspaceId/user-types`)
+- [~] **2.3.2** CRUD ligado a `/api/v1/user-types` — implementado via [`useWorkspaceUserTypes`](src/hooks/useWorkspaceUserTypes.ts); verificar cobertura de todos os endpoints
+- [~] **2.3.3** Labels i18n "Tipos de Membros" — `nav.member_types` seeded; confirmar restantes chaves da página
+- [ ] **2.3.4** Verificação ponta-a-ponta (criar/editar/eliminar UserType + verificar usage em People)
 
 ### Sub-fase 2.4 — Configurações de Conta
 
@@ -231,7 +262,12 @@ cada sub-fase, confirmar com o utilizador o âmbito e qualquer pergunta de backe
 
 ### Sub-fase 2.6 — Calendários (Holidays)
 
-- [ ] **2.6.1** Página `/w/:wsId/holidays` (rota era placeholder em Fase 0)
+> **Estado real (validação Mai 2026)**: `CalendarsPage.tsx` criada com rota
+> `:workspaceId/calendars`. Divergência vs `frontend/` que usa `/holidays` —
+> decidir antes de portar a feature completa se a rota canónica passa a ser
+> `calendars` (em ambos os frontends) ou volta a `holidays`.
+
+- [~] **2.6.1** Página em rota dedicada — [`frontend2/src/pages/CalendarsPage.tsx`](src/pages/CalendarsPage.tsx) (rota `:workspaceId/calendars`)
 - [ ] **2.6.2** Feature flag `multi_holiday` via `useFeatureFlag`
 - [ ] **2.6.3** CRUD `Holiday` + `HolidayDate`
 - [ ] **2.6.4** Linkagem `ProjectHoliday` (cada projecto pode ligar calendários)
@@ -257,6 +293,14 @@ modelos/tipos espelhados do backend → fetch + mutações → permissões granu
 feature flag → i18n → frame visual unificado → verificação ponta-a-ponta.
 
 #### 2.8.1 — Lista (Planeamento)
+
+> ⚠ **Gate de decisão antes de iniciar**: Zynix (`btn-primary-tb`,
+> `card.custom-card`, FlatPickr/Choices.js carregados via `AppLayout` do
+> frontend antigo) vs shell-CSS de `frontend2/`. As páginas internas
+> (Planning/Gantt/Board/Calendar/Timesheet/Files) **dependem** de muitos
+> primitivos Zynix no `frontend/` actual. Decidir se: (a) abandonam Zynix
+> e adoptam só shell-CSS, ou (b) shell-CSS coexiste com Zynix nas páginas
+> internas. Recomendação #8 do relatório de divergências (Mai 2026).
 
 - [ ] **2.8.1.1** Componentizar `views/project` na parte de lista (overview já em 2.7) ou view dedicada se o mockup tiver
 - [ ] **2.8.1.2** Modelos `ITaskState`, `ITaskSwimlane` (espelho de `features/planning/states-types.ts`)
@@ -307,6 +351,14 @@ feature flag → i18n → frame visual unificado → verificação ponta-a-ponta
 
 #### 2.8.5 — Timesheet
 
+> ⚠ **Gate de decisão antes de iniciar**: `ConfirmDialog` (React, já em
+> `shell/ConfirmDialog.tsx`) vs `confirmAction()` (SweetAlert,
+> `frontend/src/lib/confirm.ts`). A regra obrigatória em CLAUDE.md
+> ("Toda acção do Timesheet passa por `confirmAction()`") foi escrita
+> para o legacy. Decidir se o Timesheet em `frontend2` mantém SweetAlert
+> ou usa o `ConfirmDialog` nativo. Recomendação #7 do relatório de
+> divergências (Mai 2026).
+
 - [ ] **2.8.5.1** Componentizar a tab `timesheet` no projecto (em `views/project` ou view dedicada conforme mockup)
 - [ ] **2.8.5.2** Feature flag `timesheet_view`
 - [ ] **2.8.5.3** Grelha tasks×dias + célula com edição inline (POST vs PATCH discriminado por entry existir)
@@ -336,15 +388,57 @@ feature flag → i18n → frame visual unificado → verificação ponta-a-ponta
 
 ---
 
-## Para aplicar estas alterações (Fase 0)
+## Recomendações aceites — relatório de divergências de estrutura (Mai 2026)
 
-**Frontend2** (container `awesome-project-app-frontend2`):
+Resultado da auditoria comparativa `frontend/` vs `frontend2/` em Maio 2026.
+Utilizador aceitou as 10 recomendações; mapeamento ao estado nas fases:
+
+| # | Recomendação | Estado |
+|---|---|---|
+| 1 | `RegisterPage` → `SignUpPage` (path `/register` → `/signup`) | ✅ Aplicada (Mai 2026) |
+| 2 | `WorkspacePeoplePage.tsx` → `WorkspaceUsersPage.tsx` (path `users` já estava OK) | ✅ Aplicada (Mai 2026) |
+| 3 | `CreateAccountFromInvitePage` — manter nome actual | ✅ Decidido pelo utilizador (mantém) |
+| 4 | `/home` e `/account` top-level — manter (NewTemplate é fonte de verdade) | ✅ Decidido pelo utilizador (mantém) |
+| 5 | Reverter `lib/env.ts` para dentro de `lib/api.ts` | ✅ Aplicada (Mai 2026) |
+| 6 | Backportar `PUBLIC_PATHS` de `frontend2/lib/api.ts` para `frontend/lib/api.ts` | 🔁 Diferida (pós-Fase-2) |
+| 7 | `ConfirmDialog` vs `confirmAction()` para Timesheet | 🚧 Gate em 2.8.5 |
+| 8 | Zynix vs shell-CSS para páginas internas | 🚧 Gate em 2.8.1 |
+| 9 | Mover modais `shell/{InvitePersonModal, ManagePersonPanel}` para `features/workspace-members/components/` | 🚧 Diferida — pendente em 2.2 |
+| 10 | Adicionar campos em falta a `AuthUser` (`userTypeCode`, `levelCode`, `phone`, `website`, `address`) via `toAuthUser` | 🚧 Diferida — pendente em 2.4 UserSettings |
+
+### Regra reforçada
+
+Antes de criar qualquer helper/hook/context/utility/página em `frontend2/`,
+**verificar primeiro se já existe equivalente em `frontend/src/`** (regra 4
+de `feedback_frontend2_migration.md`). Esta regra também se aplica a
+**naming de páginas e paths de URL** (regra `feedback_url_paths_match_legacy`):
+páginas migradas usam o nome e path do `frontend/`. Excepções autorizadas
+neste plano: `/home`, `/account`, `CreateAccountFromInvitePage` (NewTemplate
+é fonte de verdade para conceitos novos).
+
+---
+
+## Para aplicar estas alterações
+
+**Fase 0 — setup inicial** (concluída):
 ```
 docker exec awesome-project-app-frontend2 npm install react-router-dom
-# vite hot reload apanha os ficheiros novos automaticamente
 ```
 
-**Backend**: Sem alterações necessárias na Fase 0.
+**Migração Mai 2026 — renames + merge `env.ts`** (recomendações #1, #2, #5):
+
+Sem reinício de container — vite hot reload apanha tudo:
+- Rename `RegisterPage.tsx` → `SignUpPage.tsx`
+- Rename `WorkspacePeoplePage.tsx` → `WorkspaceUsersPage.tsx`
+- Merge `lib/env.ts` em `lib/api.ts`, eliminar `env.ts`
+- Actualizar imports em `App.tsx` + `AuthContext.tsx`
+
+Verificação:
+```
+docker exec awesome-project-app-frontend2 npm run build
+```
+
+**Backend**: Sem alterações.
 
 ---
 
@@ -353,4 +447,6 @@ docker exec awesome-project-app-frontend2 npm install react-router-dom
 - [ ] Substituir o frontend antigo no `docker-compose.local.yml` (swap de portas)
 - [ ] Remover `frontend/` após paridade total + período de bake
 - [ ] Plataforma de admin (`/audit`, `/translations`, `/settings/*`) — provavelmente Fase 3
-- [ ] Multi-workspace V2 (relaxar `@@unique([ownerId])`, browser URLs `/<wsPublicId>/...`)
+- [ ] Multi-workspace V2 — **parcialmente entregue** em 2.1 (drop unique constraint + GET/POST workspaces); browser URLs `/<wsPublicId>/...` ainda usam o `:workspaceId` actual em frontend2 + alinhamento legacy em frontend
+- [ ] Backportar `PUBLIC_PATHS` de `frontend2/lib/api.ts` para `frontend/lib/api.ts` (recomendação #6)
+- [ ] Mover modais workspace-members de `shell/` para `features/` (recomendação #9)

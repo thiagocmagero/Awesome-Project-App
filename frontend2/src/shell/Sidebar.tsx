@@ -166,14 +166,14 @@ function MenuTree({ nodes }: { nodes: MenuNodeData[] }) {
 
 export interface SidebarProps {
   /** Current page key derived from the URL by AppShell. */
-  page: 'home' | 'workspace' | 'project' | 'people' | 'tipos' | 'holidays' | 'account' | 'other';
+  page: 'home' | 'workspace' | 'project' | 'people' | 'tipos' | 'calendars' | 'account' | 'other';
   activeProject: string | null;
   onGoHome: () => void;
   onOpenWorkspace: (id: string) => void;
   onOpenProject: (id: string) => void;
   onOpenPeople: (id: string) => void;
   onOpenTipos: (id: string) => void;
-  onOpenHolidays: (id: string) => void;
+  onOpenCalendars: (id: string) => void;
   onOpenInvite: () => void;
   userMenuOpen: boolean;
   onToggleUserMenu: () => void;
@@ -183,7 +183,7 @@ export interface SidebarProps {
 
 export function Sidebar({
   page, activeProject,
-  onGoHome, onOpenWorkspace, onOpenProject, onOpenPeople, onOpenTipos, onOpenHolidays,
+  onGoHome, onOpenWorkspace, onOpenProject, onOpenPeople, onOpenTipos, onOpenCalendars,
   onOpenInvite,
   userMenuOpen, onToggleUserMenu, userBtnRef,
   user,
@@ -212,7 +212,7 @@ export function Sidebar({
     { kind: 'item', key: 'ws-ov',   icon: <DashIcon />,      label: tc('nav.overview'),     active: page === 'workspace', onClick: () => wsId && onOpenWorkspace(wsId) },
     { kind: 'item', key: 'ws-ppl',  icon: <PeopleSubIcon />, label: tc('nav.people'),       active: page === 'people',    onClick: () => wsId && onOpenPeople(wsId) },
     { kind: 'item', key: 'ws-tipo', icon: <TypeIcon />,      label: tc('nav.member_types'), active: page === 'tipos',     onClick: () => wsId && onOpenTipos(wsId) },
-    { kind: 'item', key: 'ws-cal',  icon: <CalIcon />,       label: tc('nav.calendars'),    active: page === 'holidays',  onClick: () => wsId && onOpenHolidays(wsId) },
+    { kind: 'item', key: 'ws-cal',  icon: <CalIcon />,       label: tc('nav.calendars'),    active: page === 'calendars', onClick: () => wsId && onOpenCalendars(wsId) },
 
     { kind: 'section', key: 's-proj', label: tc('nav.projects'), addable: true },
     ...wsProjects.map<MenuNodeData>((p) => ({

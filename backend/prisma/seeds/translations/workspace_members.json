@@ -78,7 +78,13 @@
     "manage.invite_status_declined": "Convite recusado em {{date}}.",
     "manage.btn_save": "Guardar alterações",
     "manage.btn_remove": "Remover do workspace",
-    "manage.btn_resend_invite": "Reenviar convite"
+    "manage.btn_resend_invite": "Reenviar convite",
+    "toast.member_updated": "Pessoa actualizada.",
+    "toast.member_removed": "{{name}} foi removido(a) do workspace.",
+    "toast.projects_saved": "Atribuições de projectos guardadas.",
+    "toast.invite_sent": "Convite enviado para {{email}}.",
+    "toast.invite_sent_with_projects": "Convite enviado para {{email}} em {{count}} projecto(s).",
+    "toast.invite_resent": "Convite reenviado."
   },
   "pt-BR": {
     "page.title": "Pessoas do workspace",
@@ -159,7 +165,13 @@
     "manage.invite_status_declined": "Convite recusado em {{date}}.",
     "manage.btn_save": "Salvar alterações",
     "manage.btn_remove": "Remover do workspace",
-    "manage.btn_resend_invite": "Reenviar convite"
+    "manage.btn_resend_invite": "Reenviar convite",
+    "toast.member_updated": "Pessoa atualizada.",
+    "toast.member_removed": "{{name}} foi removido(a) do workspace.",
+    "toast.projects_saved": "Atribuições de projetos salvas.",
+    "toast.invite_sent": "Convite enviado para {{email}}.",
+    "toast.invite_sent_with_projects": "Convite enviado para {{email}} em {{count}} projeto(s).",
+    "toast.invite_resent": "Convite reenviado."
   },
   "en": {
     "page.title": "People in the workspace",
@@ -240,7 +252,13 @@
     "manage.invite_status_declined": "Invite declined on {{date}}.",
     "manage.btn_save": "Save changes",
     "manage.btn_remove": "Remove from workspace",
-    "manage.btn_resend_invite": "Resend invite"
+    "manage.btn_resend_invite": "Resend invite",
+    "toast.member_updated": "Person updated.",
+    "toast.member_removed": "{{name}} was removed from the workspace.",
+    "toast.projects_saved": "Project assignments saved.",
+    "toast.invite_sent": "Invite sent to {{email}}.",
+    "toast.invite_sent_with_projects": "Invite sent to {{email}} for {{count}} project(s).",
+    "toast.invite_resent": "Invite resent."
   },
   "es": {
     "page.title": "Personas del workspace",
@@ -321,6 +339,12 @@
     "manage.invite_status_declined": "Invitación rechazada el {{date}}.",
     "manage.btn_save": "Guardar cambios",
     "manage.btn_remove": "Eliminar del workspace",
-    "manage.btn_resend_invite": "Reenviar invitación"
+    "manage.btn_resend_invite": "Reenviar invitación",
+    "toast.member_updated": "Persona actualizada.",
+    "toast.member_removed": "{{name}} fue eliminado(a) del workspace.",
+    "toast.projects_saved": "Asignaciones de proyectos guardadas.",
+    "toast.invite_sent": "Invitación enviada a {{email}}.",
+    "toast.invite_sent_with_projects": "Invitación enviada a {{email}} para {{count}} proyecto(s).",
+    "toast.invite_resent": "Invitación reenviada."
   }
 }

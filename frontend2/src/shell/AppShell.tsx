@@ -15,22 +15,26 @@ import { useLocale } from '../contexts/LocaleContext';
 import { WorkspacesProvider, useWorkspaces } from '../contexts/WorkspacesContext';
 import { ProjectsProvider } from '../contexts/ProjectsContext';
 import { useLocalizedNavigate } from '../hooks/useLocalizedNavigate';
+import { usePendingInvitations } from '../hooks/usePendingInvitations';
+import { stripLocaleFromPath } from '../lib/locale';
 
 function derivePage(pathname: string): SidebarProps['page'] {
-  // O segmento `:locale` é stripado pelo `LocaleGuard` antes do React Router
-  // resolver os filhos, pelo que o pathname aqui já não inclui o locale.
-  if (pathname === '/' || pathname === '/home') return 'home';
-  if (pathname === '/account') return 'account';
+  // `useLocation().pathname` mantém o prefixo de locale (ex.: `/pt-pt/abc/user-types`).
+  // Strip antes de extrair os segmentos workspace+secção para que o sidebar
+  // calcule correctamente a página activa.
+  const stripped = stripLocaleFromPath(pathname);
+  if (stripped === '/' || stripped === '/home') return 'home';
+  if (stripped === '/account') return 'account';
   // Workspace-scoped: primeiro segmento é o publicId (sem prefixo `/w/`),
   // segundo segmento é a secção. Alinhado com `frontend/src/App.tsx`.
-  const m = pathname.match(/^\/[^/]+(?:\/([^/]+))?/);
+  const m = stripped.match(/^\/[^/]+(?:\/([^/]+))?/);
   if (!m) return 'other';
   const seg = m[1];
   if (!seg) return 'workspace';
   if (seg === 'dashboard') return 'workspace';
   if (seg === 'users') return 'people';
   if (seg === 'user-types') return 'tipos';
-  if (seg === 'holidays') return 'holidays';
+  if (seg === 'calendars') return 'calendars';
   if (seg === 'projects') return 'project';
   return 'other';
 }
@@ -58,6 +62,11 @@ function AppShellInner() {
   const { locale: currentLang, activeLocales, setLocale } = useLocale();
   const { activeWorkspace, create: createWorkspace } = useWorkspaces();
   const { collapsed, toggle: toggleSidebar, closeIfNarrow, setCollapsed } = useCollapsedSidebar();
+
+  // Mostra SweetAlert sequencial por cada convite de projecto pendente.
+  // Disparado uma vez por sessão; cobre o caso de utilizador acabado de criar
+  // conta via convite (auto-login → /home → este hook reage ao novo user).
+  usePendingInvitations();
 
   // Active context — paramWsId vence; depois fallback para activeWorkspace
   // do contexto (que resolve por URL → user.workspacePublicId → primeiro da lista).
@@ -101,7 +110,7 @@ function AppShellInner() {
   const onOpenProject      = (id: string) => go(`/${wsIdForUrls}/projects/${id}/planning`);
   const onOpenPeople       = (id: string) => go(`/${id}/users`);
   const onOpenTipos        = (id: string) => go(`/${id}/user-types`);
-  const onOpenHolidays     = (id: string) => go(`/${id}/holidays`);
+  const onOpenCalendars    = (id: string) => go(`/${id}/calendars`);
   const onOpenAccount      = (_tab: string) => go('/account');
 
   // Placeholder global modal triggers (real modals land in later phases).
@@ -142,7 +151,7 @@ function AppShellInner() {
           onOpenProject={onOpenProject}
           onOpenPeople={onOpenPeople}
           onOpenTipos={onOpenTipos}
-          onOpenHolidays={onOpenHolidays}
+          onOpenCalendars={onOpenCalendars}
           onOpenInvite={onOpenInvite}
           userMenuOpen={userMenuOpen}
           onToggleUserMenu={() => setUserMenuOpen((o) => !o)}
