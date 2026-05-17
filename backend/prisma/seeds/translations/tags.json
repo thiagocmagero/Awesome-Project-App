@@ -1,0 +1,54 @@
+{
+  "pt-PT": {
+    "field.label": "Tags",
+    "field.placeholder": "Adicionar tag…",
+    "field.help": "Escreve 3+ caracteres para procurar ou criar uma tag nova.",
+    "action.create_new": "+ Criar tag «{{name}}»",
+    "action.remove": "Remover tag",
+    "validation.too_short": "A tag tem de ter pelo menos 1 caracter.",
+    "validation.too_long": "A tag não pode ter mais de 50 caracteres.",
+    "validation.invalid_chars": "A tag só pode conter letras, números, espaços, hífens, sublinhados ou pontos.",
+    "error.workspace_required": "Não é possível atribuir tags — o projecto não pertence a nenhum workspace.",
+    "error.load": "Falha ao carregar tags do workspace.",
+    "empty.no_tags": "Sem tags."
+  },
+  "pt-BR": {
+    "field.label": "Tags",
+    "field.placeholder": "Adicionar tag…",
+    "field.help": "Escreva 3+ caracteres para buscar ou criar uma nova tag.",
+    "action.create_new": "+ Criar tag «{{name}}»",
+    "action.remove": "Remover tag",
+    "validation.too_short": "A tag deve ter pelo menos 1 caractere.",
+    "validation.too_long": "A tag não pode ter mais de 50 caracteres.",
+    "validation.invalid_chars": "A tag só pode conter letras, números, espaços, hífens, sublinhados ou pontos.",
+    "error.workspace_required": "Não é possível atribuir tags — o projeto não pertence a nenhum workspace.",
+    "error.load": "Falha ao carregar tags do workspace.",
+    "empty.no_tags": "Sem tags."
+  },
+  "en": {
+    "field.label": "Tags",
+    "field.placeholder": "Add tag…",
+    "field.help": "Type 3+ characters to search or create a new tag.",
+    "action.create_new": "+ Create tag “{{name}}”",
+    "action.remove": "Remove tag",
+    "validation.too_short": "Tag must be at least 1 character.",
+    "validation.too_long": "Tag can be at most 50 characters.",
+    "validation.invalid_chars": "Tag can only contain letters, numbers, spaces, hyphens, underscores or dots.",
+    "error.workspace_required": "Cannot assign tags — project does not belong to a workspace.",
+    "error.load": "Failed to load workspace tags.",
+    "empty.no_tags": "No tags."
+  },
+  "es": {
+    "field.label": "Etiquetas",
+    "field.placeholder": "Añadir etiqueta…",
+    "field.help": "Escribe 3+ caracteres para buscar o crear una nueva etiqueta.",
+    "action.create_new": "+ Crear etiqueta «{{name}}»",
+    "action.remove": "Quitar etiqueta",
+    "validation.too_short": "La etiqueta debe tener al menos 1 carácter.",
+    "validation.too_long": "La etiqueta no puede tener más de 50 caracteres.",
+    "validation.invalid_chars": "La etiqueta solo puede contener letras, números, espacios, guiones, subrayados o puntos.",
+    "error.workspace_required": "No se pueden asignar etiquetas — el proyecto no pertenece a ningún workspace.",
+    "error.load": "Error al cargar las etiquetas del workspace.",
+    "empty.no_tags": "Sin etiquetas."
+  }
+}

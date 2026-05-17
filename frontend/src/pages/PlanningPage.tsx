@@ -375,6 +375,7 @@ export default function PlanningPage() {
   const {
     showTaskModal, setShowTaskModal, taskModalKey, taskModalTab, setTaskModalTab,
     editingTask, taskForm: taskFormState, setTaskForm, taskOwnerIds, setTaskOwnerIds,
+    taskTags, setTaskTags,
     taskFormError, taskFormLoading, fieldRuleErrors, showDeleteTask, setShowDeleteTask,
     deletingTask, setDeletingTask, deleteTaskLoading,
     openCreateTask, openEditTask, handleTaskSubmit, handleDeleteTask,
@@ -1883,6 +1884,11 @@ export default function PlanningPage() {
           taskFormLoading={taskFormLoading}
           taskOwnerIds={taskOwnerIds}
           setTaskOwnerIds={setTaskOwnerIds}
+          taskTags={taskTags}
+          setTaskTags={setTaskTags}
+          canEditTags={editingTask
+            ? canDo(ProjectAction.TASK_EDIT)
+            : canDo(ProjectAction.TASK_CREATE)}
           tasks={tasks}
           taskLinks={links}
           tasksById={tasksById}

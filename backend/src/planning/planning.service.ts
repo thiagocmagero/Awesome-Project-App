@@ -24,6 +24,7 @@ import {
 import { assertTaskDurationWithinLimit } from './limits.util';
 import { PlatformConfigService } from '../platform-config/platform-config.service';
 import { StorageService } from '../storage/storage.service';
+import { TagsService, TagResponse } from '../tags/tags.service';
 
 /**
  * Helper interno — devolve workHours válido a partir do JSON do projecto, ou
@@ -72,6 +73,7 @@ export class PlanningService {
     private readonly statesService: StatesService,
     private readonly platformConfig: PlatformConfigService,
     private readonly storage: StorageService,
+    private readonly tagsService: TagsService,
   ) {}
 
   /** Helper local — converte `avatarKey` em `avatarUrl` para o response. */
@@ -398,6 +400,10 @@ export class PlanningService {
           boardSwimlane: { select: { publicId: true } },
           createdBy:     { select: { publicId: true, name: true } },
           updatedBy:     { select: { publicId: true, name: true } },
+          tags: {
+            select: { tag: { select: { publicId: true, name: true } } },
+            orderBy: { tag: { name: 'asc' } },
+          },
         },
         orderBy: { id: 'asc' },
       }),
@@ -429,7 +435,12 @@ export class PlanningService {
 
     return {
       data: tasks.map((t) =>
-        this.serializeTask(t, commentCountMap.get(t.publicId) ?? 0, nodeIdToPublicId),
+        this.serializeTask(
+          t,
+          commentCountMap.get(t.publicId) ?? 0,
+          nodeIdToPublicId,
+          t.tags.map((rel) => ({ publicId: rel.tag.publicId, name: rel.tag.name })),
+        ),
       ),
       links: links.map((l) => this.serializeLink(l)),
       resources,
@@ -621,8 +632,23 @@ export class PlanningService {
       );
     }
 
+    // Aplicar tags se vieram no DTO (existentes + criação inline). Resolvido
+    // ao workspace do projecto.
+    let tagsApplied: TagResponse[] = [];
+    const hasTagsInput = (dto.tagPublicIds && dto.tagPublicIds.length > 0)
+      || (dto.newTagNames && dto.newTagNames.length > 0);
+    if (hasTagsInput) {
+      tagsApplied = await this.applyTagsForTask(
+        task.id,
+        projectId,
+        dto.tagPublicIds ?? [],
+        dto.newTagNames ?? [],
+        requestingUser?.sub ?? null,
+      );
+    }
+
     const nodeMap = await this.buildNodeIdToPublicIdMap(projectId);
-    return this.serializeTask(task, 0, nodeMap);
+    return this.serializeTask(task, 0, nodeMap, tagsApplied);
   }
 
   async updateTask(taskPublicId: string, dto: UpdateTaskDto, requestingUser?: JwtPayload) {
@@ -799,8 +825,52 @@ export class PlanningService {
       );
     }
 
+    // Tags — tri-state:
+    //   undefined em ambos → não tocar
+    //   tagPublicIds=[] (sem newTagNames) → limpar tudo
+    //   qualquer um presente → substituir conjunto
+    let tagsForResponse: TagResponse[] | undefined;
+    if (dto.tagPublicIds !== undefined || dto.newTagNames !== undefined) {
+      tagsForResponse = await this.applyTagsForTask(
+        id,
+        existing.projectId,
+        dto.tagPublicIds ?? [],
+        dto.newTagNames ?? [],
+        requestingUser?.sub ?? null,
+      );
+    } else {
+      tagsForResponse = await this.tagsService.getTagsForTask(id);
+    }
+
     const nodeMap = await this.buildNodeIdToPublicIdMap(existing.projectId);
-    return this.serializeTask(task, 0, nodeMap);
+    return this.serializeTask(task, 0, nodeMap, tagsForResponse);
+  }
+
+  /**
+   * Resolve workspaceId do projecto e delega ao TagsService. Lança 409 se o
+   * projecto não tem workspace (legacy nullable) — tags exigem workspace.
+   */
+  private async applyTagsForTask(
+    taskId: number,
+    projectId: number,
+    existingPublicIds: string[],
+    newNames: string[],
+    createdById: number | null,
+  ): Promise<TagResponse[]> {
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
+      select: { workspaceId: true },
+    });
+    if (!project?.workspaceId) {
+      throw new AppException('WORKSPACE_REQUIRED_FOR_TAGS', HttpStatus.CONFLICT);
+    }
+    return this.tagsService.applyTagsToTask(
+      taskId,
+      project.workspaceId,
+      existingPublicIds,
+      newNames,
+      createdById,
+    );
   }
 
   /**
@@ -1181,7 +1251,7 @@ export class PlanningService {
     boardSwimlane?: { publicId: string } | null;
     createdBy?: { publicId: string; name: string } | null;
     updatedBy?: { publicId: string; name: string } | null;
-  }, commentCount = 0, nodeIdToPublicId?: Map<number, string>) {
+  }, commentCount = 0, nodeIdToPublicId?: Map<number, string>, tags: TagResponse[] = []) {
     // owner_id wire format: publicIds (UUIDs) do TaskResourceNode. A coluna
     // BD `ownerIds` continua a guardar ints stringified — convertemos na
     // boundary para evitar leak de IDs internos. Se o map não for fornecido
@@ -1243,6 +1313,7 @@ export class PlanningService {
       updatedBy: t.updatedBy
         ? { publicId: t.updatedBy.publicId, name: t.updatedBy.name }
         : null,
+      tags,
     };
   }
 

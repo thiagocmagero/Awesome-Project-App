@@ -18,6 +18,7 @@ import { TaskModalLinksTab } from './TaskModalLinksTab';
 import { TaskModalFooter } from './TaskModalFooter';
 import type { Task, EMPTY_TASK_FORM } from '../types';
 import type { ITaskState, TaskFieldKey } from '../states-types';
+import type { TagsFieldValue } from '../../tags/components/TagsField';
 import './task-modal.css';
 
 type TaskFormShape = typeof EMPTY_TASK_FORM;
@@ -43,6 +44,11 @@ export interface TaskModalProps {
   /** State dos responsáveis seleccionados (publicIds). */
   taskOwnerIds: string[];
   setTaskOwnerIds: (ids: string[]) => void;
+  /** State das tags (workspace-scoped) seleccionadas + pendentes de criar. */
+  taskTags: TagsFieldValue;
+  setTaskTags: (next: TagsFieldValue) => void;
+  /** Permite ler/escrever tags (gated por TASK_CREATE/TASK_EDIT a montante). */
+  canEditTags?: boolean;
   tasks: Task[];
   boardColumns: ITaskState[];
   allResourcesByType: Map<string, { label: string; items: Array<{ id: string; name: string; avatarUrl: string | null }> }>;
@@ -72,6 +78,7 @@ export function TaskModal({
   taskLinks, tasksById, onRemoveLink, onAddLink,
   taskForm, setTaskForm, taskFormError, taskFormLoading,
   taskOwnerIds, setTaskOwnerIds,
+  taskTags, setTaskTags, canEditTags = true,
   tasks, boardColumns, allResourcesByType,
   fpStartRef, fpConstraintRef,
   choicesTypeRef, choicesPriorityRef, choicesConstraintRef,
@@ -94,7 +101,6 @@ export function TaskModal({
 
   const [isFollowing, setIsFollowing] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
-  const [tags, setTags] = useState<string[]>([]);
   const [followerCount] = useState(4); // mock UI-only
   // `description` vive em taskForm.description (useTaskForm) — persiste no backend.
   const description = taskForm.description ?? '';
@@ -106,7 +112,6 @@ export function TaskModal({
   useEffect(() => {
     setIsFollowing(false);
     setFullscreen(false);
-    setTags([]);
     initialTaskFormRef.current = JSON.stringify(taskForm);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editingKey]);
@@ -142,9 +147,9 @@ export function TaskModal({
     if (taskFormLoading) return false;
     const current = JSON.stringify(taskForm);
     if (current !== initialTaskFormRef.current) return true;
-    if (tags.length > 0) return true;
+    if (taskTags.items.length > 0 || taskTags.draft.trim().length > 0) return true;
     return false;
-  }, [taskForm, tags, taskFormLoading]);
+  }, [taskForm, taskTags, taskFormLoading]);
 
   // ── Contadores no header (Discussão / Arquivos) ──────────────────────────
 
@@ -212,8 +217,9 @@ export function TaskModal({
             <TaskModalHeader
               taskForm={taskForm}
               setTaskForm={setTaskForm}
-              tags={tags}
-              setTags={setTags}
+              taskTags={taskTags}
+              setTaskTags={setTaskTags}
+              canEditTags={canEditTags}
               showCounters={!!editingTask}
               counts={{ comments: commentCount, files: fileCount, followers: followerCount }}
               showFilesCounter={showFilesTab}

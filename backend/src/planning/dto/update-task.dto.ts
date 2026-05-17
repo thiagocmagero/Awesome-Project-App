@@ -6,6 +6,7 @@ import {
   IsOptional,
   IsPositive,
   IsString,
+  IsUUID,
   Min,
 } from 'class-validator';
 import { TaskDurationUnit } from '@prisma/client';
@@ -74,4 +75,19 @@ export class UpdateTaskDto {
   @IsOptional()
   @IsString()
   endDateMode?: string;
+
+  /**
+   * publicIds (UUID v7) de tags existentes para aplicar a esta task. Substitui
+   * o conjunto actual (array vazio = remove todas).
+   */
+  @IsOptional()
+  @IsArray()
+  @IsUUID('all', { each: true })
+  tagPublicIds?: string[];
+
+  /** Nomes de tags novas para criar inline (ver CreateTaskDto.newTagNames). */
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  newTagNames?: string[];
 }

@@ -93,4 +93,23 @@ export class CreateTaskDto {
   @IsOptional()
   @IsString()
   endDateMode?: string;
+
+  /**
+   * publicIds (UUID v7) de tags **existentes** no workspace para aplicar a esta task.
+   * O backend ignora tags que não pertençam ao workspace do projecto.
+   */
+  @IsOptional()
+  @IsArray()
+  @IsUUID('all', { each: true })
+  tagPublicIds?: string[];
+
+  /**
+   * Nomes de tags **novas** para criar inline no workspace e aplicar a esta task.
+   * Cada nome é normalizado para MAIÚSCULAS. Duplicados (case-insensitive) ou
+   * colisões com tags existentes são tratados como upsert — não há erro.
+   */
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  newTagNames?: string[];
 }

@@ -38,6 +38,7 @@ import { BillingModule } from './billing/billing.module';
 import { FilesModule } from './files/files.module';
 import { AuditLogModule } from './audit-log/audit-log.module';
 import { AuditLogInterceptor } from './audit-log/audit-log.interceptor';
+import { TagsModule } from './tags/tags.module';
 
 @Module({
   imports: [
@@ -78,6 +79,7 @@ import { AuditLogInterceptor } from './audit-log/audit-log.interceptor';
     BillingModule,
     FilesModule,
     AuditLogModule,
+    TagsModule,
   ],
   controllers: [AppController],
   providers: [

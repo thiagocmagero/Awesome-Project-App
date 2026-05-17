@@ -116,6 +116,7 @@ i18n
       'workspace_members',
       'files',
       'audit',
+      'tags',
     ],
     backend: {},
     interpolation: {

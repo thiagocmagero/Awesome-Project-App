@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
-import { TaskModalTagsField } from './TaskModalTagsField';
+import { TagsField, type TagsFieldValue } from '../../tags/components/TagsField';
+import { useWorkspaceTags } from '../../tags/useWorkspaceTags';
 import type { EMPTY_TASK_FORM } from '../types';
 
 type TaskFormShape = typeof EMPTY_TASK_FORM;
@@ -8,8 +9,9 @@ type TaskTab = 'details' | 'comments' | 'links' | 'files';
 interface Props {
   taskForm: TaskFormShape;
   setTaskForm: (form: TaskFormShape) => void;
-  tags: string[];
-  setTags: (tags: string[]) => void;
+  taskTags: TagsFieldValue;
+  setTaskTags: (next: TagsFieldValue) => void;
+  canEditTags?: boolean;
   showCounters: boolean;
   counts: { comments: number; files: number; followers: number };
   showFilesCounter: boolean;
@@ -25,14 +27,17 @@ interface Props {
 export function TaskModalHeader({
   taskForm,
   setTaskForm,
-  tags,
-  setTags,
+  taskTags,
+  setTaskTags,
+  canEditTags = true,
   showCounters,
   counts,
   showFilesCounter,
   onJumpTab,
 }: Props) {
   const { t } = useTranslation('planning');
+  const { t: tTags } = useTranslation('tags');
+  const { tags: workspaceTags } = useWorkspaceTags();
 
   return (
     <div className="task-header">
@@ -45,7 +50,14 @@ export function TaskModalHeader({
         required
       />
       <div className="task-meta-row">
-        <TaskModalTagsField tags={tags} setTags={setTags} />
+        <TagsField
+          value={taskTags}
+          onChange={setTaskTags}
+          availableTags={workspaceTags}
+          disabled={!canEditTags}
+          minimal
+          placeholder={tTags('field.placeholder')}
+        />
         {showCounters && (
           <div className="task-meta-row-counters">
             <button

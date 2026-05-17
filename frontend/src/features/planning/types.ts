@@ -81,6 +81,8 @@ export interface Task {
   createdBy?: { publicId: string; name: string } | null;
   /** Autor da última actualização (audit). null se user removido. */
   updatedBy?: { publicId: string; name: string } | null;
+  /** Tags atribuídas (workspace-scoped). Vazio quando o backend não fez include. */
+  tags?: Array<{ publicId: string; name: string }>;
 }
 
 export interface TaskLink {

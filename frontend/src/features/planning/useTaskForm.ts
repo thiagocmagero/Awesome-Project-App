@@ -1,10 +1,13 @@
 // Hook: gestão de estado e handlers do formulário e CRUD de tarefa
-import { useState, useEffect, type FormEvent, type MutableRefObject } from 'react';
+import { useState, useEffect, useRef, type FormEvent, type MutableRefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getApiBase, apiFetch } from '../../lib/api';
 import { EMPTY_TASK_FORM, CONSTRAINT_NEEDS_DATE } from './types';
 import type { Task, ShowToastFn } from './types';
 import { isStartWithinWorkHours, type WorkHours } from '../../lib/workHours';
+import { EMPTY_TAGS_VALUE, tagsValueToPayload, type TagsFieldValue } from '../tags/components/TagsField';
+import type { Tag } from '../tags/types';
+import { invalidateWorkspaceTagsCache } from '../tags/useWorkspaceTags';
 
 export interface UseTaskFormProps {
   projectId: string | undefined;
@@ -41,6 +44,8 @@ export interface UseTaskFormReturn {
   setTaskForm: React.Dispatch<React.SetStateAction<typeof EMPTY_TASK_FORM>>;
   taskOwnerIds: string[];
   setTaskOwnerIds: React.Dispatch<React.SetStateAction<string[]>>;
+  taskTags: TagsFieldValue;
+  setTaskTags: React.Dispatch<React.SetStateAction<TagsFieldValue>>;
   taskFormError: string;
   taskFormLoading: boolean;
   fieldRuleErrors: string[];
@@ -68,6 +73,7 @@ export function useTaskForm({
   const [editingTask, setEditingTask]         = useState<Task | null>(null);
   const [taskForm, setTaskForm]               = useState({ ...EMPTY_TASK_FORM });
   const [taskOwnerIds, setTaskOwnerIds]       = useState<string[]>([]);
+  const [taskTags, setTaskTags]               = useState<TagsFieldValue>(EMPTY_TAGS_VALUE);
   const [taskFormError, setTaskFormError]     = useState('');
   const [taskFormLoading, setTaskFormLoading] = useState(false);
   const [fieldRuleErrors, setFieldRuleErrors] = useState<string[]>([]);
@@ -78,6 +84,15 @@ export function useTaskForm({
 
   // Limpar erros de regras ao mudar de estado destino
   useEffect(() => { setFieldRuleErrors([]); }, [taskForm.boardColumn]);
+
+  // Snapshot live de `taskTags` para o submit. Razão: o user pode pressionar
+  // Enter no TagsField (commit do draft → `setTaskTags` queued) e clicar Save
+  // antes do flush do re-render. Sem ref, `handleTaskSubmit` capturaria a
+  // versão stale com o `draft` populado mas sem chip na lista de items —
+  // o tag chegaria via `tagsValueToPayload` (que inclui draft) mas qualquer
+  // chip recém-adicionado nessa mesma transição era perdido.
+  const taskTagsRef = useRef(taskTags);
+  useEffect(() => { taskTagsRef.current = taskTags; }, [taskTags]);
 
   function h() {
     return { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
@@ -105,6 +120,7 @@ export function useTaskForm({
       parentPublicId: resolvedParentPublicId,
     });
     setTaskOwnerIds([]);
+    setTaskTags(EMPTY_TAGS_VALUE);
     setTaskFormError('');
     setTaskModalTab('details');
     setTaskModalKey((k) => k + 1);
@@ -132,6 +148,10 @@ export function useTaskForm({
       parentPublicId: '',
     });
     setTaskOwnerIds(task.owner_id ?? []);
+    setTaskTags({
+      items: (task.tags ?? []).map((tg) => ({ kind: 'existing', tag: tg as Tag })),
+      draft: '',
+    });
     setTaskFormError('');
     setTaskModalTab(initialTab);
     setTaskModalKey((k) => k + 1);
@@ -242,6 +262,14 @@ export function useTaskForm({
         body.constraint_date = null;
       }
       body.owner_id = taskOwnerIds;
+      // Tags — `tagsValueToPayload` inclui o `draft` ainda não-comitado
+      // como novo nome, evitando perder a tag que o user escreveu no input
+      // sem ter premido Enter / clicado em "+ Criar tag". Lê via `taskTagsRef`
+      // para apanhar Enter→commit que ainda não tenha flushed antes do click
+      // no Save (batching React).
+      const tagPayload = tagsValueToPayload(taskTagsRef.current);
+      body.tagPublicIds = tagPayload.tagPublicIds;
+      body.newTagNames = tagPayload.newTagNames;
 
       const url = editingTask
         ? `${api}/projects/${projectId}/planning/tasks/${editingTask.publicId}`
@@ -268,7 +296,15 @@ export function useTaskForm({
           ? t('task.error_duration_too_long')
           : code === 'START_OUTSIDE_WORK_HOURS'
             ? t('task.error_start_outside_work_hours')
-            : (msg || code || t('task.error_save'));
+            : code === 'WORKSPACE_REQUIRED_FOR_TAGS'
+              ? t('task.error_tags_workspace_missing')
+              : code === 'TAG_NAME_INVALID_CHARS'
+                ? t('task.error_tag_invalid_chars')
+                : code === 'TAG_NAME_TOO_LONG'
+                  ? t('task.error_tag_too_long')
+                  : code === 'TAG_NAME_TOO_SHORT'
+                    ? t('task.error_tag_too_short')
+                    : (msg || code || t('task.error_save'));
         throw new Error(friendly);
       }
 
@@ -296,6 +332,10 @@ export function useTaskForm({
 
       setShowTaskModal(false);
       showToast('success', editingTask ? t('task.success_updated') : t('task.success_created'));
+      // Se foram criadas tags inline (incluindo o draft), refrescar o cache.
+      if (tagPayload.newTagNames.length > 0) {
+        invalidateWorkspaceTagsCache(token);
+      }
       await loadAll();
     } catch (e: unknown) {
       setTaskFormError(e instanceof Error ? e.message : tc('errors.generic'));
@@ -331,6 +371,7 @@ export function useTaskForm({
     editingTask,
     taskForm, setTaskForm,
     taskOwnerIds, setTaskOwnerIds,
+    taskTags, setTaskTags,
     taskFormError,
     taskFormLoading,
     fieldRuleErrors,
