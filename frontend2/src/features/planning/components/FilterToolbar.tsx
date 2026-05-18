@@ -13,12 +13,15 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ITaskState } from '../states-types';
 import { ALL_COLS, type ListColKey } from './list-columns';
+import type { GroupBy } from './list-grouping';
 
 export type StateFilterKey = 'all' | string;
 export type ListMode = 'tasks' | 'resources' | 'links';
 
 interface Props {
   tasksCount: number;
+  resourcesCount: number;
+  linksCount: number;
   states: ITaskState[];
   countsByState: Record<string, number>;
   listMode: ListMode;
@@ -28,6 +31,8 @@ interface Props {
   visibleCols: Record<ListColKey, boolean>;
   onToggleCol: (key: ListColKey, next: boolean) => void;
   onSelectAllCols: () => void;
+  groupBy: GroupBy;
+  onGroupByChange: (next: GroupBy) => void;
 }
 
 function resolveStateLabel(state: ITaskState, t: (k: string) => string): string {
@@ -46,10 +51,11 @@ function IconColumns() {
 }
 
 export function FilterToolbar({
-  tasksCount, states, countsByState,
+  tasksCount, resourcesCount, linksCount, states, countsByState,
   listMode, onListModeChange,
   stateFilter, onStateFilterChange,
   visibleCols, onToggleCol, onSelectAllCols,
+  groupBy, onGroupByChange,
 }: Props) {
   const { t } = useTranslation('planning');
 
@@ -92,14 +98,14 @@ export function FilterToolbar({
           className={`lv-mode-item${listMode === 'resources' ? ' active' : ''}`}
           onClick={() => onListModeChange('resources')}
         >
-          {t('list.mode.resources')} <span className="lv-mode-badge">—</span>
+          {t('list.mode.resources')} <span className="lv-mode-badge">{resourcesCount}</span>
         </button>
         <button
           type="button"
           className={`lv-mode-item${listMode === 'links' ? ' active' : ''}`}
           onClick={() => onListModeChange('links')}
         >
-          {t('list.mode.links')} <span className="lv-mode-badge">—</span>
+          {t('list.mode.links')} <span className="lv-mode-badge">{linksCount}</span>
         </button>
       </div>
 
@@ -130,24 +136,27 @@ export function FilterToolbar({
             })}
           </div>
 
-          {/* Groupby dropdown (visual-only) */}
+          {/* Groupby dropdown — funcional. Mapeia para GroupBy do orquestrador. */}
           <div className="lv-groupby" ref={gbRef}>
             <button
               type="button"
               className="lv-gb-btn"
               onClick={() => setGbOpen((o) => !o)}
             >
-              {t('toolbar.grouped_by')} <b>{t('list.groupby.state')}</b> ▾
+              {t('toolbar.grouped_by')} <b>{t(`list.groupby.${groupBy === 'state' ? 'state' : groupBy === 'assignee' ? 'assignee' : groupBy === 'priority' ? 'priority' : 'none'}`)}</b> ▾
             </button>
             {gbOpen && (
               <div className="lv-gb-menu">
                 {gbKeys.map((k) => (
                   <div
                     key={k}
-                    className={`lv-gb-item${k === 'state' ? ' active' : ''}`}
-                    onClick={() => { setGbOpen(false); }}
+                    className={`lv-gb-item${k === groupBy ? ' active' : ''}`}
+                    onClick={() => { onGroupByChange(k); setGbOpen(false); }}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { onGroupByChange(k); setGbOpen(false); } }}
                   >
-                    <span className="chk">{k === 'state' ? '✓' : ''}</span>
+                    <span className="chk">{k === groupBy ? '✓' : ''}</span>
                     {t(`list.groupby.${k}`)}
                   </div>
                 ))}

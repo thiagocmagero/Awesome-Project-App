@@ -188,6 +188,17 @@ export async function apiPatch<T = unknown>(path: string, body?: unknown): Promi
   return res.json() as Promise<T>;
 }
 
+export async function apiPut<T = unknown>(path: string, body?: unknown): Promise<T> {
+  const url = path.startsWith('http') ? path : `${getApiBase()}${path}`;
+  const res = await apiFetch(url, {
+    method: 'PUT',
+    body: body != null ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) throw await errorFrom(res);
+  if (res.status === 204) return undefined as T;
+  return res.json() as Promise<T>;
+}
+
 export async function apiDelete<T = unknown>(path: string): Promise<T> {
   const url = path.startsWith('http') ? path : `${getApiBase()}${path}`;
   const res = await apiFetch(url, { method: 'DELETE' });

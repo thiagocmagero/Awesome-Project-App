@@ -1,0 +1,396 @@
+/* ============================================================
+   Resources view + Links view + Modals canónicos.
+   Port literal de NewTemplate/app-dark.jsx:602-660. Substitui
+   ${T.X} por var(--X) de tokens.css.
+
+   Excepções de mapeamento (mantidas no DIFF):
+   - ${T.high}     → var(--pri-high)  (vermelho do botão +Add External)
+   - ${T.done}     → var(--st-done)
+   - ${T.doneInk}  → var(--st-doneInk)
+
+   Classes mantêm os nomes canónicos exactamente como no template.
+   ============================================================ */
+
+/* ---- Resources view ---- */
+.rv-wrap {
+  flex: 1;
+  overflow: auto;
+  background: var(--bg);
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.rv-section {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.rv-sec-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink);
+  border-bottom: 1px solid var(--line);
+}
+.rv-sec-head .rv-badge {
+  font-family: var(--mono);
+  font-size: 11px;
+  background: var(--brandSoft);
+  color: var(--brand);
+  padding: 2px 7px;
+  border-radius: 99px;
+  font-weight: 600;
+}
+.rv-sec-head .rv-badge.zero {
+  background: var(--panel2);
+  color: var(--mute);
+}
+.rv-add-btn {
+  margin-left: auto;
+  padding: 5px 12px;
+  border-radius: 6px;
+  background: var(--pri-high);
+  color: #fff;
+  border: none;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: opacity .12s;
+}
+.rv-add-btn:hover:not(:disabled) { opacity: .9; }
+.rv-add-btn:disabled { opacity: .45; cursor: not-allowed; }
+
+.rv-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.rv-table th {
+  text-align: left;
+  padding: 9px 16px;
+  font-size: 11px;
+  color: var(--mute);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--lineSoft);
+}
+.rv-table td {
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--lineSoft);
+  color: var(--ink);
+  vertical-align: middle;
+}
+.rv-table tr:last-child td { border-bottom: none; }
+.rv-table .muted { color: var(--dim); }
+
+.rv-status-pill {
+  padding: 3px 10px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--st-done);
+  color: var(--st-doneInk);
+  display: inline-block;
+}
+
+.rv-hpd {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.rv-hpd input {
+  width: 48px;
+  padding: 4px 6px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--panel);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 12px;
+  text-align: right;
+  outline: none;
+  transition: border-color .12s, box-shadow .12s;
+}
+.rv-hpd input:focus {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px var(--brandSoft);
+}
+.rv-hpd input:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+  background: var(--panel2);
+}
+.rv-hpd .unit {
+  color: var(--dim);
+  font-size: 12px;
+}
+
+.rv-empty {
+  padding: 14px 16px;
+  font-size: 13px;
+  color: var(--mute);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Action buttons na coluna Actions (acrescento — não está no canónico).
+   Visual coerente com .lnk-del-btn. */
+.rv-row-actions {
+  display: inline-flex;
+  gap: 4px;
+}
+.rv-row-action {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--mute);
+  padding: 4px 7px;
+  border-radius: 5px;
+  line-height: 1;
+  transition: background .12s, color .12s;
+}
+.rv-row-action:hover:not(:disabled) {
+  background: var(--panel2);
+  color: var(--ink);
+}
+.rv-row-action.danger:hover:not(:disabled) {
+  background: oklch(0.93 0.07 25);
+  color: oklch(0.48 0.18 25);
+}
+.rv-row-action:disabled { opacity: .4; cursor: not-allowed; }
+
+/* ---- Links view ---- */
+.lnk-wrap {
+  flex: 1;
+  overflow: auto;
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+}
+.lnk-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 10px 24px;
+  border-bottom: 1px solid var(--line);
+  flex: 0 0 auto;
+}
+.lnk-create-btn {
+  padding: 6px 14px;
+  border-radius: 7px;
+  background: var(--brand);
+  color: #fff;
+  border: none;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: opacity .12s;
+}
+.lnk-create-btn:hover:not(:disabled) { opacity: .9; }
+.lnk-create-btn:disabled { opacity: .45; cursor: not-allowed; }
+
+.lnk-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.lnk-table th {
+  text-align: left;
+  padding: 10px 24px;
+  font-size: 11px;
+  color: var(--mute);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--line);
+}
+.lnk-table td {
+  padding: 11px 24px;
+  border-bottom: 1px solid var(--lineSoft);
+  color: var(--ink);
+}
+.lnk-table tr:last-child td { border-bottom: none; }
+.lnk-source { font-weight: 500; }
+.lnk-target { color: var(--brand) !important; }
+
+.lnk-type {
+  padding: 3px 9px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: var(--mono);
+  display: inline-block;
+}
+.lnk-type.ss { background: oklch(0.93 0.07 25);  color: oklch(0.48 0.18 25);  }
+.lnk-type.fs { background: oklch(0.93 0.07 155); color: oklch(0.42 0.15 155); }
+/* Acrescentos sobre o canónico (justificado no DIFF — canónico só tem 2 cores). */
+.lnk-type.ff { background: oklch(0.93 0.07 75);  color: oklch(0.48 0.18 75);  }
+.lnk-type.sf { background: oklch(0.93 0.07 280); color: oklch(0.48 0.18 280); }
+
+.lnk-del-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--mute);
+  padding: 4px 7px;
+  border-radius: 5px;
+  line-height: 1;
+  transition: background .12s, color .12s;
+}
+.lnk-del-btn:hover:not(:disabled) {
+  background: oklch(0.93 0.07 25);
+  color: oklch(0.48 0.18 25);
+}
+.lnk-del-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+/* ---- Modals ---- */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 15, 28, .3);
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.modal-box {
+  background: var(--panel);
+  border-radius: 14px;
+  box-shadow: 0 24px 64px -12px rgba(0, 0, 0, .24);
+  width: 480px;
+  max-width: 100%;
+  overflow: hidden;
+  animation: modal-in .18s ease;
+}
+@keyframes modal-in {
+  from { opacity: 0; transform: scale(.96) translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 22px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.modal-head .title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.modal-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--mute);
+  font-size: 18px;
+  padding: 2px 7px;
+  border-radius: 5px;
+  line-height: 1;
+  font-family: inherit;
+}
+.modal-close:hover { background: var(--panel2); color: var(--ink); }
+
+.modal-body {
+  padding: 18px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.modal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.modal-field label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink2);
+}
+.modal-field .req {
+  color: var(--pri-high);
+  margin-left: 2px;
+}
+.modal-field input[type="text"],
+.modal-field input[type="number"],
+.modal-field select {
+  padding: 8px 11px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--ink);
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color .12s, box-shadow .12s;
+  width: 100%;
+}
+.modal-field input:focus,
+.modal-field select:focus {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px var(--brandSoft);
+}
+.modal-field .help {
+  font-size: 11px;
+  color: var(--mute);
+}
+.modal-row2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+/* Acrescento sobre o canónico: banner de erro inline no modal-body
+   (justificado no DIFF — canónico não tem error handling). */
+.modal-alert {
+  background: oklch(0.95 0.04 25);
+  color: oklch(0.45 0.18 25);
+  border: 1px solid oklch(0.85 0.10 25);
+  border-radius: 8px;
+  padding: 8px 11px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.modal-foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 14px 22px 18px;
+  border-top: 1px solid var(--line);
+}
+.modal-foot .mf-cancel {
+  padding: 7px 16px;
+  border-radius: 7px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--ink2);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+}
+.modal-foot .mf-cancel:hover { background: var(--panel2); }
+.modal-foot .mf-primary {
+  padding: 7px 16px;
+  border-radius: 7px;
+  border: none;
+  background: var(--brand);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: opacity .12s;
+}
+.modal-foot .mf-primary:hover:not(:disabled) { opacity: .9; }
+.modal-foot .mf-primary:disabled { opacity: .4; cursor: not-allowed; }

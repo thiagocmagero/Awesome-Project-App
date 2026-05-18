@@ -8,6 +8,9 @@ export type { ITaskState, ITaskSwimlane, IFieldRule, TaskFieldKey, TaskStateColu
 export type TaskDurationUnit = 'DAY' | 'HOUR';
 
 export interface ITask {
+  /** Id numérico interno do DHTMLX. Necessário para resolver `TaskLink.source`/`target`
+   *  (que são ints) para o `text` da tarefa correspondente na vista Links. */
+  id: number;
   publicId: string;
   text: string;
   description?: string | null;

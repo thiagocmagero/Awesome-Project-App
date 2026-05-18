@@ -424,6 +424,69 @@ páginas migradas usam o nome e path do `frontend/`. Excepções autorizadas
 neste plano: `/home`, `/account`, `CreateAccountFromInvitePage` (NewTemplate
 é fonte de verdade para conceitos novos).
 
+### Regra obrigatória — Toda tabela tem ordenação por header
+
+Qualquer `<table>` criada ou portada em `frontend2/` **deve** suportar
+ordenação por click no header de coluna. Sem excepções para tabelas com
+mais de uma linha — mesmo as pequenas (`Team Members`, `External Resources`,
+`Dependencies`, etc.) precisam de sort.
+
+**Como implementar (padrão canónico):**
+
+1. Hook `useTableSort` em
+   [`frontend2/src/lib/useTableSort.ts`](src/lib/useTableSort.ts) — mantém
+   state `{ key, dir } | null`, expõe `sorted` (array ordenado),
+   `toggleSort(key)` (1º click asc → 2º desc → 3º limpa).
+2. Componente `<SortableTh>` em
+   [`frontend2/src/components/SortableTh.tsx`](src/components/SortableTh.tsx)
+   — renderiza `<th>` clicável com chevron ▲/▼/↕. Inherits font/cor do `<th>` pai.
+3. CSS `.sort-header` + `.sort-ind` em
+   [`frontend2/src/styles/sort-header.css`](src/styles/sort-header.css),
+   importado globalmente em [`main.tsx`](src/main.tsx). Funciona em qualquer
+   contexto (tabela `<th>` ou header grid tipo `.list-dyn-head`).
+
+**Exemplo mínimo:**
+
+```tsx
+import { useTableSort, type SortableColumn } from '../../lib/useTableSort';
+import { SortableTh } from '../../components/SortableTh';
+
+type Col = 'name' | 'email' | 'hours';
+const columns: SortableColumn<Member, Col>[] = [
+  { key: 'name',  getValue: (m) => m.name.toLowerCase() },
+  { key: 'email', getValue: (m) => m.email?.toLowerCase() ?? null },
+  { key: 'hours', getValue: (m) => m.hoursPerDay },
+];
+const { sortBy, toggleSort, sorted } = useTableSort(members, columns);
+// ...
+<thead><tr>
+  <SortableTh colKey="name"  label={t('col.name')}  sortBy={sortBy} onToggle={toggleSort} />
+  <SortableTh colKey="email" label={t('col.email')} sortBy={sortBy} onToggle={toggleSort} />
+  <SortableTh colKey="hours" label={t('col.hours')} sortBy={sortBy} onToggle={toggleSort} />
+  <th>{t('col.actions')}</th>  {/* não-sortable: usar <th> normal */}
+</tr></thead>
+<tbody>{sorted.map(...)}</tbody>
+```
+
+**Convenções:**
+- Valores `null`/`undefined` no `getValue` empurram a linha para o fim,
+  independente da direção (asc/desc).
+- Colunas com semântica binária (ex.: Actions) ficam como `<th>` normal
+  (sem ordenação) ou `<SortableTh sortable={false}>` (mantém alinhamento
+  visual com as outras headers).
+- A pseudo-coluna `'task'` em
+  [ProjectListView.tsx](src/features/planning/components/ProjectListView.tsx)
+  é uma excepção autorizada porque o sort depende do `groupBy`; tem
+  semântica especial (ordena grupos em modos assignee/priority, tasks em
+  none, disabled em state) e não pode usar o hook directamente.
+
+**Anti-padrões:**
+- ❌ `<th>{label}</th>` numa coluna sortável — usar sempre `<SortableTh>`.
+- ❌ Duplicar a lógica `[sortBy, setSortBy]` + comparators inline em vez
+  de chamar `useTableSort`.
+- ❌ Re-implementar o CSS chevron `▲▼` — a classe `.sort-header` já
+  contém todos os estados (hover, active, disabled).
+
 ---
 
 ## Para aplicar estas alterações

@@ -9,22 +9,46 @@ import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import '../../../styles/project-list.css';
+import '../../../styles/project-resources-links.css';
 
 import { ProjectAction as PA } from '../../../hooks/useProjectPermissions';
-import type { IProjectMember, ITask, ITaskState } from '../types';
+import type { IProjectMember, IResourceNode, ITask, ITaskLink, ITaskState } from '../types';
 import { ViewActions } from './ViewActions';
 import { ManageStatesDrawer } from './ManageStatesDrawer';
 import { FilterToolbar, type ListMode, type StateFilterKey } from './FilterToolbar';
-import { ALL_COLS, defaultColVisibility, type ListColDef, type ListColKey } from './list-columns';
+import {
+  ALL_COLS, defaultColVisibility, makeSorter,
+  type ListColDef, type ListColKey, type SortContext,
+} from './list-columns';
+import {
+  groupTasksByState, groupTasksByAssignee, groupTasksByPriority, groupTasksFlat,
+  type GroupBy, type GroupView,
+} from './list-grouping';
 import { AssigneeAvatars } from './AssigneeAvatars';
 import { DateCell } from './DateCell';
 import { PriorityBadge } from './PriorityBadge';
 import { ProgressCell } from './ProgressCell';
 import { TaskCheckbox } from './TaskCheckbox';
 import { TypeBadge } from './TypeBadge';
+import { ResourcesView } from './ResourcesView';
+import { LinksView } from './LinksView';
+
+/** Coluna ordenável — `'task'` é pseudo-coluna especial: ordena a vista
+ *  conforme o `groupBy` (em `assignee`/`priority` ordena os grupos pelo
+ *  agrupador; em `none` ordena por `task.text`; em `state` é desabilitada). */
+export type SortKey = ListColKey | 'task';
+
+export interface SortBy {
+  key: SortKey;
+  dir: 'asc' | 'desc';
+}
 
 interface Props {
   tasks: ITask[];
+  links: ITaskLink[];
+  resources: IResourceNode[];
+  members: IProjectMember[];
+  refresh: () => Promise<void>;
   states: ITaskState[];
   membersByPublicId: Map<string, IProjectMember>;
   dateFormat: string | null;
@@ -35,11 +59,6 @@ interface Props {
   states_update: (publicId: string, patch: { label?: string | null; color?: string | null; wipLimit?: number | null }) => Promise<boolean>;
   states_delete: (publicId: string, targetPublicId?: string) => Promise<{ ok: boolean; error?: string }>;
   states_reorder: (orderedPublicIds: string[]) => Promise<boolean>;
-}
-
-interface GroupView {
-  state: ITaskState;
-  tasks: ITask[];
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -55,18 +74,6 @@ function formatCreatedShort(iso: string | null | undefined): string {
   const hh = String(d.getUTCHours()).padStart(2, '0');
   const mi = String(d.getUTCMinutes()).padStart(2, '0');
   return `${dd} ${mm} ${hh}:${mi}`;
-}
-
-function groupTasks(tasks: ITask[], states: ITaskState[]): GroupView[] {
-  const ordered = [...states].sort((a, b) => a.position - b.position);
-  const byState = new Map<string, ITask[]>();
-  for (const s of ordered) byState.set(s.publicId, []);
-  for (const t of tasks) {
-    if (t.boardColumn && byState.has(t.boardColumn)) {
-      byState.get(t.boardColumn)!.push(t);
-    }
-  }
-  return ordered.map((state) => ({ state, tasks: byState.get(state.publicId) ?? [] }));
 }
 
 function resolveStateLabel(state: ITaskState, t: (k: string) => string): string {
@@ -166,7 +173,8 @@ function SkeletonRows({ count = 4, gridTpl }: { count?: number; gridTpl: string 
 // ─── ProjectListView (orquestrador) ──────────────────────────────────────────
 
 export function ProjectListView({
-  tasks, states, membersByPublicId, dateFormat, loading, can,
+  tasks, links, resources, members, refresh,
+  states, membersByPublicId, dateFormat, loading, can,
   projectPublicId,
   states_create, states_update, states_delete, states_reorder,
 }: Props) {
@@ -177,6 +185,8 @@ export function ProjectListView({
   const [collapsedKeys, setCollapsedKeys] = useState<Set<string>>(new Set());
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [visibleCols, setVisibleCols] = useState<Record<ListColKey, boolean>>(defaultColVisibility);
+  const [groupBy, setGroupBy] = useState<GroupBy>('state');
+  const [sortBy, setSortBy] = useState<SortBy | null>(null);
 
   const visCols = useMemo<ListColDef[]>(
     () => ALL_COLS.filter((c) => visibleCols[c.key]),
@@ -207,13 +217,73 @@ export function ProjectListView({
     });
   }, [tasks, filterText, stateFilter]);
 
+  /** Map indexado por publicId para sort/lookup rápido. */
+  const statesByPublicId = useMemo<Map<string, ITaskState>>(
+    () => new Map(states.map((s) => [s.publicId, s])),
+    [states],
+  );
+
+  /** Ordenação aplicada às tasks ANTES do agrupamento.
+   *  Casos especiais para `sortBy.key === 'task'`:
+   *    - `groupBy === 'none'`: ordena tasks por `task.text`.
+   *    - `groupBy === 'assignee' | 'priority'`: o sort vai para os GRUPOS
+   *      (via `groupOrder` abaixo); aqui devolvemos as tasks intactas.
+   *    - `groupBy === 'state'`: não acontece (header TAREFA fica disabled). */
+  const sortedTasks = useMemo<ITask[]>(() => {
+    if (!sortBy) return filteredTasks;
+    if (sortBy.key === 'task') {
+      if (groupBy === 'none') {
+        const mult = sortBy.dir === 'asc' ? 1 : -1;
+        return [...filteredTasks].sort((a, b) =>
+          mult * (a.text ?? '').toLowerCase().localeCompare((b.text ?? '').toLowerCase()),
+        );
+      }
+      return filteredTasks;
+    }
+    const ctx: SortContext = { membersByPublicId, statesByPublicId };
+    const comp = makeSorter(sortBy.key, sortBy.dir, ctx);
+    return [...filteredTasks].sort(comp);
+  }, [filteredTasks, sortBy, groupBy, membersByPublicId, statesByPublicId]);
+
+  /** Agrupamento — 4 modos. `state` respeita o filtro de state pill;
+   *  outros modos ignoram-no (o agrupamento por X não combina com filtro por
+   *  state — UX semelhante a Asana).
+   *  `groupOrder` ⬅ activo só quando `sortBy.key === 'task'` em modos
+   *  `assignee`/`priority` (re-ordena os grupos pela coluna agrupadora). */
   const groups = useMemo<GroupView[]>(() => {
-    const all = groupTasks(filteredTasks, states);
-    if (stateFilter === 'all') return all;
-    return all.filter((g) => g.state.publicId === stateFilter);
-  }, [filteredTasks, states, stateFilter]);
+    const groupOrder: 'asc' | 'desc' | undefined =
+      (sortBy?.key === 'task' && (groupBy === 'assignee' || groupBy === 'priority'))
+        ? sortBy.dir
+        : undefined;
+    if (groupBy === 'state') {
+      const all = groupTasksByState(sortedTasks, states, (s) => resolveStateLabel(s, t));
+      if (stateFilter === 'all') return all;
+      return all.filter((g) => g.state?.publicId === stateFilter);
+    }
+    if (groupBy === 'assignee') {
+      return groupTasksByAssignee(
+        sortedTasks, membersByPublicId, t('list.group.no_assignee'), { groupOrder },
+      );
+    }
+    if (groupBy === 'priority') {
+      return groupTasksByPriority(
+        sortedTasks, (k) => t(`list.group.${k}`), t('list.group.no_priority'), { groupOrder },
+      );
+    }
+    return groupTasksFlat(sortedTasks);
+  }, [groupBy, sortedTasks, states, stateFilter, membersByPublicId, t, sortBy]);
 
   const filterActive = filterText.trim().length > 0 || stateFilter !== 'all';
+
+  // Counts dos sub-tabs (Tasks / Resources / Links). Resources = team members
+  // + externals (recursos não-grupo). Tasks count vem do array completo
+  // (sem filtros de UI — apenas o segmento mode-seg conta global).
+  const externalsCount = useMemo(
+    () => resources.filter((r) => !r.isGroup && !r.userPublicId).length,
+    [resources],
+  );
+  const resourcesCount = members.length + externalsCount;
+  const linksCount = links.length;
 
   function toggleGroup(publicId: string) {
     setCollapsedKeys((prev) => {
@@ -233,6 +303,15 @@ export function ProjectListView({
     setVisibleCols(next);
   }
 
+  /** Click no header: 1º asc → 2º desc → 3º limpar. Aceita 'task' (pseudo-coluna). */
+  function toggleSort(key: SortKey) {
+    setSortBy((prev) => {
+      if (!prev || prev.key !== key) return { key, dir: 'asc' };
+      if (prev.dir === 'asc') return { key, dir: 'desc' };
+      return null;
+    });
+  }
+
   return (
     <>
       <ViewActions
@@ -244,6 +323,8 @@ export function ProjectListView({
 
       <FilterToolbar
         tasksCount={tasks.length}
+        resourcesCount={resourcesCount}
+        linksCount={linksCount}
         states={states}
         countsByState={countsByState}
         listMode={listMode}
@@ -253,22 +334,75 @@ export function ProjectListView({
         visibleCols={visibleCols}
         onToggleCol={toggleCol}
         onSelectAllCols={selectAllCols}
+        groupBy={groupBy}
+        onGroupByChange={setGroupBy}
       />
 
-      <div className="list-wrap">
-        {listMode !== 'tasks' ? (
-          <div className="list-empty-mode">
-            <div className="msg">{t('tabs.coming_soon')}</div>
-          </div>
-        ) : (
-          <>
-            {/* Header de colunas dinâmico */}
+      {listMode === 'resources' && (
+        <ResourcesView
+          members={members}
+          resources={resources}
+          projectPublicId={projectPublicId}
+          refresh={refresh}
+          can={can}
+        />
+      )}
+
+      {listMode === 'links' && (
+        <LinksView
+          links={links}
+          tasks={tasks}
+          projectPublicId={projectPublicId}
+          refresh={refresh}
+          can={can}
+        />
+      )}
+
+      {listMode === 'tasks' && (
+        <div className="list-wrap">
+            {/* Header de colunas dinâmico — colunas clicáveis para sort.
+                Coluna TAREFA é pseudo-sortable: em groupBy='state' fica
+                disabled; em outros modos ordena os grupos (assignee/priority)
+                ou as tasks (none) pelo nome/severidade/texto. */}
             <div className="list-dyn-head" style={{ gridTemplateColumns: gridTpl }}>
               <span />
-              <span>{t('table.task')}</span>
-              {visCols.map((c) => (
-                <span key={c.key}>{t(c.labelKey)}</span>
-              ))}
+              {(() => {
+                const taskSortable = groupBy !== 'state';
+                const isSorted = sortBy?.key === 'task';
+                const dir = isSorted ? sortBy!.dir : null;
+                return (
+                  <button
+                    type="button"
+                    className={'sort-header' + (isSorted ? ' active' : '') + (taskSortable ? '' : ' disabled')}
+                    onClick={taskSortable ? () => toggleSort('task') : undefined}
+                    disabled={!taskSortable}
+                  >
+                    <span>{t('table.task')}</span>
+                    <span className={'sort-ind' + (isSorted ? ' on' : '')}>
+                      {dir === 'asc' ? '▲' : dir === 'desc' ? '▼' : '↕'}
+                    </span>
+                  </button>
+                );
+              })()}
+              {visCols.map((c) => {
+                const sortable = c.sortable !== false;
+                const isSorted = sortBy?.key === c.key;
+                const dir = isSorted ? sortBy!.dir : null;
+                return (
+                  <button
+                    key={c.key}
+                    type="button"
+                    className={'sort-header' + (isSorted ? ' active' : '') + (sortable ? '' : ' disabled')}
+                    onClick={sortable ? () => toggleSort(c.key) : undefined}
+                    disabled={!sortable}
+                  >
+                    <span>{t(c.labelKey)}</span>
+                    <span className={'sort-ind' + (isSorted ? ' on' : '')}>
+                      {dir === 'asc' ? '▲' : dir === 'desc' ? '▼' : '↕'}
+                    </span>
+                  </button>
+                );
+              })}
               <span />
             </div>
 
@@ -280,54 +414,71 @@ export function ProjectListView({
               </div>
             ) : (
               groups.map((group) => {
-                const isClosed = collapsedKeys.has(group.state.publicId);
-                const isDone = group.state.systemKey === 'DONE' || group.state.type === 'FINAL';
-                const canAdd = can(PA.TASK_CREATE);
+                const isClosed = collapsedKeys.has(group.key);
+                const isDone = group.done ?? false;
+                // "+ Adicionar tarefa" inline só faz sentido quando estamos
+                // a agrupar por estado (associa a task ao estado do grupo).
+                const canAdd = can(PA.TASK_CREATE) && groupBy === 'state';
+                const showHeader = group.label !== null;
                 return (
-                  <div key={group.state.publicId}>
-                    <div
-                      className={`list-group${isClosed ? ' closed' : ''}`}
-                      onClick={() => toggleGroup(group.state.publicId)}
-                      role="button"
-                      tabIndex={0}
-                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') toggleGroup(group.state.publicId); }}
-                    >
-                      <span className="chev">▼</span>
-                      <span className="swatch" style={{ background: group.state.color ?? '#6b7280' }} />
-                      <span className="name">{resolveStateLabel(group.state, t)}</span>
-                      <span className="count">{group.tasks.length}</span>
-                      <button
-                        type="button"
-                        className="add"
-                        disabled={!canAdd}
-                        onClick={(e) => { e.stopPropagation(); }}
-                        title={t('actions.coming_soon_tip')}
-                      >{t('list.add_task_inline')}</button>
-                    </div>
+                  <div key={group.key}>
+                    {showHeader && (
+                      <div
+                        className={`list-group${isClosed ? ' closed' : ''}`}
+                        onClick={() => toggleGroup(group.key)}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') toggleGroup(group.key); }}
+                      >
+                        <span className="chev">▼</span>
+                        {group.color && <span className="swatch" style={{ background: group.color }} />}
+                        <span className="name">{group.label}</span>
+                        <span className="count">{group.tasks.length}</span>
+                        {canAdd && (
+                          <button
+                            type="button"
+                            className="add"
+                            disabled
+                            onClick={(e) => { e.stopPropagation(); }}
+                            title={t('actions.coming_soon_tip')}
+                          >{t('list.add_task_inline')}</button>
+                        )}
+                      </div>
+                    )}
                     {!isClosed && (
                       group.tasks.length === 0 ? (
                         <div className="list-empty-group">
                           {filterActive ? t('list.empty_filter') : t('list.empty_group')}
                         </div>
                       ) : (
-                        group.tasks.map((task) => (
-                          <div
-                            key={task.publicId}
-                            className={`list-dyn-row${isDone ? ' done' : ''}`}
-                            style={{ gridTemplateColumns: gridTpl }}
-                          >
-                            <span>
-                              <TaskCheckbox done={isDone} disabled={!can(PA.TASK_EDIT)} />
-                            </span>
-                            <span className="title">{task.text}</span>
-                            {visCols.map((col) => (
-                              <span key={col.key}>
-                                {renderCell(col, task, group.state, membersByPublicId, dateFormat, t)}
+                        group.tasks.map((task) => {
+                          // Quando groupBy='state', usa o state do grupo.
+                          // Quando 'assignee'/'priority'/'none', resolve via lookup.
+                          const taskState = group.state
+                            ?? (task.boardColumn ? statesByPublicId.get(task.boardColumn) : undefined);
+                          // Key inclui `group.key` porque uma task pode
+                          // aparecer em múltiplos grupos (groupBy='assignee'
+                          // com múltiplos owners) — `task.publicId` sozinho
+                          // colidiria no DOM.
+                          return (
+                            <div
+                              key={`${group.key}::${task.publicId}`}
+                              className={`list-dyn-row${isDone ? ' done' : ''}`}
+                              style={{ gridTemplateColumns: gridTpl }}
+                            >
+                              <span>
+                                <TaskCheckbox done={isDone} disabled={!can(PA.TASK_EDIT)} />
                               </span>
-                            ))}
-                            <button type="button" className="row-more" disabled aria-label="More">⋯</button>
-                          </div>
-                        ))
+                              <span className="title">{task.text}</span>
+                              {visCols.map((col) => (
+                                <span key={col.key}>
+                                  {renderCell(col, task, taskState, membersByPublicId, dateFormat, t)}
+                                </span>
+                              ))}
+                              <button type="button" className="row-more" disabled aria-label="More">⋯</button>
+                            </div>
+                          );
+                        })
                       )
                     )}
                   </div>
@@ -346,9 +497,8 @@ export function ProjectListView({
                 <span>{t('list.add_task_inline')}…</span>
               </button>
             )}
-          </>
-        )}
-      </div>
+        </div>
+      )}
 
       {drawerOpen && (
         <ManageStatesDrawer

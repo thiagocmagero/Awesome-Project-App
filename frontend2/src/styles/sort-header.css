@@ -1,0 +1,45 @@
+/* ============================================================
+   `.sort-header` — botão clicável dentro de header de coluna (th
+   ou .list-dyn-head span). Herda tipografia/cor do pai, mostra
+   chevron ▲/▼/↕ no estado activo / inactivo / hover.
+
+   Usado em conjunto com `useTableSort` + `<SortableTh>`.
+   Padrão obrigatório para qualquer tabela criada em frontend2/.
+   ============================================================ */
+
+.sort-header {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  font-weight: inherit;
+  cursor: pointer;
+  text-align: left;
+  white-space: nowrap;
+  border-radius: 4px;
+  transition: color .12s, background .12s;
+}
+.sort-header:hover:not(:disabled) { color: var(--ink); }
+.sort-header.active { color: var(--brand); }
+.sort-header.disabled,
+.sort-header:disabled { cursor: default; }
+.sort-header .sort-ind {
+  font-size: 9px;
+  opacity: 0;
+  transition: opacity .12s;
+  display: inline-block;
+  width: 10px;
+  text-align: center;
+}
+.sort-header:hover .sort-ind,
+.sort-header .sort-ind.on { opacity: 1; }
+.sort-header.active .sort-ind { color: var(--brand); }
+.sort-header.disabled .sort-ind,
+.sort-header:disabled .sort-ind { opacity: 0; }

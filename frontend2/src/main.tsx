@@ -8,6 +8,7 @@ import { ToastProvider } from './contexts/ToastContext';
 import { shellCss } from './shell/shellCss';
 
 import './styles/globals.css';
+import './styles/sort-header.css';
 // i18next setup (side-effect: regista LocalStorageBackend, LanguageDetector,
 // initReactI18next e carrega namespaces). Tem que correr antes de qualquer
 // componente que use `useTranslation()`.

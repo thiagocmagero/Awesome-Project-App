@@ -72,7 +72,7 @@ export default function ProjectDetailPage() {
 
   const { project, loading: projectLoading, error: projectError } = useProject(projectId);
   const { members } = useProjectMembers(projectId);
-  const { tasks, resources, loading: planningLoading } = usePlanningBundle(projectId);
+  const { tasks, links, resources, loading: planningLoading, refresh } = usePlanningBundle(projectId);
   const {
     states, loading: statesLoading,
     createState, updateState, deleteState, reorderStates,
@@ -157,6 +157,10 @@ export default function ProjectDetailPage() {
         {activeTab === 'list' ? (
           <ProjectListView
             tasks={tasks}
+            links={links}
+            resources={resources}
+            members={members}
+            refresh={refresh}
             states={states}
             membersByPublicId={assigneesByPublicId}
             dateFormat={project.dateFormat}

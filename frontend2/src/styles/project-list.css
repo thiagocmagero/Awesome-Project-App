@@ -301,35 +301,50 @@
   flex-wrap: wrap;
 }
 
-/* Segmented control (Tasks / Resources / Links) */
-.lv-mode-seg { display: flex; }
+/* Segmented control (Tasks / Resources / Links) — alinhado com `.pp-tabs`
+   de people.css (padrão de filtros em /users: Todos/Licenciados/Básicos/...). */
+.lv-mode-seg {
+  display: inline-flex;
+  padding: 3px;
+  background: var(--panel2);
+  border-radius: 8px;
+  gap: 0;
+}
 .lv-mode-item {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 5px 14px;
+  gap: 5px;
+  padding: 5px 11px;
+  border-radius: 6px;
+  border: none;
   background: transparent;
-  border: 1px solid var(--line);
-  border-right: none;
   color: var(--dim);
-  font-size: 12.5px;
-  cursor: pointer;
+  font-size: 12px;
   font-family: inherit;
-  transition: background .12s, color .12s;
+  cursor: pointer;
   white-space: nowrap;
+  transition: background .12s, color .12s, box-shadow .12s;
 }
-.lv-mode-item:first-child { border-radius: 7px 0 0 7px; }
-.lv-mode-item:last-child  { border-radius: 0 7px 7px 0; border-right: 1px solid var(--line); }
+.lv-mode-item:hover { color: var(--ink); }
 .lv-mode-item.active {
+  background: var(--panel);
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0,0,0,.06), 0 0 0 1px var(--line);
+}
+.lv-mode-item:disabled { opacity: 0.55; cursor: not-allowed; }
+.lv-mode-badge {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--mute);
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: var(--panel3);
+}
+.lv-mode-item.active .lv-mode-badge {
   background: var(--brandSoft);
   color: var(--brand);
-  font-weight: 600;
-  border-color: var(--brand);
-  z-index: 1;
 }
-.lv-mode-item:not(.active):not(:disabled):hover { background: var(--panel2); color: var(--ink); }
-.lv-mode-item:disabled { opacity: 0.55; cursor: not-allowed; }
-.lv-mode-badge { font-family: var(--mono); font-size: 11px; opacity: 0.7; }
 
 /* State pills (All / A fazer / ...) */
 .lv-state-pills { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
@@ -555,6 +570,10 @@
   top: 0;
   z-index: 2;
 }
+
+/* `.sort-header` para colunas clicáveis vive em styles/sort-header.css
+   (importado globalmente em main.tsx). Funciona aqui via inheritance
+   da tipografia do `.list-dyn-head`. */
 .list-dyn-row {
   display: grid;
   height: 44px;
