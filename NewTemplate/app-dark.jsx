@@ -547,6 +547,118 @@ html[data-theme="dark"] .user-menu .acc-trial {
 .add-task-bar:hover { color: ${T.brand}; }
 .add-task-bar .icon { font-size: 16px; line-height: 0.8; }
 
+/* ---- ListPage wrapper ---- */
+.lp-wrap { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+
+/* ---- Sub-bar (Tasks / Resources / Links + state pills) ---- */
+.lv-subbar { display: flex; align-items: center; gap: 16px; padding: 8px 24px; background: ${T.panel}; border-bottom: 1px solid ${T.line}; flex: 0 0 auto; flex-wrap: wrap; }
+.lv-mode-seg { display: flex; }
+.lv-mode-item { display: inline-flex; align-items: center; gap: 6px; padding: 5px 14px; background: transparent; border: 1px solid ${T.line}; border-right: none; color: ${T.dim}; font-size: 12.5px; cursor: pointer; font-family: inherit; transition: background .12s, color .12s; white-space: nowrap; }
+.lv-mode-item:first-child { border-radius: 7px 0 0 7px; }
+.lv-mode-item:last-child  { border-radius: 0 7px 7px 0; border-right: 1px solid ${T.line}; }
+.lv-mode-item.active { background: ${T.brandSoft}; color: ${T.brand}; font-weight: 600; border-color: ${T.brand}; z-index: 1; }
+.lv-mode-item:not(.active):hover { background: ${T.panel2}; color: ${T.ink}; }
+.lv-mode-badge { font-family: ${T.mono}; font-size: 11px; opacity: 0.7; }
+
+.lv-state-pills { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
+.lv-spill { padding: 4px 10px; border-radius: 6px; background: transparent; border: 1px solid transparent; color: ${T.dim}; font-size: 12px; cursor: pointer; font-family: inherit; display: inline-flex; align-items: center; gap: 5px; transition: background .1s; white-space: nowrap; }
+.lv-spill:hover { background: ${T.panel2}; }
+.lv-spill.active { background: ${T.brandSoft}; color: ${T.brand}; font-weight: 600; border-color: ${T.brandSoft2}; }
+.lv-spill span { font-family: ${T.mono}; font-size: 11px; }
+
+/* ---- Group-by dropdown ---- */
+.lv-groupby { position: relative; }
+.lv-gb-btn  { background: none; border: none; cursor: pointer; font-size: 12px; color: ${T.dim}; padding: 4px 7px; border-radius: 5px; font-family: inherit; }
+.lv-gb-btn:hover { background: ${T.panel2}; color: ${T.ink}; }
+.lv-gb-btn b { color: ${T.ink}; }
+.lv-gb-menu { position: absolute; right: 0; top: calc(100% + 4px); background: ${T.panel}; border: 1px solid ${T.line}; border-radius: 9px; box-shadow: 0 8px 24px -4px rgba(0,0,0,.14); z-index: 200; min-width: 186px; padding: 4px; }
+.lv-gb-item { display: flex; align-items: center; gap: 6px; padding: 7px 10px; border-radius: 6px; font-size: 13px; cursor: pointer; color: ${T.ink}; }
+.lv-gb-item:hover { background: ${T.panel2}; }
+.lv-gb-item.active { color: ${T.brand}; font-weight: 600; }
+.lv-gb-item .chk { width: 14px; font-size: 12px; color: ${T.brand}; text-align: center; }
+
+/* ---- Columns panel ---- */
+.lv-cols { position: relative; }
+.lv-cols-btn { display: inline-flex; align-items: center; gap: 5px; background: none; border: 1px solid ${T.line}; border-radius: 7px; cursor: pointer; font-size: 12px; color: ${T.dim}; padding: 5px 10px; font-family: inherit; transition: background .1s; }
+.lv-cols-btn:hover { background: ${T.panel2}; color: ${T.ink}; }
+.lv-cols-menu { position: absolute; right: 0; top: calc(100% + 4px); background: ${T.panel}; border: 1px solid ${T.line}; border-radius: 9px; box-shadow: 0 8px 24px -4px rgba(0,0,0,.14); z-index: 200; min-width: 180px; padding: 6px 0; }
+.lv-cols-head { display: flex; align-items: center; justify-content: space-between; padding: 6px 14px 4px; }
+.lv-cols-head span { font-size: 10px; color: ${T.mute}; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+.lv-cols-head .sel-all { color: ${T.brand}; cursor: pointer; font-size: 11px; font-weight: 600; text-transform: none; letter-spacing: 0; }
+.lv-cols-item { display: flex; align-items: center; gap: 9px; padding: 6px 14px; font-size: 13px; cursor: pointer; color: ${T.ink}; }
+.lv-cols-item:hover { background: ${T.panel2}; }
+.lv-cols-item input[type="checkbox"] { accent-color: ${T.brand}; width: 14px; height: 14px; cursor: pointer; flex: 0 0 auto; }
+
+/* ---- Dynamic list head / rows ---- */
+.list-dyn-head { display: grid; background: ${T.panel}; border-bottom: 1px solid ${T.line}; height: 36px; align-items: center; padding: 0 24px; font-size: 11px; color: ${T.mute}; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; position: sticky; top: 0; z-index: 2; }
+.list-dyn-row  { display: grid; height: 44px; border-bottom: 1px solid ${T.lineSoft}; cursor: pointer; align-items: center; padding: 0 24px; }
+.list-dyn-row:hover { background: ${T.panel2}; }
+.list-dyn-row.done .title { color: ${T.dim}; text-decoration: line-through; text-decoration-color: ${T.line}; }
+@media (max-width: 880px) {
+  .lv-subbar { padding: 8px 16px; gap: 8px; }
+  .list-dyn-head, .list-dyn-row { padding: 0 16px; }
+}
+
+/* ---- Resources view ---- */
+.rv-wrap { flex: 1; overflow: auto; background: ${T.bg}; padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; }
+.rv-section { background: ${T.panel}; border: 1px solid ${T.line}; border-radius: 10px; overflow: hidden; }
+.rv-sec-head { display: flex; align-items: center; gap: 8px; padding: 12px 16px; font-size: 13.5px; font-weight: 600; color: ${T.ink}; border-bottom: 1px solid ${T.line}; }
+.rv-sec-head .rv-badge { font-family: ${T.mono}; font-size: 11px; background: ${T.brandSoft}; color: ${T.brand}; padding: 2px 7px; border-radius: 99px; font-weight: 600; }
+.rv-sec-head .rv-badge.zero { background: ${T.panel2}; color: ${T.mute}; }
+.rv-add-btn { margin-left: auto; padding: 5px 12px; border-radius: 6px; background: ${T.high}; color: #fff; border: none; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; }
+.rv-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.rv-table th { text-align: left; padding: 9px 16px; font-size: 11px; color: ${T.mute}; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; border-bottom: 1px solid ${T.lineSoft}; }
+.rv-table td { padding: 11px 16px; border-bottom: 1px solid ${T.lineSoft}; color: ${T.ink}; }
+.rv-table tr:last-child td { border-bottom: none; }
+.rv-table .muted { color: ${T.dim}; }
+.rv-status-pill { padding: 3px 10px; border-radius: 5px; font-size: 11px; font-weight: 600; background: ${T.done}; color: ${T.doneInk}; }
+.rv-hpd { display: flex; align-items: center; gap: 4px; }
+.rv-hpd input { width: 48px; padding: 4px 6px; border: 1px solid ${T.line}; border-radius: 5px; background: ${T.panel}; color: ${T.ink}; font-family: ${T.mono}; font-size: 12px; text-align: right; }
+.rv-hpd .unit { color: ${T.dim}; font-size: 12px; }
+.rv-empty { padding: 14px 16px; font-size: 13px; color: ${T.mute}; display: flex; align-items: center; gap: 6px; }
+
+/* ---- Links view ---- */
+.lnk-wrap { flex: 1; overflow: auto; background: ${T.panel}; display: flex; flex-direction: column; }
+.lnk-toolbar { display: flex; justify-content: flex-end; padding: 10px 24px; border-bottom: 1px solid ${T.line}; flex: 0 0 auto; }
+.lnk-create-btn { padding: 6px 14px; border-radius: 7px; background: ${T.brand}; color: #fff; border: none; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
+.lnk-create-btn:hover { opacity: .9; }
+.lnk-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.lnk-table th { text-align: left; padding: 10px 24px; font-size: 11px; color: ${T.mute}; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; border-bottom: 1px solid ${T.line}; }
+.lnk-table td { padding: 11px 24px; border-bottom: 1px solid ${T.lineSoft}; color: ${T.ink}; }
+.lnk-table tr:last-child td { border-bottom: none; }
+.lnk-source { font-weight: 500; }
+.lnk-target { color: ${T.brand} !important; }
+.lnk-type { padding: 3px 9px; border-radius: 4px; font-size: 11px; font-weight: 700; font-family: ${T.mono}; display: inline-block; }
+.lnk-type.ss { background: oklch(0.93 0.07 25);  color: oklch(0.48 0.18 25);  }
+.lnk-type.fs { background: oklch(0.93 0.07 155); color: oklch(0.42 0.15 155); }
+.lnk-del-btn { background: none; border: none; cursor: pointer; color: ${T.mute}; padding: 4px 7px; border-radius: 5px; line-height: 1; }
+.lnk-del-btn:hover { background: oklch(0.93 0.07 25); color: oklch(0.48 0.18 25); }
+
+/* ---- Modals ---- */
+.modal-backdrop { position: fixed; inset: 0; background: rgba(15,15,28,.3); z-index: 500; display: flex; align-items: center; justify-content: center; padding: 16px; }
+.modal-box { background: ${T.panel}; border-radius: 14px; box-shadow: 0 24px 64px -12px rgba(0,0,0,.24); width: 480px; max-width: 100%; overflow: hidden; animation: modal-in .18s ease; }
+@keyframes modal-in { from { opacity: 0; transform: scale(.96) translateY(6px); } to { opacity: 1; transform: none; } }
+.modal-head { display: flex; align-items: center; justify-content: space-between; padding: 18px 22px 14px; border-bottom: 1px solid ${T.line}; }
+.modal-head .title { font-size: 15px; font-weight: 600; color: ${T.ink}; }
+.modal-close { background: none; border: none; cursor: pointer; color: ${T.mute}; font-size: 18px; padding: 2px 7px; border-radius: 5px; line-height: 1; font-family: inherit; }
+.modal-close:hover { background: ${T.panel2}; color: ${T.ink}; }
+.modal-body { padding: 18px 22px; display: flex; flex-direction: column; gap: 14px; }
+.modal-field { display: flex; flex-direction: column; gap: 5px; }
+.modal-field label { font-size: 12px; font-weight: 600; color: ${T.ink2}; }
+.modal-field .req { color: ${T.high}; margin-left: 2px; }
+.modal-field input[type="text"],
+.modal-field input[type="number"],
+.modal-field select { padding: 8px 11px; border: 1px solid ${T.line}; border-radius: 8px; background: ${T.panel}; color: ${T.ink}; font-size: 13px; font-family: inherit; outline: none; transition: border-color .12s, box-shadow .12s; width: 100%; }
+.modal-field input:focus, .modal-field select:focus { border-color: ${T.brand}; box-shadow: 0 0 0 3px ${T.brandSoft}; }
+.modal-field .help { font-size: 11px; color: ${T.mute}; }
+.modal-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.modal-foot { display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 14px 22px 18px; border-top: 1px solid ${T.line}; }
+.modal-foot .mf-cancel { padding: 7px 16px; border-radius: 7px; border: 1px solid ${T.line}; background: ${T.panel}; color: ${T.ink2}; font-size: 13px; font-weight: 500; cursor: pointer; font-family: inherit; }
+.modal-foot .mf-cancel:hover { background: ${T.panel2}; }
+.modal-foot .mf-primary { padding: 7px 16px; border-radius: 7px; border: none; background: ${T.brand}; color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
+.modal-foot .mf-primary:hover { opacity: .9; }
+.modal-foot .mf-primary:disabled { opacity: .4; cursor: not-allowed; }
+
 /* Gantt */
 .gantt-wrap { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: ${T.panel}; }
 .gantt-body { flex: 1; display: flex; overflow: hidden; }
@@ -943,6 +1055,26 @@ const statusMeta = {
 
 const priColor = { Alta: T.high, Média: T.med, Baixa: T.low };
 
+const mockLinks = [
+  { id: 1, source: 'Bug — Salvar sem data de início',         target: 'Implementar feature "Seguir" na task',                type: 'SS' },
+  { id: 2, source: 'Bug — Salvar sem data de início',         target: 'Implementar sistema de Tags',                         type: 'FS' },
+  { id: 3, source: '[urgente] Mudar path S3',                 target: 'Editor rich text com imagens seguras — Tiptap',       type: 'FS' },
+  { id: 4, source: 'Contador da lista de tarefas',            target: 'Onboarding · primeira sessão',                        type: 'SS' },
+  { id: 5, source: 'Notificação ao adicionar/remover',        target: 'Regras nas tasks',                                    type: 'SS' },
+];
+
+const ALL_COLS = [
+  { key: 'start',    label: 'Início',      width: '100px', def: true  },
+  { key: 'end',      label: 'Fim',         width: '100px', def: true  },
+  { key: 'duration', label: 'Duração',     width: '80px',  def: true  },
+  { key: 'progress', label: 'Progresso',   width: '90px',  def: false },
+  { key: 'priority', label: 'Prioridade',  width: '100px', def: true  },
+  { key: 'state',    label: 'Estado',      width: '120px', def: true  },
+  { key: 'owner',    label: 'Responsável', width: '110px', def: true  },
+  { key: 'created',  label: 'Criada',      width: '140px', def: true  },
+  { key: 'type',     label: 'Tipo',        width: '90px',  def: false },
+];
+
 const projects = [
   { id: 'awp',  name: 'Awesome Project App',  color: T.brand, fav: true },
   { id: 'mkt',  name: 'Marketing Site 2026',  color: 'oklch(0.70 0.16 320)' },
@@ -1309,10 +1441,6 @@ function ProjectHeader({ view, setView }) {
           Awesome Project App
           <span className="chev">▾</span>
         </div>
-        <div className="proj-status" title="Status do projeto">
-          <span className="pulse"></span>
-          <span>Em risco</span>
-        </div>
         <div className="proj-members avatar-list-stacked">
           <div className="avatar sm" title="Thiago Mágero" style={{ background: '#e8704c' }}>TM</div>
           <div className="avatar sm" title="Lara Mendes" style={{ background: '#4a89c4' }}>LM</div>
@@ -1341,20 +1469,6 @@ function ProjectHeader({ view, setView }) {
   );
 }
 
-function Toolbar({ view, setView }) {
-  return (
-    <div className="toolbar">
-      <FilterPill label="Estado" value="Tudo" />
-      <FilterPill label="Prioridade" value="Tudo" />
-      <FilterPill label="Responsável" value="Eu" active />
-      <FilterPill label="+ Adicionar filtro" dashed />
-      <div style={{ marginLeft: 'auto', display: 'flex', gap: 10, alignItems: 'center' }}>
-        <span style={{ color: T.dim, fontSize: 12 }}>Agrupado por <span style={{ color: T.ink, fontWeight: 600 }}>Estado</span></span>
-      </div>
-    </div>
-  );
-}
-
 function FilterPill({ label, value, active, dashed }) {
   return (
     <div className={'filter-pill' + (active ? ' active' : '') + (dashed ? ' dashed' : '')}>
@@ -1366,79 +1480,479 @@ function FilterPill({ label, value, active, dashed }) {
 }
 
 // ============================================================
-// List view
+// Modals
 // ============================================================
 
-function ListView() {
-  const [closed, setClosed] = useState({});
-  const openTask = () => window.__openTaskModal && window.__openTaskModal();
-  const groups = [
-    { key: 'doing',  rows: tasks.filter(r => r.st === 'doing') },
-    { key: 'review', rows: tasks.filter(r => r.st === 'review') },
-    { key: 'todo',   rows: tasks.filter(r => r.st === 'todo') },
-    { key: 'done',   rows: tasks.filter(r => r.st === 'done') },
-  ].filter(g => g.rows.length > 0);
+function CreateLinkModal({ onClose, onSave }) {
+  const [source, setSource] = useState('');
+  const [target, setTarget] = useState('');
+  const [type,   setType]   = useState('FS');
+  const [lag,    setLag]    = useState(0);
+
+  const typeOptions = [
+    { value: 'FS', label: 'Finish-Start'  },
+    { value: 'SS', label: 'Start-Start'   },
+    { value: 'FF', label: 'Finish-Finish' },
+    { value: 'SF', label: 'Start-Finish'  },
+  ];
+
+  const valid = source && target && source !== target;
+
+  function submit() {
+    if (!valid) return;
+    const src = tasks.find(t => String(t.id) === source);
+    const tgt = tasks.find(t => String(t.id) === target);
+    onSave && onSave({ source: src ? src.t : source, target: tgt ? tgt.t : target, type });
+    onClose();
+  }
 
   return (
-    <div className="list-wrap">
-      <div className="list-cols list-head">
-        <span></span>
-        <span>Tarefa</span>
-        <span>Estado</span>
-        <span>Início</span>
-        <span>Fim</span>
-        <span className="est-col">Est.</span>
-        <span>Prioridade</span>
-        <span>Responsável</span>
-        <span></span>
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-box" onClick={e => e.stopPropagation()}>
+        <div className="modal-head">
+          <span className="title">New Dependency</span>
+          <button className="modal-close" onClick={onClose}>×</button>
+        </div>
+        <div className="modal-body">
+          <div className="modal-field">
+            <label>Source Task <span className="req">*</span></label>
+            <select value={source} onChange={e => setSource(e.target.value)}>
+              <option value="">Select...</option>
+              {tasks.map(t => <option key={t.id} value={String(t.id)}>{t.t}</option>)}
+            </select>
+          </div>
+          <div className="modal-field">
+            <label>Target Task <span className="req">*</span></label>
+            <select value={target} onChange={e => setTarget(e.target.value)}>
+              <option value="">Select...</option>
+              {tasks.filter(t => String(t.id) !== source).map(t => <option key={t.id} value={String(t.id)}>{t.t}</option>)}
+            </select>
+          </div>
+          <div className="modal-row2">
+            <div className="modal-field">
+              <label>Type</label>
+              <select value={type} onChange={e => setType(e.target.value)}>
+                {typeOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
+            <div className="modal-field">
+              <label>Lag (days)</label>
+              <input type="number" value={lag} onChange={e => setLag(Number(e.target.value))} />
+              <div className="help">Positivo = atraso, negativo = sobreposição</div>
+            </div>
+          </div>
+        </div>
+        <div className="modal-foot">
+          <button className="mf-cancel" onClick={onClose}>Cancel</button>
+          <button className="mf-primary" disabled={!valid} onClick={submit}>Create Link</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AddExternalResourceModal({ onClose, onSave }) {
+  const [name, setName] = useState('');
+  const [type, setType] = useState('');
+  const [hpd,  setHpd]  = useState(8);
+
+  const typeOptions = ['Developer', 'Designer', 'QA', 'DevOps', 'Manager', 'Other'];
+  const valid = name.trim() && type;
+
+  function submit() {
+    if (!valid) return;
+    onSave && onSave({ name: name.trim(), type, hpd });
+    onClose();
+  }
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-box" onClick={e => e.stopPropagation()}>
+        <div className="modal-head">
+          <span className="title">New External Resource</span>
+          <button className="modal-close" onClick={onClose}>×</button>
+        </div>
+        <div className="modal-body">
+          <div className="modal-field">
+            <label>Name <span className="req">*</span></label>
+            <input type="text" placeholder="Contractor name..." value={name} onChange={e => setName(e.target.value)} autoFocus />
+          </div>
+          <div className="modal-field">
+            <label>Type <span className="req">*</span></label>
+            <select value={type} onChange={e => setType(e.target.value)}>
+              <option value="">Select type...</option>
+              {typeOptions.map(o => <option key={o} value={o}>{o.toUpperCase()}</option>)}
+            </select>
+          </div>
+          <div className="modal-field">
+            <label>Hours/Day</label>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input type="number" value={hpd} min={1} max={24} onChange={e => setHpd(Number(e.target.value))} style={{ width: 80 }} />
+              <span style={{ color: 'var(--dim)', fontSize: 13 }}>h</span>
+            </div>
+          </div>
+        </div>
+        <div className="modal-foot">
+          <button className="mf-cancel" onClick={onClose}>Cancel</button>
+          <button className="mf-primary" disabled={!valid} onClick={submit}>Create Resource</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// Resources view
+// ============================================================
+
+function ResourcesView() {
+  const [extResources, setExtResources] = useState([]);
+  const [addOpen, setAddOpen] = useState(false);
+  return (
+    <div className="rv-wrap">
+      <div className="rv-section">
+        <div className="rv-sec-head">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          Team Members
+          <span className="rv-badge">1</span>
+        </div>
+        <table className="rv-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Email</th>
+              <th>Team</th>
+              <th>Status</th>
+              <th>Hours per day</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Thiago Mágero</td>
+              <td className="muted">thiagocmagero@gmail.com</td>
+              <td>Equipa única</td>
+              <td><span className="rv-status-pill">Active</span></td>
+              <td>
+                <div className="rv-hpd">
+                  <input type="number" defaultValue={8} min={1} max={24} />
+                  <span className="unit">h</span>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
 
-      {groups.map(g => {
-        const meta = statusMeta[g.key];
-        const isClosed = closed[g.key];
-        return (
-          <div key={g.key}>
-            <div className={'list-group' + (isClosed ? ' closed' : '')} onClick={() => setClosed(c => ({ ...c, [g.key]: !c[g.key] }))}>
-              <span className="chev">▼</span>
-              <span className="swatch" style={{ background: meta.color }}></span>
-              <span className="name">{meta.label}</span>
-              <span className="count">{g.rows.length}</span>
-              <span className="add">+ Adicionar tarefa</span>
+      <div className="rv-section">
+        <div className="rv-sec-head">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+          External Resources
+          <span className={'rv-badge' + (extResources.length === 0 ? ' zero' : '')}>{extResources.length}</span>
+          <button className="rv-add-btn" onClick={() => setAddOpen(true)}>+ Add External Resource</button>
+        </div>
+        {extResources.length === 0 ? (
+          <div className="rv-empty">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            No external resources in this project.
+          </div>
+        ) : (
+          <table className="rv-table">
+            <thead>
+              <tr><th>Name</th><th>Type</th><th>Hours/Day</th></tr>
+            </thead>
+            <tbody>
+              {extResources.map(r => (
+                <tr key={r.id}>
+                  <td>{r.name}</td>
+                  <td>{r.type}</td>
+                  <td>{r.hpd} h</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {addOpen && (
+        <AddExternalResourceModal
+          onClose={() => setAddOpen(false)}
+          onSave={res => setExtResources(rs => [...rs, { id: Date.now(), ...res }])}
+        />
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// Links view
+// ============================================================
+
+function LinksView() {
+  const [links, setLinks] = useState(mockLinks);
+  const [createOpen, setCreateOpen] = useState(false);
+  return (
+    <div className="lnk-wrap">
+      <div className="lnk-toolbar">
+        <button className="lnk-create-btn" onClick={() => setCreateOpen(true)}>+ Create Link</button>
+      </div>
+      <table className="lnk-table">
+        <thead>
+          <tr>
+            <th>Source</th>
+            <th>Target</th>
+            <th>Type</th>
+            <th>Lag</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {links.map(l => (
+            <tr key={l.id}>
+              <td className="lnk-source">{l.source}</td>
+              <td className="lnk-target">{l.target}</td>
+              <td><span className={'lnk-type ' + l.type.toLowerCase()}>{l.type}</span></td>
+              <td style={{ color: 'var(--dim)' }}>—</td>
+              <td>
+                <button className="lnk-del-btn" title="Remover" onClick={() => setLinks(ls => ls.filter(x => x.id !== l.id))}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {createOpen && (
+        <CreateLinkModal
+          onClose={() => setCreateOpen(false)}
+          onSave={link => setLinks(ls => [...ls, { id: Date.now(), ...link }])}
+        />
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// List page — sub-bar + toolbar + content
+// ============================================================
+
+function ListPage({ filter }) {
+  const [listMode, setListMode]       = useState('tasks');
+  const [stateFilter, setStateFilter] = useState('all');
+  const [groupBy, setGroupBy]         = useState('estado');
+  const [groupByOpen, setGroupByOpen] = useState(false);
+  const [colsOpen, setColsOpen]       = useState(false);
+  const [cols, setCols]               = useState(() => Object.fromEntries(ALL_COLS.map(c => [c.key, c.def])));
+  const [closed, setClosed]           = useState({});
+  const groupByRef = useRef(null);
+  const colsRef    = useRef(null);
+
+  useEffect(() => {
+    function handler(e) {
+      if (groupByRef.current && !groupByRef.current.contains(e.target)) setGroupByOpen(false);
+      if (colsRef.current    && !colsRef.current.contains(e.target))    setColsOpen(false);
+    }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const openTask = () => window.__openTaskModal && window.__openTaskModal();
+
+  const filtered = tasks.filter(r => {
+    if (stateFilter !== 'all' && r.st !== stateFilter) return false;
+    if (filter && !r.t.toLowerCase().includes(filter.toLowerCase())) return false;
+    return true;
+  });
+
+  const stCounts = { all: tasks.length };
+  ['todo', 'doing', 'review', 'done'].forEach(k => { stCounts[k] = tasks.filter(r => r.st === k).length; });
+
+  const getOwnerKey = r => r.id % 3 === 0 ? 'lm' : r.id % 4 === 0 ? 'pc' : 'tm';
+  const gbLabels = { estado: 'Estado', responsavel: 'Responsável', prioridade: 'Prioridade', none: 'Sem agrupamento' };
+
+  const buildGroups = () => {
+    if (groupBy === 'none') return [{ key: '__all', label: null, color: null, rows: filtered }];
+    if (groupBy === 'estado') {
+      return ['doing', 'review', 'todo', 'done', 'blocked']
+        .map(k => ({ key: k, label: statusMeta[k].label, color: statusMeta[k].color, rows: filtered.filter(r => r.st === k) }))
+        .filter(g => g.rows.length > 0);
+    }
+    if (groupBy === 'prioridade') {
+      return [
+        { key: 'alta',  label: 'Alta',          color: T.high, rows: filtered.filter(r => r.p === 'Alta')  },
+        { key: 'media', label: 'Média',          color: T.med,  rows: filtered.filter(r => r.p === 'Média') },
+        { key: 'baixa', label: 'Baixa',          color: T.low,  rows: filtered.filter(r => r.p === 'Baixa') },
+        { key: 'npri',  label: 'Sem prioridade', color: T.mute, rows: filtered.filter(r => !r.p)            },
+      ].filter(g => g.rows.length > 0);
+    }
+    if (groupBy === 'responsavel') {
+      return [
+        { key: 'tm', label: 'Thiago Mágero',  color: '#e8704c', rows: filtered.filter(r => getOwnerKey(r) === 'tm') },
+        { key: 'lm', label: 'Lara Mendes',    color: '#4a89c4', rows: filtered.filter(r => getOwnerKey(r) === 'lm') },
+        { key: 'pc', label: 'Patrícia Costa', color: '#8c5cc4', rows: filtered.filter(r => getOwnerKey(r) === 'pc') },
+      ].filter(g => g.rows.length > 0);
+    }
+    return [];
+  };
+
+  const groups   = buildGroups();
+  const visCols  = ALL_COLS.filter(c => cols[c.key]);
+  const colShown = visCols.length;
+  const gridTpl  = '28px 1fr ' + visCols.map(c => c.width).join(' ') + ' 36px';
+
+  const modeItems = [
+    { key: 'tasks',     label: 'Tasks',     count: tasks.length       },
+    { key: 'resources', label: 'Resources', count: 1                  },
+    { key: 'links',     label: 'Links',     count: mockLinks.length   },
+  ];
+
+  return (
+    <div className="lp-wrap">
+
+      {/* Sub-bar — mode switcher + state pills + group-by + columns */}
+      <div className="lv-subbar">
+        <div className="lv-mode-seg">
+          {modeItems.map(m => (
+            <button key={m.key} className={'lv-mode-item' + (listMode === m.key ? ' active' : '')} onClick={() => setListMode(m.key)}>
+              {m.label} <span className="lv-mode-badge">{m.count}</span>
+            </button>
+          ))}
+        </div>
+
+        {listMode === 'tasks' && (
+          <div className="lv-state-pills">
+            <button className={'lv-spill' + (stateFilter === 'all' ? ' active' : '')} onClick={() => setStateFilter('all')}>
+              All <span>{tasks.length}</span>
+            </button>
+            {['todo', 'doing', 'review', 'done'].filter(k => stCounts[k] > 0).map(k => (
+              <button key={k} className={'lv-spill' + (stateFilter === k ? ' active' : '')} onClick={() => setStateFilter(k)}>
+                {statusMeta[k].label} <span>{stCounts[k]}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {listMode === 'tasks' && (
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
+            <div className="lv-groupby" ref={groupByRef}>
+              <button className="lv-gb-btn" onClick={() => setGroupByOpen(o => !o)}>
+                Agrupado por <b>{gbLabels[groupBy]}</b> ▾
+              </button>
+              {groupByOpen && (
+                <div className="lv-gb-menu">
+                  {Object.entries(gbLabels).map(([k, label]) => (
+                    <div key={k} className={'lv-gb-item' + (groupBy === k ? ' active' : '')}
+                         onClick={() => { setGroupBy(k); setGroupByOpen(false); }}>
+                      <span className="chk">{groupBy === k ? '✓' : ''}</span>
+                      {label}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-            {!isClosed && (
-              <>
-                {g.rows.map(r => {
+
+            <div className="lv-cols" ref={colsRef}>
+              <button className="lv-cols-btn" onClick={() => setColsOpen(o => !o)}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="18" rx="1"/><rect x="14" y="3" width="7" height="18" rx="1"/></svg>
+                Columns {colShown}/{ALL_COLS.length}
+              </button>
+              {colsOpen && (
+                <div className="lv-cols-menu">
+                  <div className="lv-cols-head">
+                    <span>COLUMNS</span>
+                    <span className="sel-all" onClick={() => setCols(Object.fromEntries(ALL_COLS.map(c => [c.key, true])))}>Select all</span>
+                  </div>
+                  {ALL_COLS.map(c => (
+                    <label key={c.key} className="lv-cols-item">
+                      <input type="checkbox" checked={!!cols[c.key]}
+                             onChange={e => setCols(cc => ({ ...cc, [c.key]: e.target.checked }))} />
+                      {c.label}
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Content */}
+      {listMode === 'tasks' && (
+        <div className="list-wrap">
+          <div className="list-dyn-head" style={{ gridTemplateColumns: gridTpl }}>
+            <span></span>
+            <span>Tarefa</span>
+            {visCols.map(c => <span key={c.key}>{c.label}</span>)}
+            <span></span>
+          </div>
+
+          {groups.map(g => {
+            const isClosed = closed[g.key];
+            return (
+              <div key={g.key}>
+                {g.label !== null && (
+                  <div className={'list-group' + (isClosed ? ' closed' : '')}
+                       onClick={() => setClosed(c => ({ ...c, [g.key]: !c[g.key] }))}>
+                    <span className="chev">▼</span>
+                    {g.color && <span className="swatch" style={{ background: g.color }}></span>}
+                    <span className="name">{g.label}</span>
+                    <span className="count">{g.rows.length}</span>
+                    <span className="add">+ Adicionar tarefa</span>
+                  </div>
+                )}
+                {!isClosed && g.rows.map(r => {
                   const sm = statusMeta[r.st];
                   return (
-                    <div key={r.id} className={'list-cols list-row' + (r.st === 'done' ? ' done' : '')} onClick={openTask}>
+                    <div key={r.id}
+                         className={'list-dyn-row' + (r.st === 'done' ? ' done' : '')}
+                         style={{ gridTemplateColumns: gridTpl }}
+                         onClick={openTask}>
                       <span className={'check' + (r.st === 'done' ? ' done' : '')}>{r.st === 'done' ? '✓' : ''}</span>
                       <span className="title">{r.t}</span>
-                      <span className="status-cell" style={{ background: sm.color, color: sm.ink }}>{sm.label}</span>
-                      <span className="date-cell">{r.s}</span>
-                      <span className="date-cell">{r.e}</span>
-                      <span className="date-cell est-col">{r.d}</span>
-                      <span className="pri-cell" style={{ color: r.p ? T.ink2 : T.mute }}>
-                        {r.p ? <><span className="sq" style={{ background: priColor[r.p] }}></span>{r.p}</> : '—'}
-                      </span>
-                      <span className="assignees avatar-list-stacked">
-                        <div className="avatar sm" title="Thiago Mágero" style={{ background: '#e8704c' }}>TM</div>
-                        {(r.id % 3 === 0) && <div className="avatar sm" title="Lara Mendes" style={{ background: '#4a89c4' }}>LM</div>}
-                        {(r.id % 4 === 0) && <div className="avatar sm" title="Patrícia Costa" style={{ background: '#8c5cc4' }}>PC</div>}
-                      </span>
+                      {visCols.map(c => {
+                        if (c.key === 'start')    return <span key="start"    className="date-cell">{r.s}</span>;
+                        if (c.key === 'end')      return <span key="end"      className="date-cell">{r.e}</span>;
+                        if (c.key === 'duration') return <span key="duration" className="date-cell">{r.d}</span>;
+                        if (c.key === 'progress') return <span key="progress" className="date-cell">0%</span>;
+                        if (c.key === 'type')     return <span key="type"     className="date-cell">—</span>;
+                        if (c.key === 'priority') return (
+                          <span key="priority" className="pri-cell" style={{ color: r.p ? T.ink2 : T.mute }}>
+                            {r.p ? <><span className="sq" style={{ background: priColor[r.p] }}></span>{r.p}</> : '—'}
+                          </span>
+                        );
+                        if (c.key === 'state') return (
+                          <span key="state" className="status-cell" style={{ background: sm.color, color: sm.ink }}>{sm.label}</span>
+                        );
+                        if (c.key === 'owner') return (
+                          <span key="owner" className="assignees avatar-list-stacked">
+                            <div className="avatar sm" title="Thiago Mágero" style={{ background: '#e8704c' }}>TM</div>
+                            {(r.id % 3 === 0) && <div className="avatar sm" title="Lara Mendes"    style={{ background: '#4a89c4' }}>LM</div>}
+                            {(r.id % 4 === 0) && <div className="avatar sm" title="Patrícia Costa" style={{ background: '#8c5cc4' }}>PC</div>}
+                          </span>
+                        );
+                        if (c.key === 'created') return (
+                          <span key="created" className="date-cell" style={{ fontSize: 11 }}>
+                            09 mai {String(r.id * 7 % 60).padStart(2, '0')}:{String(r.id * 13 % 60).padStart(2, '0')}
+                          </span>
+                        );
+                        return <span key={c.key}>—</span>;
+                      })}
                       <span className="row-more">⋯</span>
                     </div>
                   );
                 })}
-              </>
-            )}
-          </div>
-        );
-      })}
+              </div>
+            );
+          })}
 
-      <div className="add-task-bar" onClick={openTask}>
-        <span className="icon">+</span>
-        <span>Adicionar tarefa…</span>
-      </div>
+          <div className="add-task-bar" onClick={openTask}>
+            <span className="icon">+</span>
+            <span>Adicionar tarefa…</span>
+          </div>
+        </div>
+      )}
+
+      {listMode === 'resources' && <ResourcesView />}
+      {listMode === 'links'     && <LinksView />}
     </div>
   );
 }
@@ -2063,7 +2577,7 @@ function App() {
                 onManageStates={() => setManageStatesOpen(true)}
               />
             )}
-            {view === 'list'     && <><Toolbar /><ListView /></>}
+            {view === 'list'     && <ListPage filter={taskFilter} />}
             {view === 'timeline' && (window.GanttView ? <window.GanttView /> : <GanttView />)}
             {view === 'overview' && window.ProjectOverview && <window.ProjectOverview setView={setView} />}
             {view === 'board'    && (window.BoardView ? <window.BoardView filter={taskFilter} /> : <PlaceholderView title="Quadro Kanban" subtitle="A carregar…" />)}

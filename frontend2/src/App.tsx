@@ -4,6 +4,7 @@ import { Placeholder } from './components/Placeholder';
 import { WorkspaceUsersPage } from './pages/WorkspaceUsersPage';
 import { UserTypesPage } from './pages/UserTypesPage';
 import { CalendarsPage } from './pages/CalendarsPage';
+import ProjectDetailPage from './pages/ProjectDetailPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { LoginPage } from './pages/LoginPage';
 import { SignUpPage } from './pages/SignUpPage';
@@ -58,7 +59,7 @@ export default function App() {
           {/* Projecto — frontend antigo usa `projects/:id/planning` como
               página única com tabs internas; aqui mantemos esse path para
               o overview e portamos as outras tabs no futuro. */}
-          <Route path=":workspaceId/projects/:projectId/planning"    element={<Placeholder titleKey="nav.project_overview" />} />
+          <Route path=":workspaceId/projects/:projectId/planning"    element={<ProjectDetailPage />} />
           <Route path=":workspaceId/projects/:projectId/permissions" element={<Placeholder titleKey="nav.project_permissions" />} />
         </Route>
       </Route>

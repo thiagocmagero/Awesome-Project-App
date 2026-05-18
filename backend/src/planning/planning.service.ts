@@ -362,17 +362,23 @@ export class PlanningService {
     const idToPublicId = new Map<number, string>();
     for (const n of finalNodes) idToPublicId.set(n.id, n.publicId);
 
-    // Buscar avatarKey dos users associados aos nodes (folhas com `userId`).
+    // Buscar avatarKey + publicId dos users associados aos nodes (folhas com
+    // `userId`). `userPublicId` é exposto no response para o frontend poder
+    // distinguir nodes de users (folhas com link) vs externos (sem userId).
     const userIds = finalNodes
       .map((n) => n.userId)
       .filter((id): id is number => id !== null);
     const avatarByUserId = new Map<number, string | null>();
+    const publicIdByUserId = new Map<number, string>();
     if (userIds.length > 0) {
       const users = await this.prisma.user.findMany({
         where: { id: { in: userIds } },
-        select: { id: true, avatarKey: true },
+        select: { id: true, publicId: true, avatarKey: true },
       });
-      for (const u of users) avatarByUserId.set(u.id, u.avatarKey);
+      for (const u of users) {
+        avatarByUserId.set(u.id, u.avatarKey);
+        publicIdByUserId.set(u.id, u.publicId);
+      }
     }
 
     return finalNodes.map((n) => ({
@@ -381,6 +387,7 @@ export class PlanningService {
       parent: n.parentId !== null ? (idToPublicId.get(n.parentId) ?? null) : null,
       hoursPerDay: n.hoursPerDay,
       isGroup: n.isGroup,
+      userPublicId: n.userId ? (publicIdByUserId.get(n.userId) ?? null) : null,
       avatarUrl: n.userId
         ? this.resolveAvatarUrl(avatarByUserId.get(n.userId) ?? null)
         : null,

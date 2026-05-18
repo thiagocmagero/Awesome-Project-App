@@ -19,14 +19,20 @@ import { EmailTokenService } from '../auth/email-token.service';
 import { EmailService } from '../emails/email.service';
 import { TokenType } from '@prisma/client';
 import { LimitKey } from '../common/entitlements';
+import { StorageService } from '../storage/storage.service';
 
-/** User fields included in owner/manager relations */
+/** User fields included in owner/manager relations.
+ *  `avatarKey` + `avatarUpdatedAt` são incluídos para que a UI possa renderizar
+ *  o avatar real (resolvido para `avatarUrl` via `resolveAvatarUrl` + cache
+ *  busting via `?v={avatarUpdatedAt}`). */
 const USER_BRIEF = {
   select: {
     publicId: true,
     name: true,
     email: true,
     status: true,
+    avatarKey: true,
+    avatarUpdatedAt: true,
     profile: { select: { code: true, label: true } },
     userType: { select: { code: true, label: true } },
   },
@@ -53,6 +59,7 @@ const PROJECT_INCLUDE = {
               user: {
                 select: {
                   publicId: true, name: true, email: true, status: true,
+                  avatarKey: true, avatarUpdatedAt: true,
                   userType: { select: { publicId: true, code: true, label: true } },
                 },
               },
@@ -76,7 +83,24 @@ export class ProjectsService {
     private readonly notificationsService: NotificationsService,
     private readonly emailTokens: EmailTokenService,
     private readonly emailService: EmailService,
+    private readonly storage: StorageService,
   ) {}
+
+  /** Converte `avatarKey` (path S3) em `avatarUrl` público.
+   *  Devolve `null` se sem chave ou se storage não está pronto. */
+  private resolveAvatarUrl(key: string | null | undefined): string | null {
+    if (!key || !this.storage.isReady()) return null;
+    return this.storage.buildPublicUrl(key);
+  }
+
+  /** Substitui `avatarKey` por `avatarUrl` resolvido num user-like object. */
+  private withAvatarUrl<T extends { avatarKey?: string | null } | null | undefined>(
+    user: T,
+  ): T extends null | undefined ? T : (Omit<NonNullable<T>, 'avatarKey'> & { avatarUrl: string | null }) {
+    if (!user) return user as never;
+    const { avatarKey, ...rest } = user as { avatarKey?: string | null } & Record<string, unknown>;
+    return { ...rest, avatarUrl: this.resolveAvatarUrl(avatarKey) } as never;
+  }
 
   // ── Helper: resolve publicId → internal numeric id ──────────────────────────
 
@@ -187,9 +211,25 @@ export class ProjectsService {
       }
     }
 
-    // Strip internal id before returning, keep ownerId check internal
-    const { id: _id, ownerId: _ownerId, ...result } = project;
-    return result;
+    // Strip internal id before returning, keep ownerId check internal.
+    // Resolve avatarKey → avatarUrl em owner/manager (e em member.user dentro
+    // de teams), para que o frontend possa renderizar avatares reais.
+    const { id: _id, ownerId: _ownerId, owner, manager, teams, ...rest } = project;
+    return {
+      ...rest,
+      owner: this.withAvatarUrl(owner),
+      manager: this.withAvatarUrl(manager),
+      teams: teams?.map((pt) => ({
+        ...pt,
+        team: {
+          ...pt.team,
+          members: pt.team.members.map((tm) => ({
+            ...tm,
+            user: this.withAvatarUrl(tm.user),
+          })),
+        },
+      })),
+    };
   }
 
   /**
@@ -482,7 +522,10 @@ export class ProjectsService {
     createdAt: true,
     updatedAt: true,
     user: {
-      select: { publicId: true, name: true, email: true, status: true },
+      select: {
+        publicId: true, name: true, email: true, status: true,
+        avatarKey: true, avatarUpdatedAt: true,
+      },
     },
     invitedBy: {
       select: { publicId: true, name: true, email: true },
@@ -491,11 +534,16 @@ export class ProjectsService {
 
   async listMembers(projectPublicId: string, requestingUser: JwtPayload) {
     const { id: projectId } = await this.findOneInternal(projectPublicId, requestingUser);
-    return this.prisma.projectMember.findMany({
+    const rows = await this.prisma.projectMember.findMany({
       where: { projectId },
       select: this.MEMBER_SELECT,
       orderBy: { createdAt: 'asc' },
     });
+    // Resolve avatarKey → avatarUrl no user de cada membro.
+    return rows.map((m) => ({
+      ...m,
+      user: this.withAvatarUrl(m.user),
+    }));
   }
 
   async inviteMember(projectPublicId: string, dto: InviteMemberDto, requestingUser: JwtPayload) {

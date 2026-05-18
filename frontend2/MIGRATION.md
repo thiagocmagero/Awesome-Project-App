@@ -13,8 +13,8 @@
 A intenção é **substituir gradualmente** o frontend actual: `frontend2` torna-se o frontend
 oficial, portando features uma a uma. Backend actual mantém-se estável.
 
-Três regras invioláveis desta migração (gravadas em memória —
-`feedback_frontend2_migration.md`):
+Quatro regras invioláveis desta migração (gravadas em memória —
+`feedback_frontend2_migration.md` + `feedback_template_diff_method.md`):
 
 1. **NewTemplate é fonte de verdade.** Divergência entre frontend actual e mockup novo
    resolve-se a favor do mockup.
@@ -25,6 +25,15 @@ Três regras invioláveis desta migração (gravadas em memória —
    tudo antes de funcionar": primeiro ter o mockup todo a correr em `frontend2/` para
    acompanhar visualmente o que falta; depois ir partindo monólitos em
    features/components conforme cada funcionalidade real é ligada ao backend.
+4. **DIFF exaustivo antes de qualquer port ou correcção visual.** Antes de tocar em
+   componentes já existentes em `frontend2/`, produzir um diff completo entre o
+   canónico (`NewTemplate/app-dark.jsx`, `views-*.jsx`) e o implementado, agrupado em
+   5 categorias: (A) estrutura HTML, (B) classes CSS renomeadas, (C) estilos com
+   valores divergentes, (D) elementos / classes em falta, (E) funcionalidade
+   incompleta. **Proibido**: inventar classes (`.proj-tabs`/`.sub-toolbar`/`.pill`
+   quando o canónico tem nome próprio), substituir `<div>` canónico por `<button>` "por
+   a11y", simplificar markup, trocar valores ("ficou parecido, deve dar"). Reforça
+   regra 1 com método obrigatório.
 
 ## NewTemplate — inventário
 
@@ -278,12 +287,12 @@ cada sub-fase, confirmar com o utilizador o âmbito e qualquer pergunta de backe
 > Shell e infra base de um projecto. As ferramentas (Lista/Quadro/Gantt/Calendário/
 > Timesheet/Arquivos) ficam em 2.8 com sub-fase própria por ferramenta.
 
-- [ ] **2.7.1** `views/project` (Overview) componentizado e ligado a `GET /projects/:id`
+- [~] **2.7.1** `views/project` (Overview) — `ProjectHeader` (hero/meta/acções) ligado a `GET /projects/:id` em [`pages/ProjectDetailPage.tsx`](src/pages/ProjectDetailPage.tsx) (botões Editar/Convidar/Permissões/Arquivar disabled nesta entrega — TaskModal e CRUD de projecto diferidos)
 - [ ] **2.7.2** Modal de projecto (`views/modals/project-modal`) — criação/edição (`POST/PATCH /projects`)
 - [ ] **2.7.3** `views/permissions` — `GET /projects/:id/permissions`, grants CRUD, `PERMISSIONS_MANAGE` gating
 - [ ] **2.7.4** `views/shared` — folha de ficheiros/conteúdo partilhado (clarificar com mockup)
 - [ ] **2.7.5** Frame visual unificado (`viewFrameStyle()`) aplicado a todas as tabs (regra obrigatória do projecto actual — adaptar ao tema do NewTemplate)
-- [ ] **2.7.6** ProjectHeader + Toolbar de tabs (port `app-dark.jsx:1303-1450`)
+- [x] **2.7.6** ProjectHeader + Toolbar de tabs (port `app-dark.jsx:1303-1460`) — [`features/planning/components/ProjectTabs.tsx`](src/features/planning/components/ProjectTabs.tsx) com 6 tabs canónicas (overview/list/board/timeline/calendar/files); só Lista funcional, as outras 5 mostram `<ComingSoonTab>`.
 
 ### Sub-fase 2.8 — Ferramentas do projecto
 
@@ -294,23 +303,22 @@ feature flag → i18n → frame visual unificado → verificação ponta-a-ponta
 
 #### 2.8.1 — Lista (Planeamento)
 
-> ⚠ **Gate de decisão antes de iniciar**: Zynix (`btn-primary-tb`,
-> `card.custom-card`, FlatPickr/Choices.js carregados via `AppLayout` do
-> frontend antigo) vs shell-CSS de `frontend2/`. As páginas internas
-> (Planning/Gantt/Board/Calendar/Timesheet/Files) **dependem** de muitos
-> primitivos Zynix no `frontend/` actual. Decidir se: (a) abandonam Zynix
-> e adoptam só shell-CSS, ou (b) shell-CSS coexiste com Zynix nas páginas
-> internas. Recomendação #8 do relatório de divergências (Mai 2026).
+> ✅ **Gate de decisão resolvido (Mai 2026)**: shell-CSS de `frontend2/`
+> ganha. A Lista entregue não usa primitivos Zynix — usa tokens
+> `var(--panel)`/`var(--brand)`/etc. de [`tokens.css`](src/styles/tokens.css)
+> e CSS portado literal do NewTemplate em
+> [`styles/project-list.css`](src/styles/project-list.css). Pattern
+> aplicar-se às próximas tabs (Quadro/Gantt/Calendário/Ficheiros).
 
-- [ ] **2.8.1.1** Componentizar `views/project` na parte de lista (overview já em 2.7) ou view dedicada se o mockup tiver
-- [ ] **2.8.1.2** Modelos `ITaskState`, `ITaskSwimlane` (espelho de `features/planning/states-types.ts`)
-- [ ] **2.8.1.3** CRUD de Estados (`PlanningStatesController` — `/projects/:id/planning/states/*`)
-- [ ] **2.8.1.4** Permissão `STATE_MANAGE` (OWNER default, delegável)
-- [ ] **2.8.1.5** CRUD de tasks (`/projects/:id/planning/tasks`)
-- [ ] **2.8.1.6** Hook `usePlanningStates(projectId)`
-- [ ] **2.8.1.7** Modal de task (`views/modals/task-modal` componentizado)
-- [ ] **2.8.1.8** i18n (namespace `planning`)
-- [ ] **2.8.1.9** Verificação
+- [x] **2.8.1.1** Vista Lista entregue — [`features/planning/components/ProjectListView.tsx`](src/features/planning/components/ProjectListView.tsx). Replica mockup `app-dark.jsx:1879-1952` (grid 9 colunas, agrupamento por estado, grupos colapsáveis, filter local, skeleton loading). CRUD de tarefas **diferido** (TaskModal, +Adicionar Tarefa, checkbox done, kebab — visíveis mas disabled).
+- [x] **2.8.1.2** Modelos `ITaskState`, `ITask`, `IPlanningBundle`, `IProjectDetail`, `IProjectMember` em [`features/planning/types.ts`](src/features/planning/types.ts) + [`states-types.ts`](src/features/planning/states-types.ts) (port literal). `ITaskSwimlane` exportado mas não consumido (Swimlanes fora de scope).
+- [x] **2.8.1.3** CRUD de Estados completo via [`ManageStatesDrawer`](src/features/planning/components/ManageStatesDrawer.tsx) + [`StateModal`](src/features/planning/components/StateModal.tsx) + [`DeleteStateModal`](src/features/planning/components/DeleteStateModal.tsx). Reorder via `@hello-pangea/dnd` (instalada). Liga a `PlanningStatesController`.
+- [x] **2.8.1.4** Permissão `STATE_MANAGE` aplicada — drawer escondido sem permissão; outras acções (TASK_CREATE/EDIT/DELETE/DATA_EXPORT/PROJECT_UPDATE/MEMBER_INVITE/PERMISSIONS_MANAGE/PROJECT_DELETE) gateadas via [`useProjectPermissions`](src/hooks/useProjectPermissions.ts) (port literal).
+- [ ] **2.8.1.5** CRUD de tasks (`/projects/:id/planning/tasks`) — **diferido**.
+- [x] **2.8.1.6** Hook `usePlanningStates(projectId)` — [`features/planning/usePlanningStates.ts`](src/features/planning/usePlanningStates.ts) (port adaptado: apiGet/apiPost/apiPatch/apiFetch; `swimlanes` e `updateStateRules` omitidos).
+- [ ] **2.8.1.7** Modal de task (`views/modals/task-modal` componentizado) — **diferido**.
+- [x] **2.8.1.8** i18n (namespace `planning`) — 22 chaves novas adicionadas a `backend/prisma/seeds/translations/planning.json` nos 4 locales (`tabs.*`, `header.*`, `list.*`, `actions.*`). Backend seed executado.
+- [x] **2.8.1.9** Verificação — `npm run build` passa (170 mods); smoke HTTP 200 em `/`, `/pt-pt/login`; `GET /api/v1/projects` devolve 401 sem cookie (esperado); backend `/hello` 200. Verificação ponta-a-ponta interactiva no browser pendente do utilizador.
 
 #### 2.8.2 — Quadro (Board)
 

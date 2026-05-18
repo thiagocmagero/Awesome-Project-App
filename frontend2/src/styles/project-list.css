@@ -1,0 +1,723 @@
+/* ============================================================
+   Project view — port literal de NewTemplate/app-dark.jsx.
+   Classes canónicas: .proj-header/.proj-titlebar/.tabs/.tab/.lv-subbar/
+   .lv-mode-item/.lv-spill/.lv-groupby/.lv-cols/etc.
+   Cores via var(--…) de tokens.css.
+   ============================================================ */
+
+/* ---- Project shell ---- */
+.proj-shell {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  background: var(--bg);
+}
+
+/* ---- Header (.proj-header envolve .proj-titlebar + .tabs) ---- */
+.proj-header {
+  padding: 14px 24px 0;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.proj-titlebar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.proj-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: var(--brand);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex: 0 0 auto;
+}
+.proj-name {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.4px;
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.proj-name .chev {
+  color: var(--mute);
+  font-size: 11px;
+}
+
+/* ============================================================
+   Avatares stacked — header (.proj-members) + linha (.assignees)
+   ============================================================ */
+.proj-members,
+.assignees,
+.avatar-list-stacked {
+  display: inline-flex;
+  align-items: center;
+  padding-right: 0.65rem;  /* compensa o último avatar com margin-right negativo */
+}
+.proj-members { margin-left: 8px; }
+
+.avatar {
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 600;
+  flex: 0 0 auto;
+  border: 2px solid var(--panel);
+  overflow: hidden;
+  transition: transform .2s ease, box-shadow .2s ease;
+  cursor: default;
+}
+.avatar.sm {
+  width: 1.75rem;
+  height: 1.75rem;
+  font-size: 0.65rem;
+}
+.avatar-list-stacked .avatar {
+  margin-right: -0.65rem;
+}
+.avatar-list-stacked .avatar:hover {
+  z-index: 3;
+  transform: scale(1.18);
+  position: relative;
+}
+.avatar.more {
+  background: var(--panel2);
+  color: var(--dim);
+  font-weight: 600;
+}
+.avatar > img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+/* ============================================================
+   Tabs (.tabs / .tab / .tab.active) — port literal app-dark.jsx:499-504
+   ============================================================ */
+.tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+}
+.tab {
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--dim);
+  cursor: pointer;
+  position: relative;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  user-select: none;
+  transition: color .12s, border-color .12s;
+}
+.tab:hover { color: var(--ink); }
+.tab.active {
+  color: var(--brand);
+  border-bottom-color: var(--brand);
+  font-weight: 600;
+}
+
+/* ---- Tab content area ---- */
+.proj-tab-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ============================================================
+   ViewActions Row 1 — `.va-*` (port views-shared.jsx)
+   ============================================================ */
+.va-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 24px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+}
+.va-filter {
+  position: relative;
+  flex: 0 1 320px;
+  min-width: 160px;
+}
+.va-filter > svg {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--mute);
+  pointer-events: none;
+}
+.va-filter input {
+  width: 100%;
+  padding: 7px 30px 7px 32px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--ink);
+  font-size: 12.5px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color .12s, box-shadow .12s;
+}
+.va-filter input::placeholder { color: var(--mute); }
+.va-filter input:focus {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px var(--brandSoft);
+}
+.va-filter .clear {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 18px;
+  background: none;
+  border: none;
+  color: var(--mute);
+  font-size: 16px;
+  cursor: pointer;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+.va-filter .clear:hover { color: var(--ink); background: var(--panel2); }
+.va-bar .spacer { flex: 1; }
+
+.va-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 11px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--ink);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  transition: background .12s;
+}
+.va-btn:hover:not(:disabled) { background: var(--panel2); }
+.va-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.va-btn .chev { color: var(--dim); font-size: 10px; margin-left: 2px; }
+.va-btn.primary {
+  background: var(--brand);
+  color: #fff;
+  border-color: var(--brand);
+  font-weight: 600;
+}
+.va-btn.primary:hover:not(:disabled) {
+  background: var(--brandHover);
+  border-color: var(--brandHover);
+}
+
+.va-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ink2);
+  cursor: pointer;
+  font-family: inherit;
+  padding: 0;
+  transition: background .12s, color .12s;
+}
+.va-icon-btn:hover:not(:disabled) { background: var(--panel2); color: var(--ink); }
+.va-icon-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.va-export-wrap { position: relative; }
+.va-export-menu {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 4px);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  box-shadow: 0 8px 24px -4px rgba(0,0,0,.14);
+  z-index: 300;
+  min-width: 152px;
+  padding: 4px;
+}
+.va-export-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--ink);
+}
+.va-export-item:hover { background: var(--panel2); }
+.va-export-item .badge {
+  font-size: 10px;
+  margin-left: auto;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--panel2);
+  color: var(--mute);
+  font-weight: 600;
+}
+
+/* ============================================================
+   Sub-toolbar Row 2 — `.lv-subbar` (port literal app-dark.jsx:554-590)
+   ============================================================ */
+.lv-subbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 24px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+}
+
+/* Segmented control (Tasks / Resources / Links) */
+.lv-mode-seg { display: flex; }
+.lv-mode-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-right: none;
+  color: var(--dim);
+  font-size: 12.5px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background .12s, color .12s;
+  white-space: nowrap;
+}
+.lv-mode-item:first-child { border-radius: 7px 0 0 7px; }
+.lv-mode-item:last-child  { border-radius: 0 7px 7px 0; border-right: 1px solid var(--line); }
+.lv-mode-item.active {
+  background: var(--brandSoft);
+  color: var(--brand);
+  font-weight: 600;
+  border-color: var(--brand);
+  z-index: 1;
+}
+.lv-mode-item:not(.active):not(:disabled):hover { background: var(--panel2); color: var(--ink); }
+.lv-mode-item:disabled { opacity: 0.55; cursor: not-allowed; }
+.lv-mode-badge { font-family: var(--mono); font-size: 11px; opacity: 0.7; }
+
+/* State pills (All / A fazer / ...) */
+.lv-state-pills { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
+.lv-spill {
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--dim);
+  font-size: 12px;
+  cursor: pointer;
+  font-family: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: background .1s;
+  white-space: nowrap;
+}
+.lv-spill:hover { background: var(--panel2); }
+.lv-spill.active {
+  background: var(--brandSoft);
+  color: var(--brand);
+  font-weight: 600;
+  border-color: var(--brandSoft2);
+}
+.lv-spill span { font-family: var(--mono); font-size: 11px; }
+
+/* Groupby dropdown */
+.lv-groupby { position: relative; }
+.lv-gb-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--dim);
+  padding: 4px 7px;
+  border-radius: 5px;
+  font-family: inherit;
+}
+.lv-gb-btn:hover { background: var(--panel2); color: var(--ink); }
+.lv-gb-btn b { color: var(--ink); font-weight: 600; }
+.lv-gb-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  box-shadow: 0 8px 24px -4px rgba(0,0,0,.14);
+  z-index: 200;
+  min-width: 200px;
+  padding: 4px;
+}
+.lv-gb-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--ink);
+}
+.lv-gb-item:hover { background: var(--panel2); }
+.lv-gb-item.active { color: var(--brand); font-weight: 600; }
+.lv-gb-item .chk { width: 14px; font-size: 12px; color: var(--brand); text-align: center; }
+
+/* Columns picker */
+.lv-cols { position: relative; margin-left: auto; }
+.lv-cols-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--dim);
+  padding: 5px 10px;
+  font-family: inherit;
+  transition: background .1s;
+}
+.lv-cols-btn:hover { background: var(--panel2); color: var(--ink); }
+.lv-cols-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  box-shadow: 0 8px 24px -4px rgba(0,0,0,.14);
+  z-index: 200;
+  min-width: 200px;
+  padding: 6px 0;
+}
+.lv-cols-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 14px 4px;
+}
+.lv-cols-head span {
+  font-size: 10px;
+  color: var(--mute);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.lv-cols-head .sel-all {
+  color: var(--brand);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.lv-cols-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--ink);
+}
+.lv-cols-item:hover { background: var(--panel2); }
+.lv-cols-item input[type="checkbox"] {
+  accent-color: var(--brand);
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+/* Placeholder "Em breve." quando listMode === resources | links */
+.list-empty-mode {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 24px;
+}
+.list-empty-mode .msg {
+  color: var(--dim);
+  font-size: 13.5px;
+}
+
+/* ============================================================
+   Task list — port literal app-dark.jsx:519-549, 593-600
+   ============================================================ */
+.list-wrap {
+  flex: 1;
+  overflow: auto;
+  background: var(--panel);
+}
+
+.list-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 24px;
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+  background: var(--panel);
+  user-select: none;
+}
+.list-group .chev {
+  font-size: 11px;
+  color: var(--mute);
+  transition: transform .15s;
+  display: inline-block;
+  width: 10px;
+}
+.list-group.closed .chev { transform: rotate(-90deg); }
+.list-group .swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 4px;
+  flex: 0 0 auto;
+}
+.list-group .name {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--ink);
+}
+.list-group .count {
+  color: var(--mute);
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.list-group .add {
+  margin-left: auto;
+  color: var(--mute);
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 5px;
+  background: none;
+  border: none;
+  font-family: inherit;
+  cursor: pointer;
+}
+.list-group .add:hover:not(:disabled) {
+  background: var(--panel3);
+  color: var(--ink);
+}
+.list-group .add:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.list-dyn-head {
+  display: grid;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  height: 36px;
+  align-items: center;
+  padding: 0 24px;
+  column-gap: 8px;
+  font-size: 11px;
+  color: var(--mute);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+.list-dyn-row {
+  display: grid;
+  height: 44px;
+  border-bottom: 1px solid var(--lineSoft);
+  cursor: pointer;
+  align-items: center;
+  padding: 0 24px;
+  column-gap: 8px;
+}
+.list-dyn-row:hover { background: var(--panel2); }
+.list-dyn-row.done .title {
+  color: var(--dim);
+  text-decoration: line-through;
+  text-decoration-color: var(--line);
+}
+.list-dyn-row .title {
+  font-size: 13.5px;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status-cell {
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+  margin-right: 12px;
+  max-width: 110px;
+  display: inline-block;
+}
+.date-cell {
+  color: var(--dim);
+  font-size: 12px;
+  font-family: var(--mono);
+}
+.pri-cell {
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.row-more {
+  color: transparent;
+  text-align: right;
+  font-size: 16px;
+  padding: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+}
+.list-dyn-row:hover .row-more { color: var(--dim); }
+.row-more:disabled { color: transparent !important; cursor: not-allowed; }
+
+.list-empty-group {
+  padding: 16px 24px;
+  font-size: 12.5px;
+  color: var(--mute);
+  font-style: italic;
+  border-bottom: 1px solid var(--lineSoft);
+}
+
+.add-task-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 24px;
+  border-bottom: 1px solid var(--line);
+  color: var(--mute);
+  font-size: 13px;
+  cursor: pointer;
+  background: none;
+  border-left: none;
+  border-right: none;
+  border-top: none;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+}
+.add-task-bar:hover:not(:disabled) { color: var(--brand); }
+.add-task-bar:disabled { opacity: 0.5; cursor: not-allowed; }
+.add-task-bar .icon { font-size: 16px; line-height: 0.8; }
+
+/* ---- Skeleton (loading) ---- */
+.list-row.skeleton { pointer-events: none; }
+.list-row.skeleton .sk {
+  height: 12px;
+  border-radius: 4px;
+  background: linear-gradient(90deg,
+    var(--panel2) 0%,
+    var(--panel3) 50%,
+    var(--panel2) 100%);
+  background-size: 200% 100%;
+  animation: sk-shimmer 1.4s ease-in-out infinite;
+}
+@keyframes sk-shimmer {
+  0%   { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+/* ---- Empty / error states ---- */
+.proj-state {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 24px;
+  text-align: center;
+}
+.proj-state .msg {
+  max-width: 360px;
+  color: var(--dim);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+.proj-state .msg h3 {
+  color: var(--ink);
+  font-size: 16px;
+  margin: 0 0 8px;
+}
+
+/* ---- "Em breve" placeholder para 5 tabs não-Lista ---- */
+.proj-coming-soon {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 24px;
+  background: var(--bg);
+}
+.proj-coming-soon .card {
+  max-width: 420px;
+  text-align: center;
+  background: var(--panel);
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+  padding: 36px 32px;
+}
+.proj-coming-soon .card h3 {
+  margin: 0 0 8px;
+  color: var(--ink);
+  font-size: 17px;
+  font-weight: 600;
+}
+.proj-coming-soon .card p {
+  margin: 0;
+  color: var(--dim);
+  font-size: 13px;
+}
+
+/* ============================================================
+   Responsive
+   ============================================================ */
+@media (max-width: 1024px) {
+  .proj-header { padding: 12px 16px 0; }
+  .va-bar { padding: 10px 16px; flex-wrap: wrap; row-gap: 8px; }
+  .va-bar .spacer { display: none; }
+  .va-filter { flex: 1 1 100%; }
+  .lv-subbar { padding: 8px 16px; gap: 12px; }
+  .list-dyn-head, .list-dyn-row { padding: 0 16px; }
+  .list-group { padding: 10px 16px; }
+  .add-task-bar { padding: 10px 16px; }
+}
