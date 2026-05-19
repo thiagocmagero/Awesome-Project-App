@@ -34,6 +34,15 @@
   to   { transform: translateX(0); opacity: 1; }
 }
 
+/* Slide-out: bate com duration do useClosingState(_, 200) no ManageStatesDrawer. */
+.ms-backdrop.is-closing { animation: ms-fade-out .15s ease forwards; }
+@keyframes ms-fade-out { from { opacity: 1; } to { opacity: 0; } }
+.ms-drawer.is-closing { animation: ms-slide-out .2s ease forwards; }
+@keyframes ms-slide-out {
+  from { transform: translateX(0); opacity: 1; }
+  to   { transform: translateX(20px); opacity: 0; }
+}
+
 /* ---- Drawer head ---- */
 .ms-head {
   display: flex;
@@ -208,6 +217,15 @@
   z-index: 110;
   animation: ms-fade .15s ease;
   padding: 16px;
+}
+
+/* Pop-out: bate com duration do useClosingState(_, 150) nos modais StateModal/DeleteStateModal. */
+.ms-modal-backdrop.is-closing { animation: ms-modal-fade-out .15s ease forwards; }
+@keyframes ms-modal-fade-out { from { opacity: 1; } to { opacity: 0; } }
+.ms-modal.is-closing { animation: ms-pop-out .15s ease forwards; }
+@keyframes ms-pop-out {
+  from { transform: scale(1); opacity: 1; }
+  to   { transform: scale(.96); opacity: 0; }
 }
 
 .ms-modal {

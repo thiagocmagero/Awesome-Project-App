@@ -176,40 +176,46 @@ export function ResourcesView({ members, resources, projectPublicId, refresh, ca
             {t('resources.team.empty')}
           </div>
         ) : (
-          <table className="rv-table">
-            <thead>
-              <tr>
-                <SortableTh colKey="name"   label={t('resources.col.name')}          sortBy={teamSort.sortBy} onToggle={teamSort.toggleSort} />
-                <SortableTh colKey="email"  label={t('resources.col.email')}         sortBy={teamSort.sortBy} onToggle={teamSort.toggleSort} />
-                <SortableTh colKey="team"   label={t('resources.col.team')}          sortBy={teamSort.sortBy} onToggle={teamSort.toggleSort} />
-                <SortableTh colKey="status" label={t('resources.col.status')}        sortBy={teamSort.sortBy} onToggle={teamSort.toggleSort} sortable={false} />
-                <SortableTh colKey="hours"  label={t('resources.col.hours_per_day')} sortBy={teamSort.sortBy} onToggle={teamSort.toggleSort} />
-              </tr>
-            </thead>
-            <tbody>
-              {teamSort.sorted.map((m) => {
-                const hpd = hoursByUserPublicId.get(m.publicId) ?? 8;
-                return (
-                  <tr key={m.publicId}>
-                    <td>{m.name}</td>
-                    <td className="muted">{m.email || '—'}</td>
-                    <td>{m.userType?.label ?? '—'}</td>
-                    <td>
-                      <span className="rv-status-pill">{t('resources.status.active')}</span>
-                    </td>
-                    <td>
-                      <MemberHoursCell
-                        userPublicId={m.publicId}
-                        initial={hpd}
-                        canEdit={canEditHours}
-                        onSave={updateMemberHours}
-                      />
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          /* Wrapper `.rv-table-scroll` activa scroll horizontal quando a
+             tabela excede a largura visível (mobile). `.rv-section` mantém
+             `overflow: hidden` (preserva border-radius dos cantos) e o
+             header da section fica fixo enquanto a tabela scrolla. */
+          <div className="rv-table-scroll">
+            <table className="rv-table">
+              <thead>
+                <tr>
+                  <SortableTh colKey="name"   label={t('resources.col.name')}          sortBy={teamSort.sortBy} onToggle={teamSort.toggleSort} />
+                  <SortableTh colKey="email"  label={t('resources.col.email')}         sortBy={teamSort.sortBy} onToggle={teamSort.toggleSort} />
+                  <SortableTh colKey="team"   label={t('resources.col.team')}          sortBy={teamSort.sortBy} onToggle={teamSort.toggleSort} />
+                  <SortableTh colKey="status" label={t('resources.col.status')}        sortBy={teamSort.sortBy} onToggle={teamSort.toggleSort} sortable={false} />
+                  <SortableTh colKey="hours"  label={t('resources.col.hours_per_day')} sortBy={teamSort.sortBy} onToggle={teamSort.toggleSort} />
+                </tr>
+              </thead>
+              <tbody>
+                {teamSort.sorted.map((m) => {
+                  const hpd = hoursByUserPublicId.get(m.publicId) ?? 8;
+                  return (
+                    <tr key={m.publicId}>
+                      <td>{m.name}</td>
+                      <td className="muted">{m.email || '—'}</td>
+                      <td>{m.userType?.label ?? '—'}</td>
+                      <td>
+                        <span className="rv-status-pill">{t('resources.status.active')}</span>
+                      </td>
+                      <td>
+                        <MemberHoursCell
+                          userPublicId={m.publicId}
+                          initial={hpd}
+                          canEdit={canEditHours}
+                          onSave={updateMemberHours}
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
@@ -232,55 +238,57 @@ export function ResourcesView({ members, resources, projectPublicId, refresh, ca
             {t('resources.external.empty')}
           </div>
         ) : (
-          <table className="rv-table">
-            <thead>
-              <tr>
-                <SortableTh colKey="name"  label={t('resources.col.name')}          sortBy={extSort.sortBy} onToggle={extSort.toggleSort} />
-                <SortableTh colKey="type"  label={t('resources.col.type')}          sortBy={extSort.sortBy} onToggle={extSort.toggleSort} />
-                <SortableTh colKey="hours" label={t('resources.col.hours_per_day')} sortBy={extSort.sortBy} onToggle={extSort.toggleSort} />
-                {canManage && <th style={{ width: 90 }}>{t('resources.col.actions')}</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {extSort.sorted.map((r) => {
-                const typeLabel = r.userType?.label ?? '—';
-                return (
-                  <tr key={r.publicId}>
-                    <td>{r.text}</td>
-                    <td>{typeLabel}</td>
-                    <td>{r.hoursPerDay} h</td>
-                    {canManage && (
-                      <td>
-                        <span className="rv-row-actions">
-                          <button
-                            type="button"
-                            className="rv-row-action"
-                            onClick={() => setEditingExt({
-                              publicId: r.publicId,
-                              name: r.text,
-                              userTypePublicId: r.userType?.publicId ?? null,
-                              hoursPerDay: r.hoursPerDay,
-                            })}
-                            aria-label={t('resources.modal.edit.title')}
-                          >
-                            <IconEdit />
-                          </button>
-                          <button
-                            type="button"
-                            className="rv-row-action danger"
-                            onClick={() => setDeleteTarget({ publicId: r.publicId, name: r.text })}
-                            aria-label={t('resources.confirm.delete.title')}
-                          >
-                            <IconTrash />
-                          </button>
-                        </span>
-                      </td>
-                    )}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <div className="rv-table-scroll">
+            <table className="rv-table">
+              <thead>
+                <tr>
+                  <SortableTh colKey="name"  label={t('resources.col.name')}          sortBy={extSort.sortBy} onToggle={extSort.toggleSort} />
+                  <SortableTh colKey="type"  label={t('resources.col.type')}          sortBy={extSort.sortBy} onToggle={extSort.toggleSort} />
+                  <SortableTh colKey="hours" label={t('resources.col.hours_per_day')} sortBy={extSort.sortBy} onToggle={extSort.toggleSort} />
+                  {canManage && <th style={{ width: 90 }}>{t('resources.col.actions')}</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {extSort.sorted.map((r) => {
+                  const typeLabel = r.userType?.label ?? '—';
+                  return (
+                    <tr key={r.publicId}>
+                      <td>{r.text}</td>
+                      <td>{typeLabel}</td>
+                      <td>{r.hoursPerDay} h</td>
+                      {canManage && (
+                        <td>
+                          <span className="rv-row-actions">
+                            <button
+                              type="button"
+                              className="rv-row-action"
+                              onClick={() => setEditingExt({
+                                publicId: r.publicId,
+                                name: r.text,
+                                userTypePublicId: r.userType?.publicId ?? null,
+                                hoursPerDay: r.hoursPerDay,
+                              })}
+                              aria-label={t('resources.modal.edit.title')}
+                            >
+                              <IconEdit />
+                            </button>
+                            <button
+                              type="button"
+                              className="rv-row-action danger"
+                              onClick={() => setDeleteTarget({ publicId: r.publicId, name: r.text })}
+                              aria-label={t('resources.confirm.delete.title')}
+                            >
+                              <IconTrash />
+                            </button>
+                          </span>
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 

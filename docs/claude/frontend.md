@@ -40,6 +40,11 @@ useEffect(() => { showToastRef.current = showToast; }, [showToast]);
 
 ## Template Zynix — FlatPickr (campos de data)
 
+### Legacy `frontend/` — script global
+
+Carregado via `loadScript('/assets/libs/flatpickr/flatpickr.min.js')` em
+`AppLayout.tsx`. Declaração global no consumidor:
+
 ```typescript
 declare const flatpickr: (el: HTMLElement, opts?: object) => { destroy(): void };
 
@@ -54,6 +59,48 @@ useEffect(() => {
   return () => fp.destroy();
 }, [showModal]);
 ```
+
+### `frontend2/` — wrapper React `<DatePicker />` (Mai 2026)
+
+FlatPickr instalado via npm (`flatpickr@^4.6.x`). CSS importada uma vez em
+[main.tsx](frontend2/src/main.tsx) (`import 'flatpickr/dist/flatpickr.min.css'`).
+Todos os call-sites usam o wrapper [DatePicker.tsx](frontend2/src/lib/DatePicker.tsx):
+
+```tsx
+import { DatePicker } from '../../../lib/DatePicker';
+
+<DatePicker
+  value={form.start_date}              // string formatada conforme `format`
+  onChange={(s) => setForm((f) => ({ ...f, start_date: s }))}
+  format="d-m-Y H:i"                   // sintaxe FlatPickr
+  enableTime
+  placeholder="DD-MM-YYYY HH:mm"
+  disabled={!canEdit}
+/>
+```
+
+**Locales suportados** (resolvidos pelo wrapper via `i18next.language`):
+
+- `pt-PT` / `pt-BR` / `pt` → `Portuguese` (flatpickr/dist/l10n/pt)
+- `es` → `Spanish` (flatpickr/dist/l10n/es)
+- `en` (e fallback) → `english` (flatpickr/dist/l10n/default)
+
+> `flatpickr@4.x` **não tem** locale separado para `pt-BR`. O ficheiro `pt.js`
+> serve ambas as variantes. NÃO importar locales que não existam no package.
+
+**Re-init quando `enableTime` muda**: o wrapper destrói e recria a instância
+internamente (FlatPickr não aceita troca reactiva). Útil para toggles tipo
+"Hora exata" no TaskModal — quando o utilizador alterna `durationUnit`
+DAY ↔ HOUR, o picker passa de data pura para datetime.
+
+**Helper canónico** `toFlatpickrFormat(fmt?, withTime?)` em
+[dateFormatting.ts](frontend2/src/lib/dateFormatting.ts) — converte um
+`ProjectDateFormat` (`DD/MM/YYYY`, `DD-MM-YYYY`, ...) para a sintaxe FlatPickr.
+
+**Anti-padrões**:
+- ❌ Chamar `flatpickr()` directo em código novo do `frontend2/` — usar sempre o `<DatePicker />`.
+- ❌ Hardcodar `'d-m-Y'`, `'d/m/Y'`, etc. em call-sites — usar `toFlatpickrFormat(projectDateFormat, withTime)`.
+- ❌ `<input type="date">` ou `type="datetime-local">` nativo em código novo — UX inconsistente entre browsers, sem locale i18n.
 
 ## Template Zynix — Choices.js (selects)
 

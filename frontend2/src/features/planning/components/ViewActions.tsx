@@ -10,10 +10,11 @@ interface Props {
   filterText: string;
   onFilterChange: (next: string) => void;
   onOpenManageStates: () => void;
+  onCreateTask?: () => void;
   can: (action: PA) => boolean;
 }
 
-export function ViewActions({ filterText, onFilterChange, onOpenManageStates, can }: Props) {
+export function ViewActions({ filterText, onFilterChange, onOpenManageStates, onCreateTask, can }: Props) {
   const { t } = useTranslation('planning');
   const comingSoonTip = t('actions.coming_soon_tip');
   const canManageStates = can(PA.STATE_MANAGE);
@@ -123,7 +124,7 @@ export function ViewActions({ filterText, onFilterChange, onOpenManageStates, ca
         type="button"
         className="va-btn primary"
         disabled={!can(PA.TASK_CREATE)}
-        title={comingSoonTip}
+        onClick={onCreateTask}
       >
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
           <line x1="12" y1="5" x2="12" y2="19" />

@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
+import { useClosingState } from '../lib/useClosingState';
 import '../styles/ws-settings.css';
 
 interface Props {
@@ -25,12 +27,14 @@ export function ConfirmDialog({
 }: Props) {
   const { t: tc } = useTranslation('common');
   const [busy, setBusy] = useState(false);
+  // Two-phase close — bate com `animation-duration` de .ws-modal.is-closing (220ms).
+  const { closing, requestClose } = useClosingState(onCancel, 220);
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !busy) onCancel(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !busy) requestClose(); };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [onCancel, busy]);
+  }, [requestClose, busy]);
 
   async function handleConfirm() {
     if (busy) return;
@@ -49,9 +53,14 @@ export function ConfirmDialog({
     ? { background: 'oklch(0.55 0.20 25)' }
     : undefined;
 
-  return (
-    <div className="ws-modal-backdrop" onClick={onCancel} role="presentation">
-      <div className="ws-modal" onClick={(e) => e.stopPropagation()} style={{ width: 420 }} role="alertdialog" aria-label={title}>
+  /* Renderizado via `createPortal(..., document.body)` para escapar
+     QUALQUER stacking context criado por ancestrais (ex.: `.tm-modal`
+     do TaskModal usa `transform: translateX(-50%)` que cria stacking
+     context isolado — sem portal, o ConfirmDialog ficava por trás do
+     modal pai mesmo com z-index alto). Pattern consistente com `TMSelect`. */
+  return createPortal(
+    <div className={`ws-modal-backdrop${closing ? ' is-closing' : ''}`} onClick={requestClose} role="presentation">
+      <div className={`ws-modal${closing ? ' is-closing' : ''}`} onClick={(e) => e.stopPropagation()} style={{ width: 420 }} role="alertdialog" aria-label={title}>
         <div className="mh">
           <div className="ic" style={iconStyle}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -61,7 +70,7 @@ export function ConfirmDialog({
             </svg>
           </div>
           <div className="tt">{title}</div>
-          <button type="button" className="close" onClick={onCancel} aria-label={tc('actions.close')}>
+          <button type="button" className="close" onClick={requestClose} aria-label={tc('actions.close')}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <line x1="6" y1="6" x2="18" y2="18" />
               <line x1="18" y1="6" x2="6" y2="18" />
@@ -72,7 +81,7 @@ export function ConfirmDialog({
           <div style={{ fontSize: 13.5, color: 'var(--ink2)', lineHeight: 1.5 }}>{message}</div>
         </div>
         <div className="mf">
-          <button type="button" className="ws-cancel" onClick={onCancel} disabled={busy}>
+          <button type="button" className="ws-cancel" onClick={requestClose} disabled={busy}>
             {cancelLabel ?? tc('actions.cancel')}
           </button>
           <button
@@ -86,6 +95,7 @@ export function ConfirmDialog({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

@@ -1,14 +1,27 @@
 /**
  * Helpers de formatação de datas para frontend2.
  *
- * Versão simplificada — o frontend antigo tem um sistema completo com
- * `Project.dateFormat` por projecto + Context. Aqui apenas precisamos de
- * formatar datas no formato `DD/MM/YYYY` (default da app) para listings que
- * ainda não estão dentro do contexto dum projecto. Será extendido quando
- * uma página de projecto for portada.
+ * Distinção crítica (regra obrigatória de timezone):
+ *   - DATA PURA (label de calendário) → `formatDate(d, fmt)` — tz-agnostic.
+ *   - MOMENTO REAL (instante exacto) → `formatMoment(d, tz)` — tz-aware.
+ *
+ * `formatMoment` + `relativeTimeInTimezone` adicionados em Mai 2026 para
+ * suporte ao CommentsPanel (comments.createdAt é MOMENTO REAL).
  */
 
-const DEFAULT_FORMAT = 'DD/MM/YYYY';
+/** Formatos de data suportados ao nível do projecto. Sincronizado com
+ *  `frontend/src/lib/dateFormatting.ts` (legacy) e a regra
+ *  @docs/claude/date-formatting.md. */
+export type ProjectDateFormat =
+  | 'DD/MM/YYYY'
+  | 'DD-MM-YYYY'
+  | 'YYYY-MM-DD'
+  | 'MM/DD/YYYY';
+
+/** Default platform-wide quando o projecto não tem `dateFormat` definido. */
+export const DEFAULT_DATE_FORMAT: ProjectDateFormat = 'DD/MM/YYYY';
+
+const DEFAULT_FORMAT = DEFAULT_DATE_FORMAT;
 
 function pad2(n: number): string {
   return n < 10 ? `0${n}` : String(n);
@@ -24,10 +37,72 @@ function applyTokens(d: Date, fmt: string): string {
     .replace(/DD/g, dd);
 }
 
-/** Formata uma data (ISO string, Date ou null) usando o formato `DD/MM/YYYY`. */
+/** Formata uma DATA PURA (sem tz). Usa `getDate`/`getMonth` locais — assume
+ *  que a entrada já foi normalizada para o "dia X" pretendido. */
 export function formatDate(input: string | Date | null | undefined, fmt: string = DEFAULT_FORMAT): string {
   if (input == null) return '—';
   const d = input instanceof Date ? input : new Date(input);
   if (Number.isNaN(d.getTime())) return '—';
   return applyTokens(d, fmt);
+}
+
+/** Formata um MOMENTO REAL convertendo para a tz indicada. Usa Intl.DateTimeFormat
+ *  nativo — sem dependência externa. Devolve `"DD/MM/YYYY HH:mm"` no tz dado. */
+export function formatMoment(input: string | Date | null | undefined, tz: string | null | undefined): string {
+  if (input == null) return '—';
+  const d = input instanceof Date ? input : new Date(input);
+  if (Number.isNaN(d.getTime())) return '—';
+  const opts: Intl.DateTimeFormatOptions = {
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+    timeZone: tz ?? undefined,
+  };
+  // Locale neutro `en-GB` produz `DD/MM/YYYY, HH:mm`; removemos a vírgula.
+  return new Intl.DateTimeFormat('en-GB', opts).format(d).replace(',', '');
+}
+
+type TFn = (key: string, opts?: Record<string, unknown>) => string;
+
+/** Fallback absoluto via `formatMoment` quando o instante é >30 dias atrás. */
+export function relativeTimeInTimezone(input: string, t: TFn, tz: string | null | undefined): string {
+  const diff = Date.now() - new Date(input).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return t('comments.time.just_now');
+  if (m < 60) return t('comments.time.mins_ago', { count: m });
+  const h = Math.floor(m / 60);
+  if (h < 24) return t('comments.time.hours_ago', { count: h });
+  const d = Math.floor(h / 24);
+  if (d < 30) return t('comments.time.days_ago', { count: d });
+  return formatMoment(input, tz);
+}
+
+/** Browser timezone como fallback quando o user não tem `timezone` definido. */
+export function browserTimezone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  } catch {
+    return 'UTC';
+  }
+}
+
+/** Converte um `ProjectDateFormat` (ou string compatível) para a sintaxe
+ *  FlatPickr (`d/m/Y`, `d-m-Y`, `Y-m-d`, `m/d/Y`). Com `withTime=true` adiciona
+ *  `' H:i'` (24h, conforme convenção da app).
+ *
+ *  Port literal de `frontend/src/lib/dateFormatting.ts:155-169` (legacy).
+ *  Manter sincronizado com a doc canónica @docs/claude/date-formatting.md. */
+export function toFlatpickrFormat(
+  fmt?: ProjectDateFormat | string | null,
+  withTime?: boolean,
+): string {
+  const f = (fmt as ProjectDateFormat) ?? DEFAULT_DATE_FORMAT;
+  let base: string;
+  switch (f) {
+    case 'DD-MM-YYYY': base = 'd-m-Y'; break;
+    case 'YYYY-MM-DD': base = 'Y-m-d'; break;
+    case 'MM/DD/YYYY': base = 'm/d/Y'; break;
+    case 'DD/MM/YYYY':
+    default:           base = 'd/m/Y';
+  }
+  return withTime ? `${base} H:i` : base;
 }

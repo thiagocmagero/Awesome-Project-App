@@ -10,6 +10,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useWorkspaceUserTypes } from '../../../hooks/useWorkspaceUserTypes';
+import { useClosingState } from '../../../lib/useClosingState';
 import type {
   CreateExternalResourceDto,
   UpdateExternalResourceDto,
@@ -41,10 +42,12 @@ export function ExternalResourceModal({ initialValue, onClose, onCreate, onUpdat
   const [hoursPerDay, setHoursPerDay]   = useState<number>(initialValue?.hoursPerDay ?? 8);
   const [submitting, setSubmitting]     = useState(false);
   const [error, setError]               = useState<string | null>(null);
+  // Two-phase close — bate com `animation-duration` de .modal-box.is-closing (180ms).
+  const { closing, requestClose } = useClosingState(onClose, 180);
 
   // Escape fecha; body sem scroll enquanto modal aberto.
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !submitting) onClose(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !submitting) requestClose(); };
     document.addEventListener('keydown', onKey);
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -52,7 +55,7 @@ export function ExternalResourceModal({ initialValue, onClose, onCreate, onUpdat
       document.removeEventListener('keydown', onKey);
       document.body.style.overflow = prev;
     };
-  }, [onClose, submitting]);
+  }, [requestClose, submitting]);
 
   const activeTypes = useMemo(() => types.filter((tp) => tp.status === 'ACTIVE'), [types]);
 
@@ -77,7 +80,7 @@ export function ExternalResourceModal({ initialValue, onClose, onCreate, onUpdat
           hoursPerDay,
         });
       }
-      onClose();
+      requestClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -86,13 +89,13 @@ export function ExternalResourceModal({ initialValue, onClose, onCreate, onUpdat
   }
 
   return (
-    <div className="modal-backdrop" onClick={onClose} role="presentation">
-      <div className="modal-box" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={editing ? t('resources.modal.edit.title') : t('resources.modal.create.title')}>
+    <div className={`modal-backdrop${closing ? ' is-closing' : ''}`} onClick={requestClose} role="presentation">
+      <div className={`modal-box${closing ? ' is-closing' : ''}`} onClick={(e) => e.stopPropagation()} role="dialog" aria-label={editing ? t('resources.modal.edit.title') : t('resources.modal.create.title')}>
         <div className="modal-head">
           <span className="title">
             {editing ? t('resources.modal.edit.title') : t('resources.modal.create.title')}
           </span>
-          <button type="button" className="modal-close" onClick={onClose} aria-label={tc('actions.close')}>
+          <button type="button" className="modal-close" onClick={requestClose} aria-label={tc('actions.close')}>
             ×
           </button>
         </div>
@@ -155,7 +158,7 @@ export function ExternalResourceModal({ initialValue, onClose, onCreate, onUpdat
           </div>
 
           <div className="modal-foot">
-            <button type="button" className="mf-cancel" onClick={onClose} disabled={submitting}>
+            <button type="button" className="mf-cancel" onClick={requestClose} disabled={submitting}>
               {tc('actions.cancel')}
             </button>
             <button type="submit" className="mf-primary" disabled={!valid || submitting}>

@@ -251,8 +251,9 @@ html[data-theme="dark"] .user-menu .acc-trial { background: oklch(0.28 0.06 70);
 .pri-cell { font-size: 12px; display: inline-flex; align-items: center; gap: 6px; }
 .pri-cell .sq { width: 12px; height: 12px; border-radius: 3px; }
 .assignees { display: inline-flex; }
-.row-more { color: transparent; text-align: right; font-size: 16px; padding-right: 4px; }
-.list-row:hover .row-more { color: ${T.dim}; }
+/* .row-more (kebab) — visibilidade controlada por styles/project-list.css.
+   Estilos canónicos (color, opacity, hover, touch fallback) vivem lá; este
+   ficheiro NAO deve declarar .row-more para nao fazer override por cascade. */
 .add-task-bar { display: flex; align-items: center; gap: 8px; padding: 10px 24px 16px; border-bottom: 1px solid ${T.line}; color: ${T.mute}; font-size: 13px; cursor: pointer; }
 .add-task-bar:hover { color: ${T.brand}; }
 .add-task-bar .icon { font-size: 16px; line-height: 0.8; }

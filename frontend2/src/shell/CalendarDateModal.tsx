@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { CalendarDate, CalendarStatus } from '../hooks/useWorkspaceCalendars';
+import { useClosingState } from '../lib/useClosingState';
+import { DatePicker } from '../lib/DatePicker';
 import '../styles/ws-settings.css';
 
 interface Props {
@@ -41,12 +43,14 @@ export function CalendarDateModal({ initial, onClose, onSave }: Props) {
   const [active, setActive] = useState<boolean>((initial?.status ?? 'ACTIVE') === 'ACTIVE');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Two-phase close — bate com `animation-duration` de .ws-modal.is-closing (220ms).
+  const { closing, requestClose } = useClosingState(onClose, 220);
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !submitting) onClose(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !submitting) requestClose(); };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [onClose, submitting]);
+  }, [requestClose, submitting]);
 
   const isEdit = !!initial;
   const canSave = name.trim().length >= 2 && /^\d{4}-\d{2}-\d{2}$/.test(date) && !submitting;
@@ -71,9 +75,9 @@ export function CalendarDateModal({ initial, onClose, onSave }: Props) {
   }
 
   return (
-    <div className="ws-modal-backdrop" onClick={onClose} role="presentation">
+    <div className={`ws-modal-backdrop${closing ? ' is-closing' : ''}`} onClick={requestClose} role="presentation">
       <div
-        className="ws-modal"
+        className={`ws-modal${closing ? ' is-closing' : ''}`}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-label={isEdit ? t('modal.edit_date.title') : t('modal.add_date.title')}
@@ -90,7 +94,7 @@ export function CalendarDateModal({ initial, onClose, onSave }: Props) {
           <div className="tt">
             {isEdit ? t('modal.edit_date.title') : t('modal.add_date.title')}
           </div>
-          <button type="button" className="close" onClick={onClose} aria-label={tc('actions.close')}>
+          <button type="button" className="close" onClick={requestClose} aria-label={tc('actions.close')}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <line x1="6" y1="6" x2="18" y2="18" />
               <line x1="18" y1="6" x2="6" y2="18" />
@@ -120,14 +124,14 @@ export function CalendarDateModal({ initial, onClose, onSave }: Props) {
             <label className="lab">
               {t('form.date')} <span className="req">*</span>
             </label>
-            <input
-              type="date"
+            <DatePicker
               className="ws-input"
               value={date}
+              onChange={(s) => setDate(s)}
+              format="Y-m-d"
+              enableTime={false}
+              placeholder="YYYY-MM-DD"
               disabled={submitting}
-              autoFocus={isEdit}
-              onChange={(e) => setDate(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') void submit(); }}
             />
           </div>
 
@@ -162,7 +166,7 @@ export function CalendarDateModal({ initial, onClose, onSave }: Props) {
         </div>
 
         <div className="mf">
-          <button type="button" className="ws-cancel" onClick={onClose} disabled={submitting}>
+          <button type="button" className="ws-cancel" onClick={requestClose} disabled={submitting}>
             {tc('actions.cancel')}
           </button>
           <button type="button" className="ws-btn-primary" onClick={() => void submit()} disabled={!canSave}>

@@ -5,13 +5,14 @@
 
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { ITaskState } from '../states-types';
+import { resolveStateColor, type ITaskState } from '../states-types';
+import { useClosingState } from '../../../lib/useClosingState';
 
 interface Props {
   mode: 'create' | 'edit';
   state?: ITaskState | null;
   onClose: () => void;
-  onSubmit: (data: { label: string; color: string; wipLimit: number | null }) => Promise<boolean>;
+  onSubmit: (data: { label: string; color: string | null; wipLimit: number | null }) => Promise<boolean>;
 }
 
 const HEX_RE = /^#[0-9a-fA-F]{6}$/;
@@ -46,22 +47,29 @@ function IconFloppy() {
 export function StateModal({ mode, state, onClose, onSubmit }: Props) {
   const { t } = useTranslation('planning');
   const { t: tc } = useTranslation('common');
+  // Two-phase close — bate com `animation-duration` de .ms-modal.is-closing (150ms).
+  const { closing, requestClose } = useClosingState(onClose, 150);
 
   const [label, setLabel] = useState(state?.label ?? '');
-  const [color, setColor] = useState(state?.color ?? '#6c5ce7');
+  // Cor: empty string = "sem cor" (usa default sistema ou cinza no display).
+  const [color, setColor] = useState(state?.color ?? '');
   const [wipText, setWipText] = useState(state?.wipLimit != null ? String(state.wipLimit) : '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const isSystem = state?.isSystem ?? false;
+  // Sistema: nada obrigatório. Custom: só nome.
   const valid = isSystem || label.trim().length > 0;
+  // Cor que o swatch/picker renderiza quando o utilizador deixou o campo vazio.
+  // Sistema → cor nativa (SYSTEM_STATE_COLORS). Custom → cinzento (DEFAULT_STATE_COLOR).
+  const previewColor = color.trim() || resolveStateColor(state ?? null);
 
   // Bloquear scroll do body + atalhos teclado (Escape fecha, Enter submete).
   useEffect(() => {
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') { e.preventDefault(); onClose(); }
+      if (e.key === 'Escape') { e.preventDefault(); requestClose(); }
       else if (e.key === 'Enter' && (e.target as HTMLElement).tagName !== 'TEXTAREA') {
         if (valid && !saving) {
           e.preventDefault();
@@ -80,11 +88,12 @@ export function StateModal({ mode, state, onClose, onSubmit }: Props) {
   async function handleSubmit(e?: React.FormEvent) {
     e?.preventDefault();
     const trimmedLabel = label.trim();
+    const trimmedColor = color.trim();
     if (!valid) {
       setError(t('states.error.label_required'));
       return;
     }
-    if (color && !HEX_RE.test(color)) {
+    if (trimmedColor && !HEX_RE.test(trimmedColor)) {
       setError('Cor inválida — usa formato #RRGGBB.');
       return;
     }
@@ -97,23 +106,25 @@ export function StateModal({ mode, state, onClose, onSubmit }: Props) {
     setError(null);
     const ok = await onSubmit({
       label: isSystem && !trimmedLabel ? '' : trimmedLabel,
-      color,
+      // Cor vazia → null. Backend mantém `BoardColumn.color = NULL` e o frontend
+      // renderiza via `resolveStateColor` (sistema → cor nativa; custom → cinza).
+      color: trimmedColor === '' ? null : trimmedColor,
       wipLimit: wipNum,
     });
     setSaving(false);
-    if (ok) onClose();
+    if (ok) requestClose();
   }
 
   return (
-    <div className="ms-modal-backdrop" onClick={onClose}>
-      <div className="ms-modal" onClick={(e) => e.stopPropagation()}>
+    <div className={`ms-modal-backdrop${closing ? ' is-closing' : ''}`} onClick={requestClose}>
+      <div className={`ms-modal${closing ? ' is-closing' : ''}`} onClick={(e) => e.stopPropagation()}>
         <form onSubmit={handleSubmit}>
           <header className="ms-modal-head">
             <h4 className="title">
               <IconLayers />
               {mode === 'create' ? t('states.modal.create_title') : t('states.modal.edit_title')}
             </h4>
-            <button type="button" className="close" onClick={onClose} aria-label="Fechar">
+            <button type="button" className="close" onClick={requestClose} aria-label="Fechar">
               <IconClose />
             </button>
           </header>
@@ -138,11 +149,14 @@ export function StateModal({ mode, state, onClose, onSubmit }: Props) {
             <div className="ms-field">
               <label htmlFor="ms-color">{t('states.modal.color_label')}</label>
               <div className="ms-color-row">
-                <label className="swatch" htmlFor="ms-color" style={{ background: color }}>
+                {/* Swatch mostra previewColor (cor real ou default resolvida). O picker
+                    nativo requer hex válido — bound a previewColor; ao mudar,
+                    grava o valor explícito do utilizador. */}
+                <label className="swatch" htmlFor="ms-color" style={{ background: previewColor }}>
                   <input
                     id="ms-color"
                     type="color"
-                    value={color}
+                    value={previewColor}
                     onChange={(e) => setColor(e.target.value)}
                   />
                 </label>
@@ -151,10 +165,29 @@ export function StateModal({ mode, state, onClose, onSubmit }: Props) {
                     type="text"
                     value={color}
                     onChange={(e) => setColor(e.target.value.toLowerCase())}
-                    placeholder="#rrggbb"
+                    placeholder={previewColor}
                     maxLength={7}
                   />
                 </div>
+                {color.trim() !== '' && (
+                  <button
+                    type="button"
+                    onClick={() => setColor('')}
+                    title={tc('actions.clear')}
+                    aria-label={tc('actions.clear')}
+                    style={{
+                      width: 28, height: 28, border: '1px solid var(--line)', borderRadius: 6,
+                      background: 'transparent', color: 'var(--dim)', cursor: 'pointer',
+                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                      flex: '0 0 auto',
+                    }}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
+                )}
               </div>
             </div>
 
@@ -175,7 +208,7 @@ export function StateModal({ mode, state, onClose, onSubmit }: Props) {
           </div>
 
           <footer className="ms-modal-foot">
-            <button type="button" onClick={onClose} disabled={saving}>
+            <button type="button" onClick={requestClose} disabled={saving}>
               {tc('actions.cancel')}
             </button>
             <button type="submit" className="primary" disabled={saving || !valid}>

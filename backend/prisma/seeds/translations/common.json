@@ -234,7 +234,8 @@
     "config.email.no_password_hint": "(unchanged if empty)",
     "config.email.from_email": "From email",
     "config.email.from_name": "From name",
-    "config.email.save_btn": "Save"
+    "config.email.save_btn": "Save",
+    "actions.more": "More"
   },
   "es": {
     "actions.accept": "Aceptar",
@@ -471,7 +472,8 @@
     "config.email.no_password_hint": "(sin cambios si está vacío)",
     "config.email.from_email": "Correo del remitente",
     "config.email.from_name": "Nombre del remitente",
-    "config.email.save_btn": "Guardar"
+    "config.email.save_btn": "Guardar",
+    "actions.more": "Más"
   },
   "pt-BR": {
     "actions.accept": "Aceitar",
@@ -708,7 +710,8 @@
     "config.email.no_password_hint": "(sem alterações se vazio)",
     "config.email.from_email": "E-mail do remetente",
     "config.email.from_name": "Nome do remetente",
-    "config.email.save_btn": "Salvar"
+    "config.email.save_btn": "Salvar",
+    "actions.more": "Mais"
   },
   "pt-PT": {
     "actions.accept": "Aceitar",
@@ -945,7 +948,8 @@
     "config.email.no_password_hint": "(sem alterações se vazio)",
     "config.email.from_email": "Email do remetente",
     "config.email.from_name": "Nome do remetente",
-    "config.email.save_btn": "Guardar"
+    "config.email.save_btn": "Guardar",
+    "actions.more": "Mais"
   },
   "translations": {
     "actions.activate": "pt-PT: Ativar  \npt-BR: Ativar",

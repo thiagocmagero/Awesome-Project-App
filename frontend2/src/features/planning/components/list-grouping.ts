@@ -16,7 +16,7 @@
 // grupos de fallback ("Sem responsável", "Sem prioridade") ficam sempre no
 // fim, qualquer que seja a direção.
 
-import type { IProjectMember, ITask, ITaskState } from '../types';
+import { resolveStateColor, type IProjectMember, type ITask, type ITaskState } from '../types';
 
 export type GroupBy = 'state' | 'assignee' | 'priority' | 'none';
 
@@ -61,7 +61,7 @@ export function groupTasksByState(
   return ordered.map((state) => ({
     key:    state.publicId,
     label:  resolveLabel(state),
-    color:  state.color ?? '#6b7280',
+    color:  resolveStateColor(state),
     tasks:  byState.get(state.publicId) ?? [],
     done:   state.systemKey === 'DONE' || state.type === 'FINAL',
     state,

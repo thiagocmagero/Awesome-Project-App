@@ -6,6 +6,7 @@ import { useMemberProjects, type ProjectRole } from '../hooks/useMemberProjects'
 import type { AccessLevel, WorkspaceMember } from '../hooks/useWorkspaceMembers';
 import { avatarColorFor, initialsOf } from '../lib/avatars';
 import { formatDate } from '../lib/dateFormatting';
+import { useClosingState } from '../lib/useClosingState';
 import '../styles/people.css';
 
 interface Props {
@@ -29,6 +30,8 @@ export function ManagePersonPanel({ member, onClose, onUpdate, onRemove, onAfter
   const { showToast } = useToast();
   const { types: userTypes } = useWorkspaceUserTypes();
   const { projects, save: saveProjects } = useMemberProjects(member.publicId);
+  // Two-phase close — bate com `animation-duration` de .pp-drawer.is-closing (260ms).
+  const { closing, requestClose } = useClosingState(onClose, 260);
 
   const [memberType, setMemberType] = useState<AccessLevel>(member.memberType);
   const [userTypePublicId, setUserTypePublicId] = useState<string>(member.userType?.publicId ?? '');
@@ -59,10 +62,10 @@ export function ManagePersonPanel({ member, onClose, onUpdate, onRemove, onAfter
 
   // ESC closes
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !saving) onClose(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !saving) requestClose(); };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [onClose, saving]);
+  }, [requestClose, saving]);
 
   const assignedCount = Object.keys(projectSel).length;
   const totalProjects = projects.length;
@@ -115,7 +118,7 @@ export function ManagePersonPanel({ member, onClose, onUpdate, onRemove, onAfter
       } else if (memberChanged) {
         showToast('success', tw('toast.member_updated'));
       }
-      onClose();
+      requestClose();
     } catch (err) {
       const e = err as { status?: number; body?: { error_code?: string; used?: number; total?: number }; message?: string };
       const code = e.body?.error_code ?? e.message;
@@ -156,12 +159,12 @@ export function ManagePersonPanel({ member, onClose, onUpdate, onRemove, onAfter
 
   return (
     <>
-      <div className="pp-backdrop" onClick={onClose} />
-      <aside className="pp-drawer" role="dialog" aria-label={tw('manage.section_title')}>
+      <div className={`pp-backdrop${closing ? ' is-closing' : ''}`} onClick={requestClose} />
+      <aside className={`pp-drawer${closing ? ' is-closing' : ''}`} role="dialog" aria-label={tw('manage.section_title')}>
         {/* Header */}
         <div className="dh">
           <div className="tt">{tw('manage.section_title')}</div>
-          <button type="button" className="close" onClick={onClose} aria-label={tc('actions.close')}>
+          <button type="button" className="close" onClick={requestClose} aria-label={tc('actions.close')}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <line x1="6" y1="6" x2="18" y2="18" />
               <line x1="18" y1="6" x2="6" y2="18" />

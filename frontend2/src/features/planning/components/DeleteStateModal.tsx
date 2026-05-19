@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ITaskState } from '../states-types';
+import { useClosingState } from '../../../lib/useClosingState';
 
 interface Props {
   state: ITaskState;
@@ -48,6 +49,8 @@ function resolveLabel(s: ITaskState, t: (k: string) => string): string {
 export function DeleteStateModal({ state, taskCount, otherStates, onClose, onConfirm }: Props) {
   const { t } = useTranslation('planning');
   const { t: tc } = useTranslation('common');
+  // Two-phase close — bate com `animation-duration` de .ms-modal.is-closing (150ms).
+  const { closing, requestClose } = useClosingState(onClose, 150);
   const needsTarget = taskCount > 0;
   const [target, setTarget] = useState<string>(otherStates[0]?.publicId ?? '');
   const [saving, setSaving] = useState(false);
@@ -57,14 +60,14 @@ export function DeleteStateModal({ state, taskCount, otherStates, onClose, onCon
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') { e.preventDefault(); onClose(); }
+      if (e.key === 'Escape') { e.preventDefault(); requestClose(); }
     }
     document.addEventListener('keydown', onKey);
     return () => {
       document.body.style.overflow = prev;
       document.removeEventListener('keydown', onKey);
     };
-  }, [onClose]);
+  }, [requestClose]);
 
   const stateLabel = useMemo(() => resolveLabel(state, t), [state, t]);
 
@@ -77,19 +80,19 @@ export function DeleteStateModal({ state, taskCount, otherStates, onClose, onCon
     setError(null);
     const result = await onConfirm(needsTarget ? target : undefined);
     setSaving(false);
-    if (result.ok) onClose();
+    if (result.ok) requestClose();
     else setError(result.error ?? t('states.error.delete'));
   }
 
   return (
-    <div className="ms-modal-backdrop" onClick={onClose}>
-      <div className="ms-modal" onClick={(e) => e.stopPropagation()}>
+    <div className={`ms-modal-backdrop${closing ? ' is-closing' : ''}`} onClick={requestClose}>
+      <div className={`ms-modal${closing ? ' is-closing' : ''}`} onClick={(e) => e.stopPropagation()}>
         <header className="ms-modal-head">
           <h4 className="title">
             <IconLayers />
             {tc('actions.delete')}
           </h4>
-          <button type="button" className="close" onClick={onClose} aria-label="Fechar">
+          <button type="button" className="close" onClick={requestClose} aria-label="Fechar">
             <IconClose />
           </button>
         </header>
@@ -128,7 +131,7 @@ export function DeleteStateModal({ state, taskCount, otherStates, onClose, onCon
         </div>
 
         <footer className="ms-modal-foot">
-          <button type="button" onClick={onClose} disabled={saving}>
+          <button type="button" onClick={requestClose} disabled={saving}>
             {tc('actions.cancel')}
           </button>
           <button type="button" className="danger" onClick={handleConfirm} disabled={saving}>

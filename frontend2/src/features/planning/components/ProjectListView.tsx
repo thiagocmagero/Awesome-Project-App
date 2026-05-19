@@ -5,16 +5,21 @@
 //
 // CRUD de tarefas continua diferido. CRUD de Estados via <ManageStatesDrawer>.
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { EllipsisVertical } from 'lucide-react';
 
 import '../../../styles/project-list.css';
 import '../../../styles/project-resources-links.css';
 
 import { ProjectAction as PA } from '../../../hooks/useProjectPermissions';
-import type { IProjectMember, IResourceNode, ITask, ITaskLink, ITaskState } from '../types';
+import { useToast } from '../../../contexts/ToastContext';
+import { apiFetch, getApiBase } from '../../../lib/api';
+import { resolveStateColor, type IProjectMember, type IResourceNode, type ITask, type ITaskLink, type ITaskState } from '../types';
+import type { TaskModalTab } from '../useTaskForm';
 import { ViewActions } from './ViewActions';
 import { ManageStatesDrawer } from './ManageStatesDrawer';
+import { TaskModal } from './TaskModal';
 import { FilterToolbar, type ListMode, type StateFilterKey } from './FilterToolbar';
 import {
   ALL_COLS, defaultColVisibility, makeSorter,
@@ -55,10 +60,20 @@ interface Props {
   loading: boolean;
   can: (action: PA) => boolean;
   projectPublicId: string;
+  /** Janela útil do projecto — `null` = default 9-18. Usada pelo TaskModal
+   *  para validação de start em tasks HOUR. */
+  workHours: { start: number; end: number } | null;
   states_create: (label: string, color?: string, wipLimit?: number) => Promise<boolean>;
   states_update: (publicId: string, patch: { label?: string | null; color?: string | null; wipLimit?: number | null }) => Promise<boolean>;
   states_delete: (publicId: string, targetPublicId?: string) => Promise<{ ok: boolean; error?: string }>;
   states_reorder: (orderedPublicIds: string[]) => Promise<boolean>;
+}
+
+interface TaskModalOpenState {
+  task: ITask | null;
+  tab: TaskModalTab;
+  parentPublicId?: string;
+  boardColumnPublicId?: string;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -82,10 +97,19 @@ function resolveStateLabel(state: ITaskState, t: (k: string) => string): string 
   return '—';
 }
 
-/** Mapeia estado sistema → tokens canónicos (--st-todo / --st-todoInk etc.).
- *  Estados custom (sem systemKey) caem em transparência (color20 bg + border color40). */
+/** Mapeia estado sistema → tokens canónicos (--st-todo / --st-todoInk etc.) quando
+ *  o utilizador NÃO definiu cor custom. Se houver override (`state.color` !== null),
+ *  ou para estados custom, cai em transparência (color20 bg + border color40). */
 function statusCellStyle(state: ITaskState): { background: string; color: string; border: string } {
-  const fallbackColor = state.color ?? '#6b7280';
+  // User override prevalece (mesmo em estados sistema) — usa transparência consistente
+  // com estados custom para que a cor escolhida se note imediatamente.
+  if (state.color) {
+    return {
+      background: `${state.color}20`,
+      color: state.color,
+      border: `1px solid ${state.color}40`,
+    };
+  }
   switch (state.systemKey) {
     case 'TODO':
       return { background: 'var(--st-todo)', color: 'var(--st-todoInk)', border: 'none' };
@@ -93,12 +117,14 @@ function statusCellStyle(state: ITaskState): { background: string; color: string
       return { background: 'var(--st-doing)', color: 'var(--st-doingInk)', border: 'none' };
     case 'DONE':
       return { background: 'var(--st-done)', color: 'var(--st-doneInk)', border: 'none' };
-    default:
+    default: {
+      const fallback = resolveStateColor(state);
       return {
-        background: `${fallbackColor}20`,
-        color: fallbackColor,
-        border: `1px solid ${fallbackColor}40`,
+        background: `${fallback}20`,
+        color: fallback,
+        border: `1px solid ${fallback}40`,
       };
+    }
   }
 }
 
@@ -175,10 +201,12 @@ function SkeletonRows({ count = 4, gridTpl }: { count?: number; gridTpl: string 
 export function ProjectListView({
   tasks, links, resources, members, refresh,
   states, membersByPublicId, dateFormat, loading, can,
-  projectPublicId,
+  projectPublicId, workHours,
   states_create, states_update, states_delete, states_reorder,
 }: Props) {
   const { t } = useTranslation('planning');
+  const { t: tc } = useTranslation('common');
+  const { showToast } = useToast();
   const [filterText, setFilterText] = useState('');
   const [listMode, setListMode] = useState<ListMode>('tasks');
   const [stateFilter, setStateFilter] = useState<StateFilterKey>('all');
@@ -188,13 +216,105 @@ export function ProjectListView({
   const [groupBy, setGroupBy] = useState<GroupBy>('state');
   const [sortBy, setSortBy] = useState<SortBy | null>(null);
 
+  // TaskModal — estado de abertura. null = fechado.
+  const [taskModalOpen, setTaskModalOpen] = useState<TaskModalOpenState | null>(null);
+  // Key bump para forçar re-mount limpo do modal (evita state contaminado entre
+  // opens consecutivos, ex: editar task A → +Add subtask → criar com parent A).
+  const taskModalKeyRef = useRef(0);
+
+  // Estado pop-up do kebab `.row-more` (Edit / Delete). publicId ou null.
+  const [openRowMenu, setOpenRowMenu] = useState<string | null>(null);
+
+  // Default state para "+ Adicionar Tarefa" no fundo (TODO system ou primeiro).
+  const defaultStatePublicId = useMemo(() => {
+    const todo = states.find((s) => s.systemKey === 'TODO');
+    return todo?.publicId ?? states[0]?.publicId ?? '';
+  }, [states]);
+
+  function openCreate(boardColumnPublicId?: string, parentPublicId?: string) {
+    taskModalKeyRef.current++;
+    setTaskModalOpen({
+      task: null,
+      tab: 'details',
+      boardColumnPublicId: boardColumnPublicId ?? defaultStatePublicId,
+      parentPublicId,
+    });
+  }
+  function openEdit(task: ITask, tab: TaskModalTab = 'details') {
+    taskModalKeyRef.current++;
+    setTaskModalOpen({ task, tab });
+  }
+
+  // Listeners de eventos custom emitidos pelo TaskModal (subtask add / edit
+  // task via click em sub-row, link source/target, etc.).
+  useEffect(() => {
+    function onCreateSubtask(e: Event) {
+      const detail = (e as CustomEvent<{ parentPublicId: string }>).detail;
+      if (detail?.parentPublicId) openCreate(undefined, detail.parentPublicId);
+    }
+    function onEditTask(e: Event) {
+      const detail = (e as CustomEvent<{ publicId: string }>).detail;
+      if (!detail?.publicId) return;
+      const tk = tasks.find((x) => x.publicId === detail.publicId);
+      if (tk) openEdit(tk);
+    }
+    window.addEventListener('awp:open-create-subtask', onCreateSubtask);
+    window.addEventListener('awp:open-edit-task', onEditTask);
+    return () => {
+      window.removeEventListener('awp:open-create-subtask', onCreateSubtask);
+      window.removeEventListener('awp:open-edit-task', onEditTask);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tasks, defaultStatePublicId]);
+
+  // Toggle done — chama PATCH /state com `DONE` system (ou `TODO` para reverter).
+  async function toggleDone(task: ITask, done: boolean) {
+    const target = states.find((s) => s.systemKey === (done ? 'DONE' : 'TODO'));
+    if (!target) {
+      showToast('warning', t('task.error_no_system_state'));
+      return;
+    }
+    try {
+      const res = await apiFetch(
+        `${getApiBase()}/projects/${projectPublicId}/planning/tasks/${task.publicId}/state`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ stateId: target.publicId, position: 999999 }),
+        },
+      );
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      await refresh();
+    } catch (e) {
+      showToast('danger', e instanceof Error ? e.message : tc('errors.generic'));
+    }
+  }
+
+  // Close row menu on click outside.
+  useEffect(() => {
+    function onDoc(e: MouseEvent) {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.tm-more-menu') && !target.closest('.list-dyn-row .row-more')) {
+        setOpenRowMenu(null);
+      }
+    }
+    if (openRowMenu) document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [openRowMenu]);
+
   const visCols = useMemo<ListColDef[]>(
     () => ALL_COLS.filter((c) => visibleCols[c.key]),
     [visibleCols],
   );
 
+  // Coluna TAREFA usa `minmax(180px, 1fr)` em vez de `1fr` para garantir
+  // largura mínima de 180px mesmo quando a soma das colunas fixas excede
+  // o viewport (caso típico em mobile/tablet). Com `1fr` puro, o CSS Grid
+  // encolhe a coluna a 0 quando as fixas não cabem — title fica invisível
+  // e não-clicável. Com `minmax`, o grid total fica wider que o viewport
+  // e activa o scroll horizontal naturalmente.
   const gridTpl = useMemo(
-    () => `28px 1fr ${visCols.map((c) => c.width).join(' ')} 36px`,
+    () => `28px minmax(180px, 1fr) ${visCols.map((c) => c.width).join(' ')} 36px`,
     [visCols],
   );
 
@@ -318,6 +438,7 @@ export function ProjectListView({
         filterText={filterText}
         onFilterChange={setFilterText}
         onOpenManageStates={() => setDrawerOpen(true)}
+        onCreateTask={() => openCreate()}
         can={can}
       />
 
@@ -438,9 +559,10 @@ export function ProjectListView({
                           <button
                             type="button"
                             className="add"
-                            disabled
-                            onClick={(e) => { e.stopPropagation(); }}
-                            title={t('actions.coming_soon_tip')}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openCreate(group.state?.publicId);
+                            }}
                           >{t('list.add_task_inline')}</button>
                         )}
                       </div>
@@ -464,18 +586,58 @@ export function ProjectListView({
                             <div
                               key={`${group.key}::${task.publicId}`}
                               className={`list-dyn-row${isDone ? ' done' : ''}`}
-                              style={{ gridTemplateColumns: gridTpl }}
+                              style={{ gridTemplateColumns: gridTpl, position: 'relative' }}
                             >
                               <span>
-                                <TaskCheckbox done={isDone} disabled={!can(PA.TASK_EDIT)} />
+                                <TaskCheckbox
+                                  done={isDone}
+                                  disabled={!can(PA.TASK_EDIT)}
+                                  onChange={(next) => void toggleDone(task, next)}
+                                />
                               </span>
-                              <span className="title">{task.text}</span>
+                              <span
+                                className="title"
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => openEdit(task)}
+                                onKeyDown={(e) => { if (e.key === 'Enter') openEdit(task); }}
+                                style={{ cursor: 'pointer' }}
+                              >{task.text}</span>
                               {visCols.map((col) => (
                                 <span key={col.key}>
                                   {renderCell(col, task, taskState, membersByPublicId, dateFormat, t)}
                                 </span>
                               ))}
-                              <button type="button" className="row-more" disabled aria-label="More">⋯</button>
+                              <button
+                                type="button"
+                                className="row-more"
+                                aria-label={tc('actions.more')}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setOpenRowMenu((m) => m === task.publicId ? null : task.publicId);
+                                }}
+                              ><EllipsisVertical size={16} strokeWidth={2} /></button>
+                              {openRowMenu === task.publicId && (
+                                <div
+                                  className="tm-more-menu"
+                                  style={{ right: 'max(12px, env(safe-area-inset-right))', top: '100%', zIndex: 180 }}
+                                >
+                                  {/* "Ver detalhes" fica sempre disponível — abre o TaskModal em modo
+                                      leitura quando o user não tem TASK_EDIT. Garante que mobile/Reader
+                                      nunca veja um menu vazio. */}
+                                  <button
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); setOpenRowMenu(null); openEdit(task); }}
+                                  >{can(PA.TASK_EDIT) ? tc('actions.edit') : tc('actions.view')}</button>
+                                  {can(PA.TASK_DELETE) && (
+                                    <button
+                                      type="button"
+                                      className="danger"
+                                      onClick={(e) => { e.stopPropagation(); setOpenRowMenu(null); openEdit(task); /* delete via footer no modal */ }}
+                                    >{tc('actions.delete')}</button>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           );
                         })
@@ -490,8 +652,7 @@ export function ProjectListView({
               <button
                 type="button"
                 className="add-task-bar"
-                disabled
-                title={t('actions.coming_soon_tip')}
+                onClick={() => openCreate()}
               >
                 <span className="icon">+</span>
                 <span>{t('list.add_task_inline')}…</span>
@@ -510,6 +671,25 @@ export function ProjectListView({
           onUpdate={states_update}
           onDelete={states_delete}
           onReorder={states_reorder}
+        />
+      )}
+
+      {taskModalOpen && (
+        <TaskModal
+          key={taskModalKeyRef.current}
+          projectPublicId={projectPublicId}
+          initialValue={taskModalOpen.task}
+          initialTab={taskModalOpen.tab}
+          parentPublicId={taskModalOpen.parentPublicId}
+          boardColumnPublicId={taskModalOpen.boardColumnPublicId}
+          states={states}
+          tasks={tasks}
+          links={links}
+          assigneesByPublicId={membersByPublicId}
+          workHours={workHours}
+          can={can}
+          onClose={() => setTaskModalOpen(null)}
+          onMutated={refresh}
         />
       )}
     </>

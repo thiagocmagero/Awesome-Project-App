@@ -161,6 +161,9 @@ export function LinksView({ links, tasks, projectPublicId, refresh, can }: Props
           {t('dependencies.empty')}
         </div>
       ) : (
+        /* Wrapper `.rv-table-scroll` permite navegação horizontal em mobile
+           — partilha CSS com a vista Resources (mesma classe). */
+        <div className="rv-table-scroll">
         <table className="lnk-table">
           <thead>
             <tr>
@@ -218,6 +221,7 @@ export function LinksView({ links, tasks, projectPublicId, refresh, can }: Props
             })}
           </tbody>
         </table>
+        </div>
       )}
 
       {createOpen && (

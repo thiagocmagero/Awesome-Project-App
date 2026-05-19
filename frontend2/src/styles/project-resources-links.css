@@ -12,26 +12,34 @@
    ============================================================ */
 
 /* ---- Resources view ---- */
+/* `.rv-wrap` alinha-se visualmente com `.lnk-wrap` (Links view):
+   fundo branco/panel direto, sem padding/gap externo. Cada `.rv-section`
+   passa a ser um "section divider" plano (sem card flutuante) — as
+   tabelas ocupam toda a largura e o aspecto é consistente entre as duas
+   abas (Resources / Links). */
 .rv-wrap {
   flex: 1;
   overflow: auto;
-  background: var(--bg);
-  padding: 20px 24px;
+  background: var(--panel);
   display: flex;
   flex-direction: column;
-  gap: 16px;
 }
 .rv-section {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  overflow: hidden;
+  /* Sem styling de card — apenas wrapper estrutural para o header da
+     section + a tabela debaixo. Border-top divide secções consecutivas
+     (excepto a primeira). */
+}
+.rv-section + .rv-section {
+  border-top: 1px solid var(--line);
 }
 .rv-sec-head {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 12px 16px;
+  /* Padding alinhado com `.lnk-toolbar` (10px 24px) para que o título
+     da section + botão de acção fiquem no mesmo "rail" horizontal das
+     tabelas da Links view. */
+  padding: 10px 24px;
   font-size: 13.5px;
   font-weight: 600;
   color: var(--ink);
@@ -50,14 +58,16 @@
   background: var(--panel2);
   color: var(--mute);
 }
+/* Alinhado visualmente com `.lnk-create-btn` da Links view: brand purple,
+   mesma padding (6px 14px) + border-radius (7px) + tamanho de fonte (13px). */
 .rv-add-btn {
   margin-left: auto;
-  padding: 5px 12px;
-  border-radius: 6px;
-  background: var(--pri-high);
+  padding: 6px 14px;
+  border-radius: 7px;
+  background: var(--brand);
   color: #fff;
   border: none;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
   font-family: inherit;
@@ -66,26 +76,47 @@
 .rv-add-btn:hover:not(:disabled) { opacity: .9; }
 .rv-add-btn:disabled { opacity: .45; cursor: not-allowed; }
 
+/* Wrapper de scroll horizontal para qualquer tabela dentro da `.rv-section`
+   (ou `.lnk-wrap`). Permite navegar tabelas largas em telemóvel/tablet
+   mantendo a `.rv-section` com `overflow: hidden` (preserva border-radius
+   dos cantos do card; o header da section fica fixo enquanto a tabela
+   scrolla horizontalmente). */
+.rv-table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
+}
+
 .rv-table {
   width: 100%;
+  /* Garante que a tabela mantém pelo menos a sua largura natural
+     (max-content das cells) — em viewport estreito, isto activa o
+     scroll horizontal no wrapper acima em vez de comprimir as cells. */
+  min-width: max-content;
   border-collapse: collapse;
   font-size: 13px;
 }
 .rv-table th {
   text-align: left;
-  padding: 9px 16px;
+  /* Padding horizontal alinhado com `.lnk-table th` (24px) para que as
+     duas tabelas (Resources / Links) tenham o mesmo "rail" das cells. */
+  padding: 10px 24px;
   font-size: 11px;
   color: var(--mute);
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   border-bottom: 1px solid var(--lineSoft);
+  /* `nowrap` evita que labels longos das colunas wrap dentro da cell —
+     mantém o layout estável durante scroll horizontal. */
+  white-space: nowrap;
 }
 .rv-table td {
-  padding: 11px 16px;
+  padding: 11px 24px;
   border-bottom: 1px solid var(--lineSoft);
   color: var(--ink);
   vertical-align: middle;
+  white-space: nowrap;
 }
 .rv-table tr:last-child td { border-bottom: none; }
 .rv-table .muted { color: var(--dim); }
@@ -199,6 +230,9 @@
 
 .lnk-table {
   width: 100%;
+  /* `min-width: max-content` + wrapper `.rv-table-scroll` no parent permite
+     scroll horizontal em mobile (mesmo padrão da Resources view). */
+  min-width: max-content;
   border-collapse: collapse;
   font-size: 13px;
 }
@@ -209,6 +243,7 @@
   color: var(--mute);
   font-weight: 600;
   letter-spacing: 0.04em;
+  white-space: nowrap;
   text-transform: uppercase;
   border-bottom: 1px solid var(--line);
 }
@@ -216,6 +251,7 @@
   padding: 11px 24px;
   border-bottom: 1px solid var(--lineSoft);
   color: var(--ink);
+  white-space: nowrap;
 }
 .lnk-table tr:last-child td { border-bottom: none; }
 .lnk-source { font-weight: 500; }
@@ -271,6 +307,15 @@
   overflow: hidden;
   animation: modal-in .18s ease;
 }
+/* Slide-out: bate com duration do useClosingState(_, 180) em LinkModal/ExternalResourceModal. */
+.modal-backdrop.is-closing { animation: modal-fade-out .15s ease forwards; }
+@keyframes modal-fade-out { from { opacity: 1; } to { opacity: 0; } }
+.modal-box.is-closing { animation: modal-out .18s ease forwards; }
+@keyframes modal-out {
+  from { transform: translateY(0) scale(1); opacity: 1; }
+  to   { transform: translateY(8px) scale(.98); opacity: 0; }
+}
+
 @keyframes modal-in {
   from { opacity: 0; transform: scale(.96) translateY(6px); }
   to   { opacity: 1; transform: none; }

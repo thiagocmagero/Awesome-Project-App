@@ -14,6 +14,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ITask } from '../types';
 import type { CreateLinkDto, UpdateLinkDto } from '../usePlanningLinks';
+import { useClosingState } from '../../../lib/useClosingState';
 
 interface Props {
   tasks: ITask[];
@@ -58,6 +59,8 @@ export function LinkModal({ tasks, initialValue, onClose, onCreate, onUpdate }: 
   const [lag, setLag]             = useState<number>(initialValue?.lag ?? 0);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError]         = useState<string | null>(null);
+  // Two-phase close — bate com `animation-duration` de .modal-box.is-closing (180ms).
+  const { closing, requestClose } = useClosingState(onClose, 180);
 
   const typeOptions: Array<{ value: LinkTypeKey; labelKey: string }> = [
     { value: 'FS', labelKey: 'task.links.type.fs' },
@@ -73,7 +76,7 @@ export function LinkModal({ tasks, initialValue, onClose, onCreate, onUpdate }: 
   );
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !submitting) onClose(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !submitting) requestClose(); };
     document.addEventListener('keydown', onKey);
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -81,7 +84,7 @@ export function LinkModal({ tasks, initialValue, onClose, onCreate, onUpdate }: 
       document.removeEventListener('keydown', onKey);
       document.body.style.overflow = prev;
     };
-  }, [onClose, submitting]);
+  }, [requestClose, submitting]);
 
   const valid = source !== '' && target !== '' && source !== target;
 
@@ -103,7 +106,7 @@ export function LinkModal({ tasks, initialValue, onClose, onCreate, onUpdate }: 
           lag: Number.isFinite(lag) ? lag : 0,
         });
       }
-      onClose();
+      requestClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -112,11 +115,11 @@ export function LinkModal({ tasks, initialValue, onClose, onCreate, onUpdate }: 
   }
 
   return (
-    <div className="modal-backdrop" onClick={onClose} role="presentation">
-      <div className="modal-box" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={editing ? t('dependencies.modal.edit.title') : t('dependencies.modal.title')}>
+    <div className={`modal-backdrop${closing ? ' is-closing' : ''}`} onClick={requestClose} role="presentation">
+      <div className={`modal-box${closing ? ' is-closing' : ''}`} onClick={(e) => e.stopPropagation()} role="dialog" aria-label={editing ? t('dependencies.modal.edit.title') : t('dependencies.modal.title')}>
         <div className="modal-head">
           <span className="title">{editing ? t('dependencies.modal.edit.title') : t('dependencies.modal.title')}</span>
-          <button type="button" className="modal-close" onClick={onClose} aria-label={tc('actions.close')}>
+          <button type="button" className="modal-close" onClick={requestClose} aria-label={tc('actions.close')}>
             ×
           </button>
         </div>
@@ -189,7 +192,7 @@ export function LinkModal({ tasks, initialValue, onClose, onCreate, onUpdate }: 
           </div>
 
           <div className="modal-foot">
-            <button type="button" className="mf-cancel" onClick={onClose} disabled={submitting}>
+            <button type="button" className="mf-cancel" onClick={requestClose} disabled={submitting}>
               {tc('actions.cancel')}
             </button>
             <button type="submit" className="mf-primary" disabled={!valid || submitting}>

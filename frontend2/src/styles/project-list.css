@@ -569,6 +569,9 @@
   position: sticky;
   top: 0;
   z-index: 2;
+  /* Igual razão do `.list-dyn-row` — garante que o header estende-se
+     a toda a largura do grid em scroll horizontal. */
+  min-width: max-content;
 }
 
 /* `.sort-header` para colunas clicáveis vive em styles/sort-header.css
@@ -576,12 +579,18 @@
    da tipografia do `.list-dyn-head`. */
 .list-dyn-row {
   display: grid;
+  position: relative;              /* offset parent do .tm-more-menu (popover absoluto) */
   height: 44px;
   border-bottom: 1px solid var(--lineSoft);
   cursor: pointer;
   align-items: center;
   padding: 0 24px;
   column-gap: 8px;
+  /* Garante que a row ocupa toda a largura do grid (max-content de todas
+     as cols), mesmo quando excede o viewport. Sem isto, em viewports
+     estreitos o box da row fica limitado à largura visível e a
+     `border-bottom` desaparece ao scrollar para a direita. */
+  min-width: max-content;
 }
 .list-dyn-row:hover { background: var(--panel2); }
 .list-dyn-row.done .title {
@@ -595,6 +604,32 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Centralização de conteúdo nas cells da row — excepto TAREFA (.title)
+   que fica left-aligned, e excepto o `.tm-more-menu` (popover absoluto
+   que não conta como cell). Aplicado a `<span>` (cells de dados) e ao
+   botão `.row-more` (kebab). */
+.list-dyn-row > span:not(.title),
+.list-dyn-row > button.row-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Headers das colunas — centraliza tudo excepto TAREFA (que é o 2.º
+   filho do head: 1.º é o span vazio do edge esquerdo do grid). */
+.list-dyn-head > .sort-header:not(:nth-child(2)) {
+  justify-content: center;
+}
+
+/* Group headers, empty messages e botão "+ Adicionar tarefa" também
+   devem estender para a largura total do grid em scroll horizontal,
+   para que a `border-bottom` deles fique alinhada com a das rows. */
+.list-group,
+.list-empty-group,
+.add-task-bar {
+  min-width: max-content;
 }
 
 .status-cell {
@@ -619,17 +654,28 @@
   gap: 6px;
 }
 .row-more {
-  color: transparent;
-  text-align: right;
-  font-size: 16px;
-  padding: 0;
+  color: var(--dim, #6b7280);  /* fallback hex defensivo se var() falhar */
+  opacity: 1;                  /* sempre visível por defeito (regra do user) */
+  min-width: 32px;
+  height: 28px;
+  padding: 0 4px;
   background: none;
   border: none;
   cursor: pointer;
   font-family: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  transition: background-color .15s ease, color .15s ease;
 }
-.list-dyn-row:hover .row-more { color: var(--dim); }
-.row-more:disabled { color: transparent !important; cursor: not-allowed; }
+.row-more > svg { display: block; flex: 0 0 auto; }
+.row-more:hover,
+.row-more:focus-visible {
+  background: var(--panel2, rgba(0,0,0,0.05));
+  color: var(--ink, #111827);
+}
+.row-more:disabled { opacity: 0.35; cursor: not-allowed; }
 
 .list-empty-group {
   padding: 16px 24px;

@@ -2,19 +2,17 @@
 // Cor de fundo é o `color` do estado com transparência; texto na mesma cor.
 
 import { useTranslation } from 'react-i18next';
-import type { ITaskState } from '../states-types';
+import { resolveStateColor, type ITaskState } from '../states-types';
 
 interface Props {
   state: ITaskState | null | undefined;
 }
 
-const FALLBACK_COLOR = '#6b7280';
-
 export function StateBadge({ state }: Props) {
   const { t } = useTranslation('planning');
   if (!state) return <span className="status-cell">—</span>;
   const label = state.label ?? (state.labelKey ? t(state.labelKey) : '—');
-  const color = state.color ?? FALLBACK_COLOR;
+  const color = resolveStateColor(state);
   return (
     <span
       className="status-cell"

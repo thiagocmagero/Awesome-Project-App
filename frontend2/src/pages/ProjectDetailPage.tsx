@@ -167,6 +167,7 @@ export default function ProjectDetailPage() {
             loading={planningLoading || statesLoading}
             can={can}
             projectPublicId={project.publicId}
+            workHours={project.workHours}
             states_create={createState}
             states_update={updateState}
             states_delete={deleteState}

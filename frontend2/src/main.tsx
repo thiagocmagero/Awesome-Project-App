@@ -5,10 +5,16 @@ import App from './App';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider } from './contexts/AuthContext';
 import { ToastProvider } from './contexts/ToastContext';
+import { TimezoneProvider } from './contexts/TimezoneContext';
 import { shellCss } from './shell/shellCss';
 
 import './styles/globals.css';
 import './styles/sort-header.css';
+import './styles/task-modal.css';
+// FlatPickr — date picker global. CSS importada uma vez aqui (estiliza
+// `.flatpickr-calendar` em qualquer ponto da app). Locales são consumidos
+// dentro do wrapper `lib/DatePicker.tsx` conforme `i18next.language`.
+import 'flatpickr/dist/flatpickr.min.css';
 // i18next setup (side-effect: regista LocalStorageBackend, LanguageDetector,
 // initReactI18next e carrega namespaces). Tem que correr antes de qualquer
 // componente que use `useTranslation()`.
@@ -29,7 +35,9 @@ createRoot(document.getElementById('root')!).render(
       <ThemeProvider>
         <ToastProvider>
           <AuthProvider>
-            <App />
+            <TimezoneProvider>
+              <App />
+            </TimezoneProvider>
           </AuthProvider>
         </ToastProvider>
       </ThemeProvider>

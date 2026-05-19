@@ -251,6 +251,12 @@
 }
 @keyframes pp-slide-in { from { transform: translateX(20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 
+/* Slide-out: bate com duration do useClosingState(_, 260) no ManagePersonPanel. */
+.pp-backdrop.is-closing { animation: pp-fade-out .15s ease forwards; }
+@keyframes pp-fade-out { from { opacity: 1; } to { opacity: 0; } }
+.pp-drawer.is-closing { animation: pp-slide-out .26s cubic-bezier(.2,.7,.2,1) forwards; }
+@keyframes pp-slide-out { from { transform: translateX(0); opacity: 1; } to { transform: translateX(20px); opacity: 0; } }
+
 .pp-drawer .dh {
   padding: 16px 20px;
   display: flex; align-items: center; gap: 12px;

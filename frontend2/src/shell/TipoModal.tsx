@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { WorkspaceUserType } from '../hooks/useWorkspaceUserTypes';
+import { useClosingState } from '../lib/useClosingState';
 import '../styles/ws-settings.css';
 
 interface Props {
@@ -20,13 +21,15 @@ export function TipoModal({ initial, existingCodes, onClose, onSave }: Props) {
   const [label, setLabel] = useState(initial?.label ?? '');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Two-phase close — bate com `animation-duration` de .ws-modal.is-closing (220ms).
+  const { closing, requestClose } = useClosingState(onClose, 220);
 
   // ESC closes
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !submitting) onClose(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !submitting) requestClose(); };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [onClose, submitting]);
+  }, [requestClose, submitting]);
 
   const canSave = code.trim().length >= 2 && label.trim().length >= 2 && !submitting;
   const isEdit = !!initial;
@@ -50,8 +53,8 @@ export function TipoModal({ initial, existingCodes, onClose, onSave }: Props) {
   }
 
   return (
-    <div className="ws-modal-backdrop" onClick={onClose} role="presentation">
-      <div className="ws-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={isEdit ? tu('types.modal_edit') : tu('types.modal_create')}>
+    <div className={`ws-modal-backdrop${closing ? ' is-closing' : ''}`} onClick={requestClose} role="presentation">
+      <div className={`ws-modal${closing ? ' is-closing' : ''}`} onClick={(e) => e.stopPropagation()} role="dialog" aria-label={isEdit ? tu('types.modal_edit') : tu('types.modal_create')}>
         <div className="mh">
           <div className="ic">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -60,7 +63,7 @@ export function TipoModal({ initial, existingCodes, onClose, onSave }: Props) {
             </svg>
           </div>
           <div className="tt">{isEdit ? tu('types.modal_edit') : tu('types.modal_create')}</div>
-          <button type="button" className="close" onClick={onClose} aria-label={tc('actions.close')}>
+          <button type="button" className="close" onClick={requestClose} aria-label={tc('actions.close')}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <line x1="6" y1="6" x2="18" y2="18" />
               <line x1="18" y1="6" x2="6" y2="18" />
@@ -108,7 +111,7 @@ export function TipoModal({ initial, existingCodes, onClose, onSave }: Props) {
         </div>
 
         <div className="mf">
-          <button type="button" className="ws-cancel" onClick={onClose} disabled={submitting}>
+          <button type="button" className="ws-cancel" onClick={requestClose} disabled={submitting}>
             {tc('actions.cancel')}
           </button>
           <button type="button" className="ws-btn-primary" onClick={() => void submit()} disabled={!canSave}>

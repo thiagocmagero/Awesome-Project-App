@@ -8,8 +8,9 @@ import { DragDropContext, Droppable, Draggable, type DropResult } from '@hello-p
 
 import '../../../styles/manage-states.css';
 import { useToast } from '../../../contexts/ToastContext';
+import { useClosingState } from '../../../lib/useClosingState';
 import type { ITask } from '../types';
-import type { ITaskState } from '../states-types';
+import { resolveStateColor, type ITaskState } from '../states-types';
 import { StateModal } from './StateModal';
 import { DeleteStateModal } from './DeleteStateModal';
 
@@ -107,6 +108,8 @@ export function ManageStatesDrawer({
 }: Props) {
   const { t } = useTranslation('planning');
   const { showToast } = useToast();
+  // Two-phase close — bate com `animation-duration` de .ms-drawer.is-closing (200ms).
+  const { closing, requestClose } = useClosingState(onClose, 200);
 
   // Estado local optimista para reorder DnD.
   const [localOrder, setLocalOrder] = useState<ITaskState[]>(
@@ -125,12 +128,12 @@ export function ManageStatesDrawer({
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape' && !editing && !creating && !deleting) {
-        onClose();
+        requestClose();
       }
     }
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [onClose, editing, creating, deleting]);
+  }, [requestClose, editing, creating, deleting]);
 
   const taskCountByState = useMemo(() => {
     const m = new Map<string, number>();
@@ -153,15 +156,19 @@ export function ManageStatesDrawer({
     if (!ok) showToast('danger', t('states.error.update'));
   }
 
-  async function handleCreateSubmit(data: { label: string; color: string; wipLimit: number | null }) {
-    const ok = await onCreate(data.label, data.color, data.wipLimit ?? undefined);
+  async function handleCreateSubmit(data: { label: string; color: string | null; wipLimit: number | null }) {
+    // `onCreate` espera `color?: string`. `null` significa "sem cor" — converte
+    // para undefined para o backend não receber o campo (default NULL no DB).
+    const ok = await onCreate(data.label, data.color ?? undefined, data.wipLimit ?? undefined);
     if (ok) showToast('success', t('states.success.created'));
     return ok;
   }
-  async function handleEditSubmit(data: { label: string; color: string; wipLimit: number | null }) {
+  async function handleEditSubmit(data: { label: string; color: string | null; wipLimit: number | null }) {
     if (!editing) return false;
     const ok = await onUpdate(editing.publicId, {
       label: data.label === '' ? null : data.label,
+      // `color: null` explícito limpa a cor no backend (volta a usar default
+      // nativo via `resolveStateColor` no display).
       color: data.color,
       wipLimit: data.wipLimit,
     });
@@ -177,14 +184,14 @@ export function ManageStatesDrawer({
 
   return (
     <>
-      <div className="ms-backdrop" onClick={onClose} />
-      <aside className="ms-drawer" role="dialog" aria-modal="true">
+      <div className={`ms-backdrop${closing ? ' is-closing' : ''}`} onClick={requestClose} />
+      <aside className={`ms-drawer${closing ? ' is-closing' : ''}`} role="dialog" aria-modal="true">
         <header className="ms-head">
           <h3 className="title">
             <IconLayers />
             {t('task.btn_manage_states')}
           </h3>
-          <button type="button" className="close" onClick={onClose} aria-label="Fechar">
+          <button type="button" className="close" onClick={requestClose} aria-label="Fechar">
             <IconClose />
           </button>
         </header>
@@ -200,7 +207,7 @@ export function ManageStatesDrawer({
               {(provided) => (
                 <div ref={provided.innerRef} {...provided.droppableProps}>
                   {localOrder.map((state, index) => {
-                    const swatch = state.color ?? '#6b7280';
+                    const swatch = resolveStateColor(state);
                     return (
                       <Draggable key={state.publicId} draggableId={state.publicId} index={index}>
                         {(dragProvided, snapshot) => (

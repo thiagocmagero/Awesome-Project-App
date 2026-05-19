@@ -4,6 +4,7 @@
 // quando as outras tabs forem portadas.
 
 export type { ITaskState, ITaskSwimlane, IFieldRule, TaskFieldKey, TaskStateColumnType } from './states-types';
+export { resolveStateColor } from './states-types';
 
 export type TaskDurationUnit = 'DAY' | 'HOUR';
 
